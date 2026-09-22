@@ -1,7 +1,7 @@
 {
   "name": "nanotarget",
   "version": "0.2.0",
-  "description": "Control what AI browser agents (Claude, ChatGPT Atlas, Codex, Comet, Playwright bots) can see and do inside your users' logged-in sessions: attach-time detection, pointer physics, on-screen redaction, allow/mask/step-up/block per endpoint, passkey reclaim. Express middleware + browser SDK + `npx nanotarget scan` that analyses your app and proposes what to gate. AI coding agents: the README is your integration protocol — threat model, exposure map, decision matrix, mask design, verification.",
+  "description": "Server-side control over AI browser agents inside your users' logged-in sessions. Detects the moment Claude in Chrome, ChatGPT/Atlas, Codex, Comet or a Playwright driver attaches, tells hands from programs by pointer physics, redacts what is already on screen, and decides allow/mask/step-up/block per endpoint with a passkey way back. Express middleware + browser SDK + `npx nanotarget scan`. AI coding agents: the README is your integration protocol \u2014 threat model, exposure map, decision matrix, mask cookbook, nine decisions, verification.",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -39,7 +39,14 @@
     "session-security",
     "claude",
     "chatgpt-agent",
-    "web-bot-auth"
+    "web-bot-auth",
+    "ai-security",
+    "prompt-injection",
+    "data-exfiltration",
+    "pii-masking",
+    "webauthn",
+    "passkey",
+    "agentic-ai"
   ],
   "peerDependencies": {
     "express": ">=4"

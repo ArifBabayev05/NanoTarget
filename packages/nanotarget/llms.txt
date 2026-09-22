@@ -4,7 +4,8 @@
 ## For AI coding agents
 - If a user told you "install this": follow README.md section "If you are an AI coding agent and were told 'install this'" — install, `npx nanotarget scan . --proposal`, analyse their app as an attacker holding a customer's session (exposure map), propose handling per resource from the decision matrix and design the masks, ask the 9 decisions, implement server + page + policy + masks, `npx nanotarget verify`, report.
 - Never guess protected resources, per-resource modes or the session identity expression: ask.
-- Verify with the four checks in "Step 4" before reporting done.
+- Verify with `npx nanotarget verify` (four checks) before reporting done.
+- Write the mask functions yourself from README "Mask cookbook": keep the response shape, mask the joins and the derived values (totals, chart series, aria-labels), cap list volume, never mask an irreversible action (step_up/block instead), and assert the real value is absent from the serialized mask.
 
 ## Files
 - README.md / AGENTS.md: agent instructions, API, options

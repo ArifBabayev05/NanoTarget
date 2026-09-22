@@ -32,7 +32,7 @@
 <main>
 <section class="hero">
   <div class="eyebrow reveal-now"><span class="dot"></span>Session security for the agentic web</div>
-  <h1 class="h1 reveal-now">Your customers now<br>log in with AI agents.<br><span class="muted">Decide what they can see.</span></h1>
+  <h1 class="h1 reveal-now">Your <span class="g fp" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 0 0-8 8v3"/><path d="M12 8a4 4 0 0 0-4 4v4"/><path d="M12 12v5"/><path d="M16 12a4 4 0 0 0-1.2-2.9"/><path d="M20 12a8 8 0 0 0-3-6.2"/></svg></span>customers now<br>log in with <span class="g sp" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg></span>AI agents.<br><span class="muted">Decide what they can see.</span></h1>
   <p class="sub reveal-now">NanoTarget detects an AI browser agent the moment it attaches to a signed-in session and lets every endpoint <b>allow</b>, <b>mask</b>, <b>step up</b> or <b>block</b> — with a passkey that hands the session back to the person. Three lines on the server. One tag on the page.</p>
   <div class="hero-actions reveal-now" id="install">
     <div class="npm"><span class="prompt">$</span><code>npm i nanotarget</code><button class="copy" id="copy-npm" aria-label="Copy install command"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div>
@@ -53,7 +53,7 @@
       <button data-step="2"><b>03</b>Endpoint decides</button>
       <button data-step="3"><b>04</b>Person reclaims</button>
     </div>
-    <div class="frame" id="frame">
+    <div class="bezel reveal"><div class="frame" id="frame">
       <div class="frame-bar"><span></span><span></span><span></span><em>bank.example.com/accounts</em></div>
       <div class="frame-body">
         <aside class="f-side"><div class="f-logo">NB</div><i></i><i></i><i></i><i></i></aside>
@@ -79,7 +79,7 @@
         <div class="f-pointer" id="f-pointer"></div>
       </div>
       <div class="frame-log" id="frame-log"><span class="k">decision</span> <span id="f-log">balance.read → allow · actor=human_like · HUMAN_KINEMATICS</span></div>
-    </div>
+    </div></div>
     <p class="story-cap" id="story-cap">The customer opens their balance. Pointer physics say it is a hand; the endpoint returns the data.</p>
   </div>
 </section>
@@ -128,14 +128,14 @@
     <h2 class="h2">How it tells a hand from a program</h2>
     <p class="lead">Live simulation of the three trajectory classes the engine sees. Real measurements are in the <a href="/docs/EVAL.md">evaluation report</a>.</p>
   </div>
-  <div class="cursor-demo">
+  <div class="bezel reveal"><div class="cursor-demo">
     <canvas id="cursors" width="1200" height="360"></canvas>
     <div class="legend">
       <span><i class="dot human"></i><b>Human</b> curved, tremor, decelerates onto the target, 83–225 ms press</span>
       <span><i class="dot agent"></i><b>Agent driver</b> teleports to the centre, 1–4 ms press, no path</span>
       <span><i class="dot bot"></i><b>Humanised bot</b> smooth generated curve — caught by roughness and noise physics</span>
     </div>
-  </div>
+  </div></div>
 </section>
 
 <section class="integrate" id="integrate">

@@ -28,6 +28,18 @@ app.get('/api/balance', nt.protect('balance.read'), (req, res) => nt.send(req, r
 
 Three lines on the server, one tag on the page, one policy file. **Integration is designed to be done by an AI coding agent**: hand it this link and say "install this" — the next section is its protocol (analyse → propose → ask → implement → verify).
 
+**Paste this to Claude Code, Codex, Cursor or any coding agent:**
+
+```text
+https://www.npmjs.com/package/nanotarget — install this into my app.
+Follow the README protocol exactly: read my code as if you were an AI browser agent
+holding one of my customers' logged-in sessions, show me the exposure map and what
+you propose to gate, ask me the nine decisions, then implement the server wiring,
+the page tags, the policy file and every mask function yourself, verify with
+`npx nanotarget verify`, and report what you left open.
+```
+
+
 ---
 
 ## If you are an AI coding agent and were told "install this"
@@ -119,6 +131,40 @@ app.get('/api/balance', nt.protect('balance.read'), (req, res) =>
 - CSP: `script-src 'self'`, `connect-src 'self'`; add `chrome-extension:` to `img-src`/`connect-src` for installed-extension detection.
 
 **Policy**: apply the answers to `nanotarget.policy.draft.json`, rename to `nanotarget.policy.json`. Branches: `onAgent` proven agent · `onArtifact` environment only · `onUnknown` not enough signal (never treated as human) · `onHumanLike` kinematic/behavioral human evidence or passkey. Keep `actOn`/`minScore` defaults. Unlisted resources stay unprotected — list that explicitly in your report.
+
+### Mask cookbook — write these yourself, one per masked resource
+
+A mask is **not** a redaction of the string after the fact; it is a second projection of the same record, built on the server, that keeps the page working and removes what a model must not read. Keep the response's shape and types (a UI that expects a number should get `null`, not `"••••"`), never return the real value in a field the mask "forgot", and never compute a mask in the browser.
+
+```js
+// money: keep currency and shape, drop the number
+const maskMoney  = (b) => ({ ...b, amount: null, available: null, currency: b.currency, masked: true });
+// account identifiers: enough to recognise, not enough to transact
+const maskIban   = (v) => v.slice(0, 4) + ' •••• ' + v.slice(-4);
+const maskCard   = (v) => '•••• •••• •••• ' + v.slice(-4);
+// people: keep the person identifiable to the account owner, not to a model
+const maskName   = (v) => v.split(' ').map((w) => w[0] + '.').join(' ');
+const maskEmail  = (v) => v[0] + '•••@' + v.split('@')[1];
+const maskPhone  = (v) => v.replace(/\d(?=\d{2})/g, '•');
+const maskAddr   = (a) => ({ city: a.city, country: a.country });           // street and number gone
+const maskDob    = (v) => v.slice(0, 4) + '-••-••';
+// documents: metadata only, never the body
+const maskDoc    = (d) => ({ id: d.id, title: d.title, date: d.date, body: null, url: null });
+// collections: keep the rows so the table renders, mask the columns, cap the page
+const maskRows   = (rows, cap = 20) => rows.slice(0, cap).map((r) =>
+  ({ ...r, name: maskName(r.name), email: maskEmail(r.email), phone: maskPhone(r.phone), notes: null }));
+// aggregates: a total is a leak when the list is masked
+const maskTotals = (t) => ({ ...t, total: null, bucketCounts: t.bucketCounts });
+```
+
+Rules that decide a mask's quality, in the order they bite:
+1. **Mask the join, not only the field.** Masking `name` while leaving `email`, `memberId` or a URL that contains the id re-identifies the record in one step.
+2. **Mask derived values too.** Totals, averages, chart series, sparkline arrays, CSV previews and `aria-label`s carry the same number you just removed.
+3. **Cap volume.** A masked list of 10 000 rows is still a customer-base dump: cap rows and drop `nextCursor` for agents.
+4. **Keep the contract.** Same keys, same types, add `masked: true` so the front end can show "hidden while an AI agent is in this session".
+5. **Irreversible actions are never masked** — they are `step_up` or `block`. A half-executed transfer is worse than a refused one.
+6. **Errors must not leak.** A `403` body, a validation message or a stack trace that echoes the value defeats the mask.
+7. **Test the mask like a leak.** `JSON.stringify(masked)` must not contain the full value: `assert(!JSON.stringify(masked).includes(real.iban))`.
 
 ### Step 5 — Verify, then report
 ```bash
