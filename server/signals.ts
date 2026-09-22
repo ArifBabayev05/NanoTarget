@@ -55,6 +55,18 @@ export type EarlySignal = {
   };
   webmcpInvocations: number;
   /** what happens when an agent *reads* the page, before any click */
+  /** reading from outside the page's JS world: a side panel took viewport width, long tasks with no input */
+  surface: {
+    panelOpenedMs: number | null;
+    panelWidthPx: number;
+    panelClosedMs: number | null;
+    /** the window was already much wider than the viewport at load: a panel was open before the page was */
+    panelAtLoad: boolean;
+    scans: number;
+    firstScanMs: number | null;
+    longestScanMs: number;
+    scanAfterPanelMs: number | null;
+  };
   reading: {
     loadedHidden: boolean;
     readBursts: number;
@@ -73,6 +85,7 @@ export type EarlySignal = {
   };
 };
 
+export const EMPTY_SURFACE: EarlySignal['surface'] = { panelOpenedMs: null, panelWidthPx: 0, panelClosedMs: null, panelAtLoad: false, scans: 0, firstScanMs: null, longestScanMs: 0, scanAfterPanelMs: null };
 export const EMPTY_READING: EarlySignal['reading'] = { loadedHidden: false, readBursts: 0, firstReadBurstMs: null, lastReadBurstReads: 0, readBurstAnonymous: false, textExtracts: 0, firstTextExtractMs: null, visibilityFlickers: 0, firstFlickerMs: null, flickerResize: null, renderWhileHiddenMs: null, firstClick: null };
 
 /**
@@ -223,6 +236,20 @@ export function parseEarly(input: unknown): EarlySignal | null {
   }
   const focusWhileHiddenMs = env.focusWhileHiddenMs === undefined ? null : numOrNull(env.focusWhileHiddenMs, 0, MAX_MS);
   if (focusWhileHiddenMs === undefined) return null;
+  let surface: EarlySignal['surface'] = { ...EMPTY_SURFACE };
+  if (o.surface !== undefined) {
+    const u = obj(o.surface);
+    if (!u) return null;
+    const panelOpenedMs = numOrNull(u.panelOpenedMs, -1000, 86400000);
+    const panelClosedMs = numOrNull(u.panelClosedMs, -1000, 86400000);
+    const firstScanMs = numOrNull(u.firstScanMs, -1000, 86400000);
+    const scanAfterPanelMs = numOrNull(u.scanAfterPanelMs, 0, 86400000);
+    const panelWidthPx = num(u.panelWidthPx, 0, 10000);
+    const scans = num(u.scans, 0, 100000);
+    const longestScanMs = num(u.longestScanMs, 0, 600000);
+    if (panelOpenedMs === undefined || panelClosedMs === undefined || firstScanMs === undefined || scanAfterPanelMs === undefined || panelWidthPx === null || scans === null || longestScanMs === null) return null;
+    surface = { panelOpenedMs, panelWidthPx, panelClosedMs, panelAtLoad: u.panelAtLoad === true, scans, firstScanMs, longestScanMs, scanAfterPanelMs };
+  }
   let reading: EarlySignal['reading'] = { ...EMPTY_READING };
   if (o.reading !== undefined) {
     const r = obj(o.reading);
@@ -265,6 +292,7 @@ export function parseEarly(input: unknown): EarlySignal | null {
   }
   return {
     reading,
+    surface,
     startedMs,
     observedMs,
     webdriver,

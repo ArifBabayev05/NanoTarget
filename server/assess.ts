@@ -38,6 +38,9 @@ export type ReasonCode =
   | 'FOCUS_WHILE_HIDDEN'
   | 'MAIN_WORLD_READ_BURST'
   | 'MAIN_WORLD_TEXT_EXTRACT'
+  | 'PANEL_PAGE_READ'
+  | 'SIDE_PANEL_OPENED'
+  | 'IDLE_PAGE_SCAN'
   | 'AGENT_TOOL_GLOBALS'
   | 'VISIBILITY_FLICKER'
   | 'RENDER_WHILE_HIDDEN'
@@ -221,6 +224,23 @@ export function assess(input: AssessInput): Assessment {
     tiers.add('strong');
     score = Math.max(score, 85);
     reasons.push({ code: 'MAIN_WORLD_TEXT_EXTRACT', kind: 'agent', tier: 'strong', detail: `${rd.firstTextExtractMs} ms-də bütün sənədin mətni <anonymous> skript tərəfindən çıxarıldı.` });
+  }
+  // Reading from an isolated world: the page cannot see the read itself, only its two shadows —
+  // a panel that took viewport width, and main-thread work nobody asked for. The pair is control-tier;
+  // each alone stays in the artifact tier, because a translator panel and a heavy widget also exist.
+  const sf = input.early?.surface;
+  if (sf && sf.panelOpenedMs != null && sf.panelClosedMs == null && sf.scans > 0) {
+    tiers.add('control');
+    score = Math.max(score, 80);
+    reasons.push({ code: 'PANEL_PAGE_READ', kind: 'agent', tier: 'control', detail: `Yan panel ${sf.panelOpenedMs} ms-də ${sf.panelWidthPx}px götürdü; ${sf.scanAfterPanelMs ?? '?'} ms sonra səhifəyə toxunulmadan ${sf.longestScanMs} ms-lik əsas-axın işi oldu. Ekstenşn məzmun skripti səhifəni belə oxuyur: oxunuşun özü səhifənin JS dünyasında görünmür.` });
+  } else if (sf && sf.panelOpenedMs != null) {
+    tiers.add('artifact');
+    score = Math.max(score, 45);
+    reasons.push({ code: 'SIDE_PANEL_OPENED', kind: 'agent', tier: 'artifact', detail: sf.panelAtLoad ? `Səhifə yüklənəndə yanda ${sf.panelWidthPx}px-lik panel açıq idi. Tərcümə paneli, devtools və brauzer zoom-u da belə görünür; tək başına aktor sübutu deyil.` : `${sf.panelOpenedMs} ms-də yan panel açıldı (innerWidth ${sf.panelWidthPx}px azaldı, outerWidth/dpr sabit). Tərcümə paneli və ya devtools da eynidir; tək başına aktor sübutu deyil.` });
+  } else if (sf && sf.scans > 0) {
+    tiers.add('artifact');
+    score = Math.max(score, 45);
+    reasons.push({ code: 'IDLE_PAGE_SCAN', kind: 'agent', tier: 'artifact', detail: `${sf.scans} dəfə ${sf.longestScanMs} ms-lik əsas-axın işi istifadəçi toxunmadan baş verdi. Ağır vidjet də yarada bilər; tək başına aktor sübutu deyil.` });
   }
   const injected = toolInjectedGlobals(input.early?.environment.agentGlobals ?? []);
   if (injected.length) {

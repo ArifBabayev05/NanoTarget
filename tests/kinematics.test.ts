@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { clickFeatures, judgeClick, type TrajPoint } from '../server/kinematics.ts';
 import { assess } from '../server/assess.ts';
-import { EMPTY_READING, type EarlySignal, type InteractionSample } from '../server/signals.ts';
+import { EMPTY_READING, EMPTY_SURFACE, type EarlySignal, type InteractionSample } from '../server/signals.ts';
 
 /** Minimum-jerk style human movement: bell velocity, tremor, irregular sampling, decelerating onto the target. */
 function humanTraj(seed = 1): TrajPoint[] {
@@ -54,7 +54,7 @@ test('teleport click (no movement, instant release, pressure 0, dead centre) is 
   assert.notEqual(jr.verdict, 'synthetic', JSON.stringify(jr));
 });
 
-const early = (): EarlySignal => ({ startedMs: 0, observedMs: 500, webdriver: false, firstInteractionMs: 300, dataDomMs: null, markers: [], environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: ['claude-chrome'], focusWhileHiddenMs: null }, focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0, reading: { ...EMPTY_READING } });
+const early = (): EarlySignal => ({ startedMs: 0, observedMs: 500, webdriver: false, firstInteractionMs: 300, dataDomMs: null, markers: [], environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: ['claude-chrome'], focusWhileHiddenMs: null }, focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0, reading: { ...EMPTY_READING }, surface: { ...EMPTY_SURFACE } });
 const withTraj = (traj: TrajPoint[], over: Partial<NonNullable<InteractionSample['click']>>): InteractionSample => ({ atMs: 1000, webdriver: false, keys: 0, keyIntervals: [], inputEvents: 0, paste: false, click: { trusted: true, pointer: 'mouse', detail: 1, holdMs: 96, moves: traj.length, path: 600, travelMs: 480, pressure: 0.5, hidden: false, traj, downMs: -96, target: { w: 120, h: 44, dx: 14, dy: -6 }, coalesced: 0, at: null, ...over } });
 
 test('assess: two kinematically human clicks make the session human_like despite an installed extension', () => {

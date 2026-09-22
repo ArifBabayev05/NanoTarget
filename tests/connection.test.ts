@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { classifyConnection } from '../server/connection.ts';
-import { EMPTY_READING, type EarlySignal, type ServerSignal } from '../server/signals.ts';
+import { EMPTY_READING, EMPTY_SURFACE, type EarlySignal, type ServerSignal } from '../server/signals.ts';
 
 const early = (over: Partial<EarlySignal> = {}): EarlySignal => ({
   startedMs: 0, observedMs: 1000, webdriver: false, firstInteractionMs: null, dataDomMs: null, markers: [],
   environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: [], focusWhileHiddenMs: null },
-  focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0, reading: { ...EMPTY_READING }, ...over,
+  focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0, reading: { ...EMPTY_READING }, surface: { ...EMPTY_SURFACE }, ...over,
 });
 const env = (over: Partial<EarlySignal['environment']>): EarlySignal => { const e = early(); return { ...e, environment: { ...e.environment, ...over } }; };
 const server = (over: Partial<ServerSignal> = {}): ServerSignal => ({ signature: { status: 'absent', reason: '', operator: null, present: { signature: false, signatureInput: false, signatureAgent: false } }, secFetch: { site: null, mode: null, dest: null, user: null }, uaMajor: 153, environment: { agentAppToken: null, clientHints: true }, checkedMs: 1, ...over });
@@ -117,4 +117,21 @@ test('environment evidence is kept alongside attached evidence', () => {
   const c = classifyConnection(server(), env({ extensionsInstalled: ['claude-chrome'], focusWhileHiddenMs: 400 }));
   assert.equal(c.state, 'agent_attached');
   assert.ok(c.evidence.some((e) => e.code === 'AGENT_EXTENSION_INSTALLED'));
+});
+
+test('an extension side panel that reads the page is attached; either fact alone is only environment', () => {
+  // The ChatGPT/Claude side panel reads the DOM from an isolated world: the page never sees the read,
+  // only that a panel took viewport width and that the main thread worked with nobody touching the page.
+  const panel = { panelOpenedMs: 4000, panelWidthPx: 380, panelClosedMs: null, panelAtLoad: false, scans: 0, firstScanMs: null, longestScanMs: 0, scanAfterPanelMs: null };
+  const onlyPanel = classifyConnection(null, early({ surface: { ...panel } }));
+  assert.equal(onlyPanel.state, 'agent_environment');
+  assert.ok(onlyPanel.evidence.some((e) => e.code === 'SIDE_PANEL_OPENED'));
+
+  const onlyScan = classifyConnection(null, early({ surface: { ...panel, panelOpenedMs: null, panelWidthPx: 0, scans: 2, firstScanMs: 9000, longestScanMs: 240 } }));
+  assert.equal(onlyScan.state, 'agent_environment');
+  assert.ok(onlyScan.evidence.some((e) => e.code === 'IDLE_PAGE_SCAN'));
+
+  const both = classifyConnection(null, early({ surface: { ...panel, scans: 1, firstScanMs: 9000, longestScanMs: 240, scanAfterPanelMs: 5000 } }));
+  assert.equal(both.state, 'agent_attached');
+  assert.ok(both.evidence.some((e) => e.code === 'PANEL_PAGE_READ'));
 });

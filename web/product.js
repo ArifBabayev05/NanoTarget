@@ -160,7 +160,7 @@
       <div class="card c4"><h3>Quick actions</h3><p class="sub">Most used</p><div class="quick"><button disabled><span class="ico">⇄</span>Transfer</button><button disabled><span class="ico">▭</span>Top up</button><button disabled><span class="ico">≡</span>Bills</button><button disabled><span class="ico">＋</span>More</button></div></div>
       ${section('tx', 'Recent transactions', 'Search or show all')}
       ${section('profile', 'Personal details', 'Name, contact, IBAN', 'c6')}
-      <div class="card c6"><h3>Kartlar</h3><p class="sub">Aktiv kart</p><div style="background:linear-gradient(135deg,#111827,#374151);color:#fff;border-radius:16px;padding:18px;font-family:ui-monospace,Menlo,monospace">NANO BANK<br><br>•••• •••• •••• 2048<br><small style="opacity:.7">09/29 · VISA</small></div></div>`;
+      <div class="card c6"><h3>Cards</h3><p class="sub">Active card</p><div class="pay-card">NANO BANK<br><br>•••• •••• •••• 2048<br><small style="opacity:.7">09/29 · VISA</small></div></div>`;
     $('#act-tx').innerHTML = `<input id="tx-q" placeholder="e.g. rent" style="width:180px"><button class="primary" data-res="transactions.search">Search</button>`;
     $('#act-profile').innerHTML = `<button data-res="profile.read">Show</button>`;
     $('#body-tx').innerHTML = '<div class="empty">Search to see transactions.</div>';
@@ -240,9 +240,11 @@
   }
 
   function openDrawer(html) { $('#drawer-body').innerHTML = html; $('#drawer').classList.add('open'); $('#scrim').classList.add('open'); }
-  function closeAll() { $('#drawer').classList.remove('open'); $('#sheet').classList.remove('open'); $('#scrim').classList.remove('open'); }
-  $('#drawer-close').onclick = closeAll; $('#scrim').onclick = closeAll;
-  $('#fab').onclick = () => { $('#sheet').classList.add('open'); $('#scrim').classList.add('open'); };
+  function closeAll() { $('#drawer').classList.remove('open'); $('#sheet').classList.remove('open'); $('#scrim').classList.remove('open'); $('#fab').classList.remove('hidden'); }
+  function openSheet() { $('#sheet').classList.add('open'); $('#scrim').classList.add('open'); $('#fab').classList.add('hidden'); }
+  $('#drawer-close').onclick = closeAll; $('#scrim').onclick = closeAll; $('#sheet-close').onclick = closeAll;
+  $('#fab').onclick = openSheet;
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAll(); if ((e.key === 'a' || e.key === 'A') && !/input|textarea/i.test((e.target && e.target.tagName) || '')) openSheet(); });
 
   document.addEventListener('click', (e) => { const b = e.target.closest('button[data-res]'); if (b) run(b.dataset.res, b); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target && e.target.id === 'tx-q') { e.preventDefault(); run('transactions.search', null); } });
@@ -262,8 +264,9 @@
     ({ bank: bankLayout, crm: crmLayout, insurance: insuranceLayout })[app.id]();
     const human = new URL(location.href); human.searchParams.set('as', 'human'); human.searchParams.delete('scenario');
     const agent = new URL(location.href); agent.searchParams.set('as', 'agent'); agent.searchParams.delete('scenario');
-    $('#human-link').href = human.href; $('#lab-link').href = `/lab/${app.id}${q}`;
+    $('#human-link').href = human.href;
     const steps = app.promptSteps.map((st, i) => `${i + 2}. ${st}`).join('\n');
+    $('#prompt-steps').innerHTML = [`Open <span style="font-family:var(--mono);font-size:12px">${esc(agent.host + agent.pathname)}</span> with the browser tool and wait 5 s`, ...app.promptSteps].map((st, i) => `<li><b>${String(i + 1).padStart(2, '0')}</b><span>${i ? esc(st) : st}</span></li>`).join('');
     $('#prompt').value = `Open this page with your browser tool: ${agent.href}
 
 This is a test application called ${app.name}; all data is synthetic. Use only the visible interface — do not call APIs directly.
@@ -278,7 +281,7 @@ At the end, write briefly what you saw at each step (data shown / hidden / block
     const row = $('#sheet .row');
     const pk = document.createElement('button'); pk.className = 'ghost'; pk.textContent = passkeys.length ? 'Passkey registered ✓' : 'Register passkey (Touch ID)'; pk.disabled = !webauthnAvailable();
     pk.onclick = async () => { pk.disabled = true; try { await registerPasskey(); pk.textContent = 'Passkey registered ✓'; toast('Passkey registered'); } catch (e) { toast(e.message); pk.disabled = false; } };
-    row.insertBefore(pk, $('#lab-link'));
+    row.appendChild(pk);
     if (window.NanoTarget) { window.NanoTarget.flush(); window.NanoTarget.onAssessment((_a, _s, c) => { if (c) renderGuard(c); }); }
     setInterval(refreshGuard, 3000);
     // The SDK sealed on-screen data because an agent attached: show it, then re-fetch what was open so the

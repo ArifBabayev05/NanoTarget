@@ -117,6 +117,18 @@
       // when on-screen data was redacted because an agent indicator appeared (see seal())
       seal: null,
     },
+    /**
+     * Reading from *outside* the page's JavaScript world. An extension's content script (the ChatGPT or
+     * Claude side panel, a browser assistant) has its own copy of the DOM prototypes, so the getters above
+     * never fire for it. Two things it cannot hide, both standard APIs:
+     *   panel   — opening a side panel takes width from the viewport: innerWidth shrinks while outerWidth,
+     *             devicePixelRatio and the screen stay the same. A window resize or a zoom changes those too.
+     *   scans   — a content script runs on the page's own main thread, so extracting the text or the
+     *             accessibility tree of a document shows up as a long task in this page's timeline. A person
+     *             reading the screen produces none: no input, no task.
+     * Neither is proof on its own; together, while the page sits idle, they are an attach indicator.
+     */
+    surface: { panelOpenedMs: null, panelWidthPx: 0, panelClosedMs: null, panelAtLoad: false, scans: 0, firstScanMs: null, longestScanMs: 0, scanAfterPanelMs: null },
   };
 
   // --- reading-time probes (installed before any other script runs) ---------------------------
@@ -182,6 +194,62 @@
       wrapMethod(Element.prototype, 'getBoundingClientRect');
       wrapMethod(Element.prototype, 'getClientRects');
     } catch { /* ignore */ }
+
+    // 1b. A panel opened beside the page, and long main-thread tasks with nobody touching the page.
+    (() => {
+      const U = early.surface;
+      let lastInput = 0;
+      const INPUT = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'scroll', 'click', 'touchstart'];
+      for (const ev of INPUT) addEventListener(ev, () => { lastInput = now(); }, { capture: true, passive: true });
+      let baseOuter = window.outerWidth, baseInner = window.innerWidth, baseDpr = window.devicePixelRatio, baseScreen = (screen && screen.width) || 0;
+      // The panel may already be open when the page loads: then no resize fires, but the window is much
+      // wider than the viewport. Horizontal chrome is a scrollbar's worth; 150px+ is something docked
+      // beside the page. Browser zoom also shrinks the CSS viewport, so this stays environment-only
+      // evidence: it never seals on its own, only paired with a scan nobody asked for.
+      if (baseOuter - baseInner >= 150) { U.panelOpenedMs = 0; U.panelWidthPx = Math.round(baseOuter - baseInner); U.panelAtLoad = true; }
+      addEventListener('resize', () => {
+        const t = now(), w = window.innerWidth;
+        const outerSame = Math.abs(window.outerWidth - baseOuter) <= 2 && ((screen && screen.width) || 0) === baseScreen;
+        const zoomed = Math.abs(window.devicePixelRatio - baseDpr) > 0.01;
+        if (!outerSame || zoomed) {                 // the window itself moved or the page was zoomed: re-baseline
+          baseOuter = window.outerWidth; baseInner = w; baseDpr = window.devicePixelRatio; baseScreen = (screen && screen.width) || 0;
+          return;
+        }
+        if (w >= baseInner) {                       // the viewport grew inside an unchanged window: that is the new baseline
+          baseInner = w;
+          if (U.panelOpenedMs !== null && U.panelClosedMs === null) U.panelClosedMs = t;
+          return;
+        }
+        const took = baseInner - w;                 // the viewport lost width while the window stayed put: a panel took it
+        if (took >= 150 && U.panelOpenedMs === null) {
+          U.panelOpenedMs = t; U.panelWidthPx = Math.round(took);
+          if (typeof flush === 'function') flush().catch(() => {});
+        }
+      }, { passive: true });
+      try {
+        if (typeof PerformanceObserver === 'function' && PerformanceObserver.supportedEntryTypes && PerformanceObserver.supportedEntryTypes.indexOf('longtask') >= 0) {
+          new PerformanceObserver((list) => {
+            const t = now();
+            if (t < 2500) return;                                   // skip this page's own boot work
+            if (document.visibilityState !== 'visible') return;      // hidden-tab work is covered elsewhere
+            if (t - lastInput < 1500) return;                        // the person is using the page
+            for (const e of list.getEntries()) {
+              if (e.duration < 120) continue;
+              U.scans++;
+              U.longestScanMs = Math.max(U.longestScanMs, Math.round(e.duration));
+              if (U.firstScanMs === null) {
+                U.firstScanMs = t;
+                if (U.panelOpenedMs !== null) U.scanAfterPanelMs = Math.max(0, t - U.panelOpenedMs);
+                if (typeof flush === 'function') flush().catch(() => {});
+              }
+              // A panel beside the page plus a scan the person did not cause: something in that panel is
+              // reading this document. Redact what is on screen before it is read again.
+              if (U.panelOpenedMs !== null && U.panelClosedMs === null) seal('panel_scan');
+            }
+          }).observe({ entryTypes: ['longtask'] });
+        }
+      } catch { /* ignore */ }
+    })();
 
     // 2. Visibility flicker: a screenshot of a hidden document makes it visible for a frame, resizes it to the
     //    capture viewport, and hides it again. A person cannot show and hide a page within a few ms.
@@ -443,7 +511,7 @@
   let flushing = null;
   function snapshot(withInteraction) {
     scan();
-    return { early: { ...early, markers: early.markers.map((m) => ({ ...m })), environment: { ...early.environment }, reading: { ...early.reading }, focusConflict: { ...early.focusConflict } }, interaction: withInteraction ? takeInteraction() : null };
+    return { early: { ...early, markers: early.markers.map((m) => ({ ...m })), environment: { ...early.environment }, reading: { ...early.reading }, surface: { ...early.surface }, focusConflict: { ...early.focusConflict } }, interaction: withInteraction ? takeInteraction() : null };
   }
   async function post(snap) {
     const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', ...sessionHeaders() }, body: JSON.stringify(snap), credentials: 'same-origin', cache: 'no-store', keepalive: true });
@@ -462,7 +530,7 @@
   }
   // Push when early state changes (debounced), plus a slow heartbeat.
   setInterval(() => {
-    const key = JSON.stringify([early.markers, early.environment, early.reading, early.focusConflict.count, early.webdriver, early.firstInteractionMs !== null, early.dataDomMs !== null, early.webmcpInvocations, Math.min(6, Math.floor(now() / 500))]);
+    const key = JSON.stringify([early.markers, early.environment, early.reading, early.surface.panelOpenedMs, early.surface.scans, early.focusConflict.count, early.webdriver, early.firstInteractionMs !== null, early.dataDomMs !== null, early.webmcpInvocations, Math.min(6, Math.floor(now() / 500))]);
     if (key !== earlyKey) { earlyKey = key; flush().catch(() => {}); }
   }, 500);
   setInterval(() => flush().catch(() => {}), 15000);

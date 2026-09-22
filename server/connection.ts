@@ -37,7 +37,7 @@ export type Connection = {
   version: string;
 };
 
-export const CONNECTION_VERSION = 'connection-v2';
+export const CONNECTION_VERSION = 'connection-v3';
 
 const TOOL_OF_MARKER: Record<string, string> = {
   'claude-stop': 'claude-chrome', 'claude-cursor': 'claude-chrome', 'claude-glow': 'claude-chrome', 'claude-styles': 'claude-chrome',
@@ -97,6 +97,21 @@ export function classifyConnection(server: ServerSignal | null, early: EarlySign
   }
   if (rd && rd.renderWhileHiddenMs != null) {
     environment.push({ code: 'RENDER_WHILE_HIDDEN', atMs: rd.renderWhileHiddenMs, detail: 'sənəd gizli ikən requestAnimationFrame işləyir (göstərilmədən render olunur); insan baseline-ı lazımdır' });
+  }
+  // Reading from outside the page's JS world (an extension side panel). Neither fact proves an agent on
+  // its own: a panel may be a translator or devtools, a long task may be a heavy widget. Together, with
+  // nobody touching the page, they are what an assistant reading this document looks like from inside it.
+  const sf = early?.surface;
+  if (sf) {
+    const panel = sf.panelOpenedMs != null && sf.panelClosedMs == null;   // still open beside the page
+    const scanned = sf.scans > 0 && sf.firstScanMs != null;
+    if (panel && scanned) {
+      attached.push({ code: 'PANEL_PAGE_READ', atMs: Math.max(sf.panelOpenedMs!, sf.firstScanMs!), detail: `yan panel ${sf.panelWidthPx}px götürdü, ${sf.scanAfterPanelMs ?? '?'} ms sonra səhifə toxunulmadan ${sf.longestScanMs} ms-lik əsas-axın işi oldu (izolyasiya olunmuş dünyadan oxunuş)` });
+      tools.add('browser-panel');
+    } else {
+      if (panel) environment.push({ code: 'SIDE_PANEL_OPENED', atMs: sf.panelOpenedMs!, detail: sf.panelAtLoad ? `səhifə yüklənəndə pəncərə viewport-dan ${sf.panelWidthPx}px geniş idi: yanda panel açıq idi (brauzer zoom-u da belə görünə bilər)` : `yan panel açıldı: innerWidth ${sf.panelWidthPx}px azaldı, outerWidth və dpr dəyişmədi` });
+      if (scanned) environment.push({ code: 'IDLE_PAGE_SCAN', atMs: sf.firstScanMs!, detail: `${sf.scans} dəfə ${sf.longestScanMs} ms-ə qədər əsas-axın işi, istifadəçi toxunmadan` });
+    }
   }
   if (rd?.loadedHidden) {
     environment.push({ code: 'LOADED_HIDDEN', atMs: early?.startedMs ?? 0, detail: 'səhifə gizli vəziyyətdə yükləndi' });
