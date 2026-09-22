@@ -37,7 +37,8 @@
   $$('.grid3 .feat').forEach((el, i) => el.style.setProperty('--i', i));
   const io = 'IntersectionObserver' in window ? new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px', threshold: 0.05 }) : null;
   $$('.reveal').forEach((el) => io ? io.observe(el) : el.classList.add('in'));
-  setTimeout(() => $$('.reveal:not(.in)').forEach((el) => { if (el.getBoundingClientRect().top < innerHeight) el.classList.add('in'); }), 1200);
+  const sweep = () => { const left = $$('.reveal:not(.in)'); left.forEach((el) => { if (el.getBoundingClientRect().top < innerHeight * 1.05) el.classList.add('in'); }); if (!left.length) removeEventListener('scroll', sweep); };
+  addEventListener('scroll', sweep, { passive: true }); addEventListener('load', sweep); setTimeout(sweep, 1200);
 
   // ---------------------------------------------------------------- code tabs
   const tabs = $('#code-tabs');
