@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { assess } from '../server/assess.ts';
-import { EMPTY_READING, type EarlySignal, type InteractionSample, type ServerSignal } from '../server/signals.ts';
+import { EMPTY_READING, EMPTY_SURFACE, type EarlySignal, type InteractionSample, type ServerSignal } from '../server/signals.ts';
 
 const early = (over: Partial<EarlySignal> = {}): EarlySignal => ({
   startedMs: 0, observedMs: 1000, webdriver: false, firstInteractionMs: null, dataDomMs: null, markers: [],
   environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: [], focusWhileHiddenMs: null },
-  focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0, reading: { ...EMPTY_READING }, ...over,
+  focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0, reading: { ...EMPTY_READING }, surface: { ...EMPTY_SURFACE }, ...over,
 });
 const envOf = (e: EarlySignal, over: Partial<EarlySignal['environment']>): EarlySignal => ({ ...e, environment: { ...e.environment, ...over } });
 const atomicClick = (): InteractionSample => ({ atMs: 1, webdriver: false, click: { trusted: true, pointer: 'mouse', detail: 1, holdMs: 4, moves: 0, path: 0, travelMs: 0, pressure: null, hidden: null }, keys: 0, keyIntervals: [], inputEvents: 0, paste: false });
@@ -146,4 +146,15 @@ test('environment traces never override a behaviorally human session (live false
   assert.equal(inApp.actor, 'human_like');
   assert.ok(inApp.reasons.some((r) => r.code === 'AGENT_APP_BROWSER'));
   assert.ok(inApp.score !== null && inApp.score <= 22);
+});
+
+test('panel + unattributed main-thread work is control tier; a panel alone stays an artifact', () => {
+  const base = { panelOpenedMs: 4000, panelWidthPx: 380, panelClosedMs: null, panelAtLoad: false, scans: 0, firstScanMs: null, longestScanMs: 0, scanAfterPanelMs: null };
+  const pair = assess({ server: null, early: early({ surface: { ...base, scans: 1, firstScanMs: 9000, longestScanMs: 240, scanAfterPanelMs: 5000 } }), interactions: [], current: null });
+  assert.equal(pair.actor, 'agent_likely', JSON.stringify(pair.reasons));
+  assert.ok(pair.reasons.some((r) => r.code === 'PANEL_PAGE_READ' && r.tier === 'control'));
+
+  const alone = assess({ server: null, early: early({ surface: { ...base } }), interactions: [], current: null });
+  assert.ok(alone.reasons.some((r) => r.code === 'SIDE_PANEL_OPENED' && r.tier === 'artifact'));
+  assert.notEqual(alone.actor, 'agent_likely');
 });

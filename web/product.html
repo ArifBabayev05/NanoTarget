@@ -27,17 +27,17 @@
   </main>
 </div>
 
-<button class="fab" id="fab">Test with an AI agent</button>
+<button class="fab" id="fab"><span class="spark">✦</span>Test with an AI agent<span class="kbd">A</span></button>
 <div class="scrim" id="scrim"></div>
-<div class="sheet" id="sheet">
-  <h3>Let an AI agent try this page</h3>
-  <p>Paste the text below into Claude, ChatGPT/Codex or any other browser agent. The agent signs in to the same account — the sensitive parts stay closed to it.</p>
-  <textarea id="prompt" readonly></textarea>
+<div class="sheet" id="sheet" role="dialog" aria-labelledby="sheet-title">
+  <button class="close ghost" id="sheet-close" aria-label="Close">✕</button>
+  <div class="sheet-head"><div class="badge">✦</div><div><h3 id="sheet-title">Let an AI agent try this page</h3><p>Same account, same session. Watch which parts stay closed to it.</p></div></div>
+  <ol class="steps" id="prompt-steps"></ol>
+  <details><summary>Show the full prompt</summary><textarea id="prompt" readonly></textarea></details>
   <div class="row">
-    <button class="primary" id="copy-prompt">Copy prompt</button>
-    <button class="ghost" id="copy-link">Copy page link</button>
+    <button class="primary btn-agent" id="copy-prompt">Copy prompt for the agent</button>
+    <button class="ghost" id="copy-link">Copy link</button>
     <a id="human-link" href="#"><button class="ghost">Try it myself</button></a>
-    <a id="lab-link" href="#" class="ghost" style="margin-left:auto;font-size:13px;color:var(--muted)">Technical view →</a>
   </div>
 </div>
 
