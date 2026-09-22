@@ -1,0 +1,17 @@
+node_modules/
+data/
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
+api/
+.vercel
+.env
+.env.*
+packages/onehuman/dist/
+packages/onehuman/sdk/
+examples/express-bank/onehuman.db*
+.claude/
+.agents/
+skills-lock.json
+onehuman.policy.draft.json

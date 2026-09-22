@@ -1,0 +1,9 @@
+{
+  "version": "acme-bank-policy-1",
+  "enforcement": "enforce",
+  "rules": [
+    { "resource": "balance.read",  "title": "Balans",             "onAgent": "block", "onArtifact": "mask",   "onUnknown": "allow", "onHumanLike": "allow", "actOn": ["verified", "strong", "control", "behavioral"], "minScore": 65 },
+    { "resource": "profile.read",  "title": "Profil",             "onAgent": "mask",  "onArtifact": "allow",  "onUnknown": "allow", "onHumanLike": "allow", "actOn": ["verified", "strong", "control", "behavioral"], "minScore": 65 },
+    { "resource": "transfer.make", "title": "Köçürmə",            "onAgent": "block", "onArtifact": "step_up","onUnknown": "step_up","onHumanLike": "allow", "actOn": ["verified", "strong", "control", "behavioral"], "minScore": 65 }
+  ]
+}
