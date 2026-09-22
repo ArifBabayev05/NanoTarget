@@ -229,7 +229,7 @@
       await wait(400); await aiSay('I can see the account, but the balance field shows •••• .', 600);
     } else if (i === 2) {
       S.agent.classList.add('in'); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'AI agent attached — screen sealed'; S.passkey.classList.remove('in');
-      const fb = S.body.getBoundingClientRect(), ar = S.agent.getBoundingClientRect(); const a = { x: ar.left - fb.left, y: ar.top - fb.top + ar.height * 0.6 };
+      const fb = S.body.getBoundingClientRect(), ar = S.agent.getBoundingClientRect(); const a = { x: ar.left - fb.left + 4, y: ar.bottom - fb.top - 4 };
       const e = edgeOf(S.btn, a, 6); movePointer(e.tip.x, e.tip.y, true); drawJump(a, e.stop); await wait(500); S.btn.classList.add('pressed'); await wait(60); S.btn.classList.remove('pressed');
       await wait(300); S.amount.textContent = '$•,•••.••'; S.amount.classList.remove('sealed'); notice('Masked for AI agents · balance.read → mask', 'warn');
       note('The assistant clicks — the server answers differently', 'No pointer path and an instant press: a program. Your policy says balance → mask, so the same endpoint returns the number hidden.', 'warn', 'no path · jumped to the centre · 2 ms press');
