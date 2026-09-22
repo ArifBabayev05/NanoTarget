@@ -8,11 +8,13 @@
   const t0 = performance.now();
   const now = () => Math.round(performance.now() - t0);
 
+  const labKey = document.querySelector('meta[name="nt-lab-key"]')?.content || '';
+  const labUrl = (path) => `${location.origin}${path}?as=agent${labKey ? `&key=${encodeURIComponent(labKey)}` : ''}`;
   const PROMPTS = {
-    claude: `Brauzer alətinlə ${location.origin}/training?as=agent səhifəsini aç. Səhifədə hər dəfə bir tapşırıq yazılır (məsələn "nömrəli düyməyə kliklə", "sahəyə mətn yaz və Göndər düyməsinə bas", "aşağı sürüşüb düyməni tap", "kartı sürüklə"). Tapşırığı olduğu kimi yerinə yetir; hər tapşırıqdan sonra növbətisi çıxır. Hamısı bitəndə "bitdi" yazısı və kod görünür — kodu mənə yaz. İlişsən, keç bilmirsənsə, nə ilişdiyini yaz və dayan.`,
-    codex: `${location.origin}/training?as=agent səhifəsini brauzerdə aç və ekranda yazılan tapşırıqları sırayla yerinə yetir (klik, mətn yazma, sürüşmə, seçim, sürükləmə). Hər tapşırıqdan sonra növbətisi görünür. Sonda "bitdi" və bir kod çıxır — kodu mənə göndər. Tapşırığı edə bilməsən, hansı olduğunu yaz.`,
-    comet: `Open ${location.origin}/training?as=agent. The page shows one task at a time (click a numbered button, type text and press Send, scroll down and click, choose from a list, drag a card). Do exactly what each task says; the next task appears after each one. When "bitdi" and a code appear, send me the code. If you get stuck, tell me which task and stop.`,
-    generic: `Open ${location.origin}/training?as=agent in your browser tool. Complete the on-screen tasks one by one (clicks, typing, scrolling, selecting, dragging). When the page says "bitdi" and shows a code, report the code.`,
+    claude: `Brauzer alətinlə ${labUrl('/training')} səhifəsini aç. Səhifədə hər dəfə bir tapşırıq yazılır (məsələn "nömrəli düyməyə kliklə", "sahəyə mətn yaz və Göndər düyməsinə bas", "aşağı sürüşüb düyməni tap", "kartı sürüklə"). Tapşırığı olduğu kimi yerinə yetir; hər tapşırıqdan sonra növbətisi çıxır. Hamısı bitəndə "bitdi" yazısı və kod görünür — kodu mənə yaz. İlişsən, keç bilmirsənsə, nə ilişdiyini yaz və dayan.`,
+    codex: `${labUrl('/training')} səhifəsini brauzerdə aç və ekranda yazılan tapşırıqları sırayla yerinə yetir (klik, mətn yazma, sürüşmə, seçim, sürükləmə). Hər tapşırıqdan sonra növbətisi görünür. Sonda "bitdi" və bir kod çıxır — kodu mənə göndər. Tapşırığı edə bilməsən, hansı olduğunu yaz.`,
+    comet: `Open ${labUrl('/training')}. The page shows one task at a time (click a numbered button, type text and press Send, scroll down and click, choose from a list, drag a card). Do exactly what each task says; the next task appears after each one. When "bitdi" and a code appear, send me the code. If you get stuck, tell me which task and stop.`,
+    generic: `Open ${labUrl('/training')} in your browser tool. Complete the on-screen tasks one by one (clicks, typing, scrolling, selecting, dragging). When the page says "bitdi" and shows a code, report the code.`,
   };
   let agentKind = 'claude';
   const setPrompt = () => { $('#agent-prompt').value = PROMPTS[agentKind]; };

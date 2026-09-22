@@ -14,7 +14,8 @@
   let sourceParam = params.get('source');
   const isAgentApp = /\bClaude\/\d|\bCodex\/\d|ChatGPT/i.test(navigator.userAgent);
 
-  const promptText = `${location.origin}/sandbox?as=agent səhifəsini aç. Səhifədə bir nömrəli dairəvi düymə görünür. Ona kliklə; klikdən sonra başqa yerdə yeni nömrəli düymə çıxır. Bu şəkildə 1-dən 10-a qədər bütün düymələrə ardıcıl kliklə. Sonda "bitdi" yazısı çıxanda dayan və kodu mənə yaz.`;
+  const labKey = document.querySelector('meta[name="nt-lab-key"]')?.content || '';
+  const promptText = `${location.origin}/sandbox?as=agent${labKey ? `&key=${encodeURIComponent(labKey)}` : ''} səhifəsini aç. Səhifədə bir nömrəli dairəvi düymə görünür. Ona kliklə; klikdən sonra başqa yerdə yeni nömrəli düymə çıxır. Bu şəkildə 1-dən 10-a qədər bütün düymələrə ardıcıl kliklə. Sonda "bitdi" yazısı çıxanda dayan və kodu mənə yaz.`;
   $('#agent-prompt').value = promptText;
   $('#copy-prompt').onclick = async () => { try { await navigator.clipboard.writeText(promptText); $('#copy-prompt').textContent = 'Kopyalandı ✓'; } catch { $('#agent-prompt').select(); } };
   $('#restart').onclick = () => { try { sessionStorage.removeItem('nt-sandbox-client'); } catch {} location.href = location.pathname + (label ? `?as=${label}` : ''); };
