@@ -183,3 +183,20 @@ td{padding:9px 10px;border-bottom:1px solid var(--line)}
 .spark i.synthetic{background:var(--red);height:16px}
 .spark i.uncertain{background:var(--amber);height:11px}
 @media (max-width:720px){.hud-body{grid-template-columns:1fr}.hud-trace{border-right:0;border-bottom:1px solid var(--line)}.meter{grid-template-columns:88px 1fr 54px}}
+
+/* session phases, stage wipe, run replay */
+.phase{display:flex;align-items:baseline;gap:10px;margin:2px 0 6px;animation:phase-in .5s var(--ease)}
+.phase b{font-size:13px;font-weight:600;letter-spacing:-.01em}
+.phase span{font-size:12.5px;color:var(--ink-faint)}
+@keyframes phase-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.wipe{position:absolute;inset:0;z-index:4;display:grid;place-items:center;background:linear-gradient(90deg,#0d0d10 0%,#14141a 50%,#0d0d10 100%);animation:wipe .85s var(--ease) forwards;pointer-events:none}
+.wipe span{font-size:22px;font-weight:600;letter-spacing:-.03em;color:var(--ink);opacity:0;animation:wipe-text .85s var(--ease) forwards}
+@keyframes wipe{0%{clip-path:inset(0 100% 0 0)}35%{clip-path:inset(0 0 0 0)}65%{clip-path:inset(0 0 0 0)}100%{clip-path:inset(0 0 0 100%)}}
+@keyframes wipe-text{0%,15%{opacity:0}35%,60%{opacity:1}100%{opacity:0}}
+.replay{border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);overflow:hidden;animation:pop .5s var(--ease)}
+.replay-top{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--bg3);flex-wrap:wrap}
+.replay-top b{font-size:14px;font-weight:600}
+.replay-top span{font-size:12.5px;color:var(--ink-faint)}
+.replay-top button{margin-left:auto;padding:7px 14px;font-size:13px}
+.replay canvas{display:block;width:100%;height:auto;background:#0d0d10}
+.replay-label{padding:10px 16px;border-top:1px solid var(--line);font:12.5px var(--mono);color:var(--ink-dim);display:flex;align-items:center;gap:8px}

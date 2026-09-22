@@ -137,6 +137,16 @@
     { id: 'rapid-fire', title: 'Sürətli təkrar', text: 'Eyni düyməyə mümkün qədər sürətlə 5 dəfə kliklə.', run(done) { stage.innerHTML = `<div style="margin-top:120px;text-align:center"><button class="primary" id="rf" style="padding:16px 28px">Bas! <span id="rc">0</span>/5</button></div>`; let n = 0; $('#rf').onclick = (e) => { record('rapid-fire', e); n++; $('#rc').textContent = String(n); if (n >= 5) done(); }; } },
   ];
 
+  // Each task belongs to a part of a real session; the lab announces the part as it changes,
+  // so a run reads like a visit to a bank rather than a list of exercises.
+  const PHASES = [
+    { name: 'Giriş', note: 'hesaba daxil olan adamın ilk hərəkətləri', ids: ['targets', 'buttons-row', 'typing'] },
+    { name: 'Hesab', note: 'balans, siyahı, axtarış', ids: ['scroll-click', 'dropdown', 'modal', 'double-click', 'keyboard', 'reload-click'] },
+    { name: 'Ödəniş', note: 'məbləğ seçimi, forma, təsdiq', ids: ['hover-dwell', 'slider', 'small-target', 'drag-drop', 'form-tab', 'hesitate', 'read-choose'] },
+    { name: 'Sənəd və fasilə', note: 'oxuma, gözləmə, sürətli təkrar', ids: ['near-miss', 'long-idle', 'select-text', 'free-move', 'rapid-fire'] },
+  ];
+  const phaseOf = (id) => PHASES.find((p) => p.ids.includes(id)) || PHASES[PHASES.length - 1];
+
   // ?mode=short → the original 13 tasks; default = every task (~6 minutes)
   const SHORT = new Set(['targets', 'buttons-row', 'typing', 'scroll-click', 'dropdown', 'modal', 'double-click', 'keyboard', 'reload-click', 'hover-dwell', 'slider', 'small-target', 'rapid-fire']);
   if (params.get('mode') === 'short') for (let i = TASKS.length - 1; i >= 0; i--) if (!SHORT.has(TASKS[i].id)) TASKS.splice(i, 1);
@@ -166,6 +176,14 @@
     $('#t-num').textContent = `Tapşırıq ${taskIndex + 1} / ${TASKS.length}`; $('#t-title').textContent = t.title; $('#t-text').textContent = t.text;
     $('#stepper').innerHTML = TASKS.map((_, i) => `<i class="${i < taskIndex ? 'done' : i === taskIndex ? 'cur' : ''}"></i>`).join('');
     const tk = $('#task'); tk.style.animation = 'none'; void tk.offsetWidth; tk.style.animation = '';
+    const ph = phaseOf(t.id); const pe = $('#phase');
+    if (pe && pe.dataset.name !== ph.name) {
+      pe.dataset.name = ph.name;
+      pe.innerHTML = `<b>${ph.name}</b><span>${ph.note}</span>`;
+      pe.style.animation = 'none'; void pe.offsetWidth; pe.style.animation = '';
+      const w = document.createElement('div'); w.className = 'wipe'; w.innerHTML = `<span>${ph.name}</span>`;
+      stage.appendChild(w); setTimeout(() => w.remove(), 900);
+    }
     const pct = taskIndex / TASKS.length; const ring = $('#ring'); if (ring) { ring.style.strokeDashoffset = String(113 * (1 - pct)); $('#ring-label').textContent = Math.round(pct * 100) + '%'; }
     stage.classList.remove('swap'); void stage.offsetWidth; stage.classList.add('swap');
     $('#progress').textContent = `${steps.length} hadisə yazıldı`;
@@ -195,6 +213,72 @@
     const rows = d.steps.map((s, i) => `<div class="step" style="animation-delay:${Math.min(1200, i * 45)}ms"><span class="n">${String(s.step).padStart(2, '0')}</span><span class="task-name">${s.task}</span><span>${word(s.actor)} ${clickWord(s.click)}</span><span class="reasons" title="${(s.reasonCodes || []).join(', ')}">${(s.reasonCodes || []).join(' · ')}</span></div>`).join('');
     res.innerHTML = `<div class="summary ${ok ? 'ok' : 'bad'}"><div class="num" style="font-family:var(--mono);font-size:12px;color:var(--accent);letter-spacing:.06em;text-transform:uppercase">Nəticə · ${d.summary.version || ''}</div><h2>${title}</h2>${tiles}${trace}<p>Kod: <span class="code" id="code">${client}</span> <button class="ghost" id="copy-code" style="padding:6px 12px;margin-left:8px">Kodu kopyala</button></p></div><div class="timeline">${rows}</div>`;
     $('#copy-code').onclick = async () => { try { await navigator.clipboard.writeText(client); $('#copy-code').textContent = 'Kopyalandı ✓'; } catch {} };
+    mountReplay(res, d);
     try { sessionStorage.removeItem('nt-training-steps'); sessionStorage.removeItem('nt-training-index'); sessionStorage.removeItem('nt-training-client'); } catch {}
+  }
+  /**
+   * Replay: every trajectory this run recorded, redrawn in order on one canvas and coloured by
+   * the verdict the engine gave that click. A human run fills the board with curves; an agent run
+   * draws straight lines between dots. It is the clearest picture of what the judge saw.
+   */
+  const VERDICT_WORD = { human: 'insan', synthetic: 'sintetik', uncertain: 'qeyri-müəyyən' };
+  function mountReplay(res, d) {
+    const shots = steps.map((st, i) => ({
+      task: st.task || (TASKS[i] && TASKS[i].id) || 'click',
+      traj: (st.click && st.click.traj) || [],
+      at: st.click && st.click.at,
+      verdict: (d.steps && d.steps[i] && d.steps[i].click && d.steps[i].click.verdict) || 'uncertain',
+    })).filter((s0) => s0.traj.length);
+    if (!shots.length) return;
+    const card = document.createElement('div');
+    card.className = 'replay';
+    card.innerHTML = `<div class="replay-top"><b>Qaçışın təkrarı</b><span>${shots.length} klikin əsl kursor yolu, verdiktə görə rənglənib</span><button class="ghost" id="rp-play">Oynat</button></div>
+      <canvas id="rp" width="1000" height="300"></canvas>
+      <div class="replay-label" id="rp-label">Oynat düyməsinə bas</div>`;
+    res.appendChild(card);
+    const cv = card.querySelector('#rp'), ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
+    const label = card.querySelector('#rp-label'), play = card.querySelector('#rp-play');
+    const COLOR = { human: '#7cf0c0', synthetic: '#ff7b7b', uncertain: '#ffb86b' };
+    // one frame for the whole run: the union of every recorded path, so the board fills the canvas
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const s0 of shots) for (const [, x, y] of s0.traj) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    const pad = 24, k = Math.min((W - pad * 2) / Math.max(1, x1 - x0), (H - pad * 2) / Math.max(1, y1 - y0));
+    const ox = pad + ((W - pad * 2) - (x1 - x0) * k) / 2 - x0 * k, oy = pad + ((H - pad * 2) - (y1 - y0) * k) / 2 - y0 * k;
+    const grid = () => {
+      ctx.fillStyle = '#0d0d10'; ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = 'rgba(255,255,255,.04)'; ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 30) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y < H; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    };
+    let raf = 0, running = false;
+    function run() {
+      running = true; play.textContent = 'Dayandır'; grid();
+      let i = 0, j = 1;
+      const tick = () => {
+        if (!running) return;
+        const s0 = shots[i]; const pts = s0.traj.map(([, x, y]) => ({ x: ox + x * k, y: oy + y * k }));
+        const col = COLOR[s0.verdict] || COLOR.uncertain;
+        const per = Math.max(2, Math.round(pts.length / 12));
+        const end = Math.min(pts.length, j + per);
+        ctx.lineCap = 'round';
+        for (; j < end; j++) {
+          ctx.strokeStyle = col; ctx.globalAlpha = .85; ctx.lineWidth = 1.6;
+          ctx.beginPath(); ctx.moveTo(pts[j - 1].x, pts[j - 1].y); ctx.lineTo(pts[j].x, pts[j].y); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        label.innerHTML = `<span class="res small ${s0.verdict}">${VERDICT_WORD[s0.verdict]}</span> ${i + 1}/${shots.length} · ${s0.task}`;
+        if (j >= pts.length) {
+          const last = pts[pts.length - 1];
+          ctx.beginPath(); ctx.arc(last.x, last.y, 3.5, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
+          i++; j = 1;
+          if (i >= shots.length) { running = false; play.textContent = 'Yenidən oynat'; label.innerHTML += ' · bitdi'; return; }
+        }
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    }
+    play.onclick = () => { if (running) { running = false; cancelAnimationFrame(raf); play.textContent = 'Davam et'; } else run(); };
+    grid();
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(run, 600);
   }
 })();
