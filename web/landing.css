@@ -182,13 +182,10 @@ main{max-width:var(--w);margin:0 auto;padding:0 24px}
 .f-pk-icon{width:36px;height:36px;border-radius:50%;border:2px solid var(--accent);position:relative}
 .f-pk-icon::after{content:"";position:absolute;inset:7px;border-radius:50%;border:2px solid var(--accent);border-right-color:transparent;animation:spin 1.4s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.f-pointer{position:absolute;left:0;top:0;pointer-events:none;opacity:0;transition:opacity .3s;z-index:4;display:flex;align-items:flex-start;gap:6px}
+.f-pointer{position:absolute;left:0;top:0;pointer-events:none;opacity:0;transition:opacity .3s;z-index:4;width:18px;height:18px}
 .f-pointer .arrow{width:18px;height:18px;fill:#fff;stroke:#0a0a0b;stroke-width:1.2;filter:drop-shadow(0 2px 3px rgba(0,0,0,.6));flex:none}
-.f-pointer .tag{transition:opacity .25s;margin-top:11px;font:10.5px var(--mono);padding:2px 6px;border-radius:5px;background:rgba(124,240,192,.92);color:#06251a;white-space:nowrap;box-shadow:0 4px 14px -6px rgba(0,0,0,.8)}
 .f-pointer.agent .arrow{fill:var(--accent2)}
-.f-pointer.agent .tag{background:rgba(255,184,107,.92);color:#2a1600}
 .f-pointer.show{opacity:1}
-.f-pointer.quiet .tag{opacity:0}
 .frame-log{font:12px/1.5 var(--mono);padding:10px 16px;border-top:1px solid var(--line);color:var(--fg2);background:var(--bg3);display:flex;gap:10px;white-space:nowrap;overflow:hidden}
 .frame-log .k{color:var(--fg3)}
 .story-cap{text-align:center;color:var(--fg3);font-size:14px;margin:16px 0 0;min-height:22px;transition:opacity .3s}
