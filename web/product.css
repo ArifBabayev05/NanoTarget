@@ -11,7 +11,7 @@
   --warn: #d97706;
   --bad: #dc2626;
   --shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06);
-  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  --font: "Geist", -apple-system, BlinkMacSystemFont, Inter, "Segoe UI", Roboto, sans-serif;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
@@ -147,3 +147,23 @@ dialog .code { font: 700 22px ui-monospace, Menlo, monospace; letter-spacing: .1
   .side .user { border: 0; margin: 0; padding: 4px 8px; }
 }
 .hero-card .amount .cur { font-size: 26px; opacity: .85; margin-left: 4px; }
+
+/* cross-document page transitions (Chrome/Edge; others ignore) */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: 260ms ease-out both vt-out; }
+::view-transition-new(root) { animation: 380ms cubic-bezier(.2,.7,.2,1) both vt-in; }
+@keyframes vt-out { to { opacity: 0; transform: translateY(-6px); } }
+@keyframes vt-in { from { opacity: 0; transform: translateY(10px); } }
+@media (prefers-reduced-motion: reduce) { ::view-transition-old(root), ::view-transition-new(root) { animation: none; } }
+
+/* entrance + state transitions on the demo apps */
+.card { animation: card-enter .5s cubic-bezier(.2,.7,.2,1) both; }
+.grid > .card:nth-child(2) { animation-delay: .06s; } .grid > .card:nth-child(3) { animation-delay: .12s; } .grid > .card:nth-child(4) { animation-delay: .18s; } .grid > .card:nth-child(5) { animation-delay: .24s; }
+@keyframes card-enter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.notice { animation: card-enter .35s ease both; }
+.guard { transition: background .3s, color .3s, transform .3s; }
+.guard.agent { animation: guard-pulse 1.2s ease 1; }
+@keyframes guard-pulse { 0% { transform: scale(.96); } 40% { transform: scale(1.04); } 100% { transform: none; } }
+.amount, .kpi { transition: color .3s, filter .3s; }
+[data-nt-sensitive="sealed"] { filter: blur(0); animation: seal .4s ease both; }
+@keyframes seal { from { filter: blur(6px); opacity: .4; } to { filter: blur(0); opacity: 1; } }
