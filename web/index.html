@@ -13,7 +13,6 @@
 <link rel="stylesheet" href="/landing.css">
 </head>
 <body>
-<div class="cursor-glow" id="cursor-glow" aria-hidden="true"></div>
 <header class="nav" id="nav">
   <a class="brand" href="/"><span class="mark"><span></span></span>NanoTarget</a>
   <nav class="links">
@@ -21,7 +20,6 @@
     <a href="#how">How it works</a>
     <a href="#integrate">Integrate</a>
     <a href="#demos">Demos</a>
-    <a href="/docs/EVAL.md">Evidence</a>
   </nav>
   <div class="nav-right">
     <a class="btn ghost" href="https://github.com/ArifBabayev05/NanoTarget" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.71 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a>
@@ -30,9 +28,18 @@
 </header>
 
 <main>
-<section class="hero">
+<section class="hero" id="hero">
+  <canvas id="aurora" aria-hidden="true"></canvas>
   <div class="eyebrow reveal-now"><span class="dot"></span>Session security for the agentic web</div>
-  <h1 class="h1 reveal-now">Your <span class="g fp" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 0 0-8 8v3"/><path d="M12 8a4 4 0 0 0-4 4v4"/><path d="M12 12v5"/><path d="M16 12a4 4 0 0 0-1.2-2.9"/><path d="M20 12a8 8 0 0 0-3-6.2"/></svg></span>customers now<br>log in with <span class="g sp" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg></span>AI agents.<br><span class="muted">Decide what they can see.</span></h1>
+  <h1 class="h1" id="h1">
+    <span class="w" style="--i:0">Your</span>
+    <span class="g fp w" style="--i:1" aria-hidden="true"><svg viewBox="0 0 24 24"><path pathLength="1" d="M12 4a8 8 0 0 0-8 8v3"/><path pathLength="1" d="M12 8a4 4 0 0 0-4 4v4"/><path pathLength="1" d="M12 12v5"/><path pathLength="1" d="M16 12a4 4 0 0 0-1.2-2.9"/><path pathLength="1" d="M20 12a8 8 0 0 0-3-6.2"/></svg><i class="ring"></i></span>
+    <span class="w" style="--i:2">customers</span> <span class="w" style="--i:3">now</span><br>
+    <span class="w" style="--i:4">log</span> <span class="w" style="--i:5">in</span> <span class="w" style="--i:6">with</span>
+    <span class="g sp w" style="--i:7" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg></span>
+    <span class="w" style="--i:8">AI</span> <span class="w" style="--i:9">agents.</span><br>
+    <span class="muted"><span class="w" style="--i:10">Decide</span> <span class="w" style="--i:11">what</span> <span class="w" style="--i:12">they</span> <span class="w" style="--i:13">can</span> <span class="w rot-wrap" style="--i:14"><span class="rot" id="rot"><span class="on">see</span><span>download</span><span>change</span><span>send</span></span>.</span></span>
+  </h1>
   <p class="sub reveal-now">NanoTarget detects an AI browser agent the moment it attaches to a signed-in session and lets every endpoint <b>allow</b>, <b>mask</b>, <b>step up</b> or <b>block</b> — with a passkey that hands the session back to the person. Three lines on the server. One tag on the page.</p>
   <div class="install reveal-now" id="install">
     <div class="npm big">
@@ -61,7 +68,7 @@
       <button data-step="2"><b>03</b>Endpoint decides</button>
       <button data-step="3"><b>04</b>Person reclaims</button>
     </div>
-    <div class="bezel reveal"><div class="frame" id="frame">
+    <div class="tilt" id="tilt"><div class="bezel reveal"><div class="frame" id="frame">
       <div class="frame-bar"><span></span><span></span><span></span><em>bank.example.com/accounts</em></div>
       <div class="frame-body">
         <aside class="f-side"><div class="f-logo">NB</div><i></i><i></i><i></i><i></i></aside>
@@ -87,7 +94,7 @@
         <div class="f-pointer" id="f-pointer"></div>
       </div>
       <div class="frame-log" id="frame-log"><span class="k">decision</span> <span id="f-log">balance.read → allow · actor=human_like · HUMAN_KINEMATICS</span></div>
-    </div></div>
+    </div></div></div>
     <p class="story-cap" id="story-cap">The customer opens their balance. Pointer physics say it is a hand; the endpoint returns the data.</p>
   </div>
 </section>
@@ -134,7 +141,7 @@
 <section class="physics reveal">
   <div class="sec-head">
     <h2 class="h2">How it tells a hand from a program</h2>
-    <p class="lead">Live simulation of the three trajectory classes the engine sees. Real measurements are in the <a href="/docs/EVAL.md">evaluation report</a>.</p>
+    <p class="lead">Live simulation of the three trajectory classes the engine sees: a hand, a browser driver, and a bot that tries to look like a hand.</p>
   </div>
   <div class="bezel reveal"><div class="cursor-demo">
     <canvas id="cursors" width="1200" height="360"></canvas>
@@ -203,7 +210,7 @@ verify with `npx nanotarget verify`, then report.</code></pre>
 
 <footer class="foot">
   <span>© 2026 NanoTarget · MIT · all demo data is synthetic</span>
-  <span><a href="https://github.com/ArifBabayev05/NanoTarget" target="_blank" rel="noopener">GitHub</a><a href="https://www.npmjs.com/package/nanotarget" target="_blank" rel="noopener">npm</a><a href="/docs/EVAL.md">Evaluation</a><a href="/docs/HESABAT.md">Research log</a><a href="/api/v1/version">Engine version</a></span>
+  <span><a href="https://github.com/ArifBabayev05/NanoTarget" target="_blank" rel="noopener">GitHub</a><a href="https://www.npmjs.com/package/nanotarget" target="_blank" rel="noopener">npm</a><a href="/docs/INTEGRATION-AGENT.md">Integration protocol</a></span>
 </footer>
 <div class="toast" id="toast"></div>
 <script src="/landing.js"></script>

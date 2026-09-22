@@ -14,7 +14,7 @@ import { NanoTarget } from './engine.ts';
 import { attachModel, KINEMATICS_VERSION } from './kinematics.ts';
 import { SIGNAL_VERSION } from './assess.ts';
 import { loadModel, predict } from './kinematics-model.ts';
-import { json, serveStatic, url, UUID, type Req, type Res } from './http.ts';
+import { cookies, json, serveStatic, url, UUID, type Req, type Res } from './http.ts';
 import { accountRoutes } from './routes/account.ts';
 import { adminRoutes } from './routes/admin.ts';
 import { labRoutes, type LabOperator } from './routes/lab.ts';
@@ -137,6 +137,23 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
   const appsApi = async (_req: Req, res: Res) => json(res, 200, { apps: Object.values(APPS).map(publicApp) });
 
   type RouteHandler = (req: Req, res: Res) => void | Promise<void>;
+  // The lab (training + sandbox + dataset endpoints) is the operator's, not the public's. With NT_LAB_KEY set,
+  // it answers 404 unless the request carries the key (?key=… once, then a cookie); unset = open, for local work.
+  const LAB_KEY = process.env.NT_LAB_KEY ?? '';
+  const labOpen = (req: Req, res: Res): boolean => {
+    if (!LAB_KEY) return true;
+    if (url(req).searchParams.get('key') === LAB_KEY) {
+      res.setHeader('Set-Cookie', `nt_lab=${LAB_KEY}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure(req) ? '; Secure' : ''}`);
+      return true;
+    }
+    return cookies(req).nt_lab === LAB_KEY;
+  };
+  const labPage = (file: string) => async (req: Req, res: Res) => {
+    if (!labOpen(req, res)) return json(res, 404, { error: 'not_found' });
+    return page(res, file, { 'nt-serverless': serverless ? '1' : '0', 'nt-lab-key': LAB_KEY });
+  };
+  const labApi = (h: RouteHandler): RouteHandler => async (req, res) => (labOpen(req, res) ? h(req, res) : json(res, 404, { error: 'not_found' }));
+
   const routes: [string, string, RouteHandler][] = [
     ['GET', '/', landing],
     ['GET', '/bank', appPage('bank')],
@@ -146,14 +163,14 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['GET', '/lab/crm', appPage('crm', 'app.html')],
     ['GET', '/lab/insurance', appPage('insurance', 'app.html')],
     ['GET', '/dashboard', dashboard],
-    ['GET', '/sandbox', async (_req, res) => page(res, 'sandbox.html', { 'nt-serverless': serverless ? '1' : '0' })],
+    ['GET', '/sandbox', labPage('sandbox.html')],
     ['POST', '/api/v1/sandbox/samples', sandbox.addSample],
-    ['GET', '/api/v1/sandbox/stats', sandbox.stats],
-    ['GET', '/api/v1/sandbox/export', sandbox.exportSamples],
+    ['GET', '/api/v1/sandbox/stats', labApi(sandbox.stats)],
+    ['GET', '/api/v1/sandbox/export', labApi(sandbox.exportSamples)],
     ['POST', '/api/v1/sandbox/assess-run', sandbox.assessRun],
     // the lab pages load the SDK without a session; its passive pushes land here instead of 404
     ['POST', '/api/v1/sandbox/noop', async (_req, res) => json(res, 200, { ok: true })],
-    ['GET', '/training', async (_req, res) => page(res, 'training.html', { 'nt-serverless': serverless ? '1' : '0' })],
+    ['GET', '/training', labPage('training.html')],
     ['GET', '/api/v1/apps', appsApi],
     ['GET', '/api/v1/version', async (_req, res) => json(res, 200, { signal: SIGNAL_VERSION, kinematics: KINEMATICS_VERSION, model: model ? { version: model.version, trainedAt: model.trainedAt, humanAbove: model.humanAbove, syntheticBelow: model.syntheticBelow, report: model.report } : null })],
     ['POST', '/api/v1/rooms', lab.createRoom],
