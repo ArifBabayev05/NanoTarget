@@ -196,6 +196,12 @@
     return { stop: { x: ex - (dx / len) * gap, y: ey - (dy / len) * gap }, tip: { x: ex + (dx / len) * 6, y: ey + (dy / len) * 6 } };
   }
   function targetOf(el) { const fb = S.body.getBoundingClientRect(), r = el.getBoundingClientRect(); return { x: r.left - fb.left + r.width * (0.35 + Math.random() * 0.3), y: r.top - fb.top + r.height * (0.4 + Math.random() * 0.2) }; }
+  function placeAgent() {
+    if (innerWidth <= 820) return;
+    const fb = S.body.getBoundingClientRect(), card = S.body.querySelectorAll('.f-card')[1]; if (!card) return;
+    const r = card.getBoundingClientRect(); const w = Math.max(180, Math.round(r.width - 12));
+    S.agent.style.left = `${Math.round(r.left - fb.left + 6)}px`; S.agent.style.top = `${Math.round(r.top - fb.top + 6)}px`; S.agent.style.width = `${w}px`;
+  }
   function seal(on) { S.amount.classList.toggle('sealed', on); S.kv.forEach((b) => b.classList.toggle('sealed', on)); }
   function notice(text, cls) { S.notice.textContent = text; S.notice.className = 'f-notice show ' + (cls || ''); }
   let logTimer = 0;
@@ -223,18 +229,18 @@
       note('The click came from a hand', 'Before answering, the server looks at how the pointer moved. This path curved, trembled and slowed onto the button — so the real balance comes back.', 'ok', 'curved path · slows onto the button · 118 ms press');
     } else if (i === 1) {
       S.pointer.classList.remove('show'); S.passkey.classList.remove('in'); seal(false); S.amount.textContent = '$4,939.10'; S.notice.className = 'f-notice';
-      await wait(300); S.agent.classList.add('in'); S.ai.classList.add('typing'); S.ai.textContent = '';
-      await wait(700); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'AI agent attached — screen sealed'; seal(true);
+      await wait(300); placeAgent(); S.agent.classList.add('in'); S.ai.classList.add('typing'); S.ai.textContent = '';
+      await wait(700); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'Agent attached · sealed'; seal(true);
       note('An assistant joined the tab', 'Its browser tool leaves traces the page can see. Within 0.3 s every number already on screen is blurred — before the assistant reads it.', 'warn', 'seal · 0.3 s after attach');
       await wait(400); await aiSay('I can see the account, but the balance field shows •••• .', 600);
     } else if (i === 2) {
-      S.agent.classList.add('in'); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'AI agent attached — screen sealed'; S.passkey.classList.remove('in');
+      placeAgent(); S.agent.classList.add('in'); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'Agent attached · sealed'; S.passkey.classList.remove('in');
       const fb = S.body.getBoundingClientRect(), ar = S.agent.getBoundingClientRect(); const a = { x: ar.left - fb.left + 4, y: ar.bottom - fb.top - 4 };
       const e = edgeOf(S.btn, a, 6); movePointer(e.tip.x, e.tip.y, true); drawJump(a, e.stop); await wait(500); S.btn.classList.add('pressed'); await wait(60); S.btn.classList.remove('pressed');
       await wait(300); S.amount.textContent = '$•,•••.••'; S.amount.classList.remove('sealed'); notice('Masked for AI agents · balance.read → mask', 'warn');
       note('The assistant clicks — the server answers differently', 'No pointer path and an instant press: a program. Your policy says balance → mask, so the same endpoint returns the number hidden.', 'warn', 'no path · jumped to the centre · 2 ms press');
       await wait(1400); await aiSay('Trying “Download statement”…', 500); const e2 = edgeOf(S.btn.nextElementSibling, a, 6); clearTrail(); movePointer(e2.tip.x, e2.tip.y, true); drawJump(a, e2.stop); await wait(600);
-      S.guard.className = 'f-guard block'; S.guard.lastElementChild.textContent = 'Export blocked for agents'; notice('report.export → block', 'bad');
+      S.guard.className = 'f-guard block'; S.guard.lastElementChild.textContent = 'Export blocked'; notice('report.export → block', 'bad');
       note('Downloading everything is refused', 'A statement export hands over the whole account in one click. For agents the policy says block; a person can still do it after a passkey.', 'bad', 'report.export → block');
       await wait(500); await aiSay('The download is blocked for assistants — you’ll need to confirm it yourself.', 600);
     } else {
