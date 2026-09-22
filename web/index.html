@@ -39,7 +39,7 @@
     <span class="g sp w" style="--i:7" aria-hidden="true"><i class="glow"></i><svg viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg><i class="p p1"></i><i class="p p2"></i><i class="p p3"></i><i class="p p4"></i></span><span class="w" style="--i:8">AI</span> <span class="w" style="--i:9">agents.</span><br>
     <span class="muted"><span class="w" style="--i:10">Decide</span> <span class="w" style="--i:11">what</span> <span class="w" style="--i:12">they</span> <span class="w" style="--i:13">can</span> <span class="w rot-wrap" style="--i:14"><span class="rot" id="rot"><span class="on">see</span><span>download</span><span>change</span><span>send</span></span>.</span></span>
   </h1>
-  <p class="sub reveal-now">NanoTarget detects an AI browser agent the moment it attaches to a signed-in session and lets every endpoint <b>allow</b>, <b>mask</b>, <b>step up</b> or <b>block</b> — with a passkey that hands the session back to the person. Three lines on the server. One tag on the page.</p>
+  <p class="sub reveal-now">NanoTarget spots the agent the moment it attaches to a signed-in session, and lets each endpoint <b>allow</b>, <b>mask</b>, <b>step up</b> or <b>block</b>. Three lines on the server.</p>
   <div class="install reveal-now" id="install">
     <div class="npm big beam">
       <span class="npm-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect width="24" height="24" rx="3"/><path d="M4 8h16v8h-4V11h-2v5H4z" fill="#0a0a0b"/></svg></span>
@@ -66,80 +66,82 @@
     </div></div>
   </div>
 
-  <!-- product story frame -->
-  <div class="story reveal-now" id="product">
+  <!-- product story: scroll-driven, sticky frame, 3D backdrop -->
+  <div class="story" id="product">
     <div class="story-steps" id="story-steps">
-      <button class="on" data-step="0"><b>01</b>Customer signs in</button>
-      <button data-step="1"><b>02</b>Agent attaches</button>
-      <button data-step="2"><b>03</b>Endpoint decides</button>
-      <button data-step="3"><b>04</b>Person reclaims</button>
+      <div class="ss on" data-step="0"><span class="ss-num">01</span><h3>A customer signs in</h3><p>Their clicks move like a hand. The endpoint returns the balance.</p></div>
+      <div class="ss" data-step="1"><span class="ss-num">02</span><h3>An AI agent attaches</h3><p>Seen in 0.3 s. What is on screen is sealed before the agent reads it.</p></div>
+      <div class="ss" data-step="2"><span class="ss-num">03</span><h3>The endpoint decides</h3><p>Balance masked. Export blocked. Every decision logged.</p></div>
+      <div class="ss" data-step="3"><span class="ss-num">04</span><h3>The person takes it back</h3><p>A passkey proves presence. The session is theirs again.</p></div>
     </div>
-    <div class="tilt" id="tilt"><div class="bezel beam reveal"><div class="frame" id="frame">
-      <div class="frame-bar"><span></span><span></span><span></span><em>bank.example.com/accounts</em></div>
-      <div class="frame-body">
-        <aside class="f-side"><div class="f-logo">NB</div><i></i><i></i><i></i><i></i></aside>
-        <div class="f-main">
-          <div class="f-top"><div><div class="f-title">Welcome back</div><div class="f-sub">Current account · USD</div></div><div class="f-guard" id="f-guard"><i></i><span>Session protected</span></div></div>
-          <div class="f-cards">
-            <div class="f-card hero">
-              <div class="f-label">Available balance</div>
-              <div class="f-amount" id="f-amount">$4,939.10</div>
-              <div class="f-row"><span class="f-btn" id="f-btn">Show balance</span><span class="f-btn ghost">Download statement</span></div>
-              <div class="f-notice" id="f-notice"></div>
-            </div>
-            <div class="f-card">
-              <div class="f-label">Personal details</div>
-              <div class="f-kv"><span>Name</span><b id="f-name">Ada Lindqvist</b></div>
-              <div class="f-kv"><span>IBAN</span><b id="f-iban">GB29 NANO 6016 1331 9268 19</b></div>
-              <div class="f-kv"><span>Phone</span><b id="f-phone">+1 (415) 555-0142</b></div>
+    <div class="story-sticky">
+      <canvas id="morph" aria-hidden="true"></canvas>
+      <div class="tilt" id="tilt"><div class="bezel beam reveal"><div class="frame" id="frame">
+        <div class="frame-bar"><span></span><span></span><span></span><em>bank.example.com/accounts</em></div>
+        <div class="frame-body">
+          <aside class="f-side"><div class="f-logo">NB</div><i></i><i></i><i></i><i></i></aside>
+          <div class="f-main">
+            <div class="f-top"><div><div class="f-title">Welcome back</div><div class="f-sub">Current account · USD</div></div><div class="f-guard" id="f-guard"><i></i><span>Session protected</span></div></div>
+            <div class="f-cards">
+              <div class="f-card hero">
+                <div class="f-label">Available balance</div>
+                <div class="f-amount" id="f-amount">$4,939.10</div>
+                <div class="f-row"><span class="f-btn" id="f-btn">Show balance</span><span class="f-btn ghost">Download statement</span></div>
+                <div class="f-notice" id="f-notice"></div>
+              </div>
+              <div class="f-card">
+                <div class="f-label">Personal details</div>
+                <div class="f-kv"><span>Name</span><b id="f-name">Ada Lindqvist</b></div>
+                <div class="f-kv"><span>IBAN</span><b id="f-iban">GB29 NANO 6016 1331 9268 19</b></div>
+                <div class="f-kv"><span>Phone</span><b id="f-phone">+1 (415) 555-0142</b></div>
+              </div>
             </div>
           </div>
+          <div class="f-agent" id="f-agent"><div class="f-agent-head"><span class="f-spark">✦</span>Assistant</div><div class="f-msg user">What’s my balance?</div><div class="f-msg ai" id="f-ai">Reading the page…</div></div>
+          <div class="f-passkey" id="f-passkey"><div class="f-pk-icon"></div><div><b>Verify it’s you</b><span>Touch ID · passkey</span></div></div>
+          <div class="f-pointer" id="f-pointer"></div>
         </div>
-        <div class="f-agent" id="f-agent"><div class="f-agent-head"><span class="f-spark">✦</span>Assistant</div><div class="f-msg user">What’s my balance?</div><div class="f-msg ai" id="f-ai">Reading the page…</div></div>
-        <div class="f-passkey" id="f-passkey"><div class="f-pk-icon"></div><div><b>Verify it’s you</b><span>Touch ID · passkey</span></div></div>
-        <div class="f-pointer" id="f-pointer"></div>
-      </div>
-      <div class="frame-log" id="frame-log"><span class="k">decision</span> <span id="f-log">balance.read → allow · actor=human_like · HUMAN_KINEMATICS</span></div>
-    </div></div></div>
-    <p class="story-cap" id="story-cap">The customer opens their balance. Pointer physics say it is a hand; the endpoint returns the data.</p>
+        <div class="frame-log" id="frame-log"><span class="k">decision</span> <span id="f-log">balance.read → allow · actor=human_like · HUMAN_KINEMATICS</span></div>
+      </div></div></div>
+    </div>
   </div>
 </section>
 
 <section class="features" id="how">
   <div class="sec-head reveal">
     <h2 class="h2 tr">Built for the session, not the door</h2>
-    <p class="lead">Bot management stops bots before login. Enterprise browsers watch employees. Neither sees the agent a legitimate customer invites into their own account. NanoTarget works inside the session, at the endpoint that returns the data.</p>
+    <p class="lead">Bot management works at the door. NanoTarget works inside the session, at the endpoint that returns the data.</p>
   </div>
   <div class="grid3">
     <article class="feat reveal">
       <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></div>
       <h3>Detected at attach time</h3>
-      <p>Agent tools leave traces the instant they take control — overlay markers, injected globals, evaluated-script reads, focus emulation, signed requests. Seen 0.1–0.5 s after attach, before the first action.</p>
+      <p>Overlay markers, injected globals, script reads, signed requests — seen 0.1–0.5 s after attach, before the first action.</p>
     </article>
     <article class="feat reveal">
       <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 17c4-8 7-8 10 0s6 6 8-2"/><circle cx="19" cy="11" r="1.5"/></svg></div>
       <h3>Pointer physics per click</h3>
-      <p>A hand’s path is curved, its tremor grows with speed, it slows onto the target and holds 83–225 ms. Drivers teleport and release in 1–4 ms; generated curves are parabola-clean. A boosted-tree model, AUC 0.999, zero human false positives.</p>
+      <p>A hand curves, trembles and slows onto the target. A driver teleports and releases in 1–4 ms. AUC 0.999, zero false positives.</p>
     </article>
     <article class="feat reveal">
       <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg></div>
       <h3>Policy per endpoint</h3>
-      <p><code>allow · mask · step_up · block</code> per resource, in your JSON. Masking is your function. Decisions are made on your server and written to a hash-chained audit log.</p>
+      <p><code>allow · mask · step_up · block</code> per resource, in your JSON, decided on your server, written to an audit log.</p>
     </article>
     <article class="feat reveal">
       <div class="ico"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><path d="M4 4l16 16"/></svg></div>
       <h3>Seal on attach</h3>
-      <p>Data already on screen is redacted in the browser the instant an indicator appears. The agent’s read sees <code>••••</code> — even a read already in flight.</p>
+      <p>What is already on screen is redacted the instant an agent appears. Its read sees <code>••••</code>.</p>
     </article>
     <article class="feat reveal">
       <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 1 5 5v3h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1V7a5 5 0 0 1 5-5z"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/></svg></div>
       <h3>Passkey reclaim</h3>
-      <p>Once an agent attached, the session stays “agent” until the person proves presence with WebAuthn — Touch ID, Windows Hello — and takes it back for five minutes.</p>
+      <p>After an agent, the session stays “agent” until the person proves presence with Touch ID or Windows Hello.</p>
     </article>
     <article class="feat reveal">
       <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg></div>
       <h3>Observe first, enforce later</h3>
-      <p>Start in <code>observe</code>: nothing is blocked, every decision is recorded with what would have happened. Review the log, then flip one word.</p>
+      <p>Start in <code>observe</code>: nothing blocked, everything recorded. Review, then flip one word.</p>
     </article>
   </div>
 </section>
@@ -147,14 +149,14 @@
 <section class="physics reveal">
   <div class="sec-head">
     <h2 class="h2 tr">How it tells a hand from a program</h2>
-    <p class="lead">Live simulation of the three trajectory classes the engine sees: a hand, a browser driver, and a bot that tries to look like a hand.</p>
+    <p class="lead">Three kinds of pointer, live: a hand, a driver, a bot pretending to be a hand.</p>
   </div>
   <div class="bezel reveal"><div class="cursor-demo">
     <canvas id="cursors" width="1200" height="360"></canvas>
     <div class="legend">
-      <span><i class="dot human"></i><b>Human</b> curved, tremor, decelerates onto the target, 83–225 ms press</span>
-      <span><i class="dot agent"></i><b>Agent driver</b> teleports to the centre, 1–4 ms press, no path</span>
-      <span><i class="dot bot"></i><b>Humanised bot</b> smooth generated curve — caught by roughness and noise physics</span>
+      <span><i class="dot human"></i><b>Human</b> curved, trembling, slows onto the target</span>
+      <span><i class="dot agent"></i><b>Agent driver</b> teleports, releases in 1–4 ms</span>
+      <span><i class="dot bot"></i><b>Humanised bot</b> smooth generated curve — too clean</span>
     </div>
   </div></div>
 </section>
@@ -162,7 +164,7 @@
 <section class="integrate" id="integrate">
   <div class="sec-head reveal">
     <h2 class="h2 tr">Integrate in an afternoon — or let your coding agent do it</h2>
-    <p class="lead">The npm README is written for AI coding agents: give it the link and say “install this”. It scans your app, maps what an agent could reach, proposes what to gate, asks you nine questions and wires everything in.</p>
+    <p class="lead">Hand your coding agent the npm link and say “install this”. It scans your app, proposes what to gate, and wires it in.</p>
   </div>
   <div class="code-tabs reveal">
     <div class="tabs" id="code-tabs"><button class="on" data-tab="server">server.js</button><button data-tab="page">page.html</button><button data-tab="policy">nanotarget.policy.json</button><button data-tab="agent">Prompt for your agent</button></div>
@@ -199,14 +201,14 @@ verify with `npx nanotarget verify`, then report.</code></pre>
 <section class="demos" id="demos">
   <div class="sec-head reveal">
     <h2 class="h2 tr">Try it against a real agent</h2>
-    <p class="lead">Open an application as yourself — everything works. Then paste the prompt into Claude, ChatGPT or Codex and watch the same account close its sensitive parts to the agent. All data is synthetic.</p>
+    <p class="lead">Open one as yourself — everything works. Paste the prompt into an agent and watch the same account close.</p>
   </div>
   <div class="apps reveal" id="apps"><div class="app"><span class="muted">Loading…</span></div></div>
 </section>
 
 <section class="cta reveal">
   <h2 class="h2 tr">Know who’s clicking.</h2>
-  <p class="lead">Open source under MIT. Runs on your server. Designed to be installed by the coding agent you already use.</p>
+  <p class="lead">Open source. MIT. Runs on your server.</p>
   <div class="hero-actions">
     <div class="npm"><span class="prompt">$</span><code>npm i nanotarget</code><button class="copy" data-copy="npm i nanotarget" aria-label="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div>
     <a class="btn secondary" href="https://github.com/ArifBabayev05/NanoTarget" target="_blank" rel="noopener">Star on GitHub <span class="arrow">→</span></a>

@@ -139,45 +139,43 @@
   });
   $('#copy-code').addEventListener('click', () => copy($$('.code').find((p) => !p.hidden).textContent.trim()));
 
-  // ---------------------------------------------------------------- product story (auto-advancing frame)
+  // ---------------------------------------------------------------- product story: scroll-driven tutorial
+  // Four steps on the left; the framed session on the right plays the matching state. Scrolling is
+  // the timeline — nothing auto-advances — so the reader controls the pace and can go back.
   const S = {
-    steps: $$('#story-steps button'), guard: $('#f-guard'), amount: $('#f-amount'), btn: $('#f-btn'), notice: $('#f-notice'),
-    agent: $('#f-agent'), ai: $('#f-ai'), passkey: $('#f-passkey'), pointer: $('#f-pointer'), log: $('#f-log'), cap: $('#story-cap'),
-    kv: ['#f-name', '#f-iban', '#f-phone'].map((s) => $(s)), frame: $('#frame'),
+    steps: $$('#story-steps .ss'), guard: $('#f-guard'), amount: $('#f-amount'), btn: $('#f-btn'), notice: $('#f-notice'),
+    agent: $('#f-agent'), ai: $('#f-ai'), passkey: $('#f-passkey'), pointer: $('#f-pointer'), log: $('#f-log'),
+    kv: ['#f-name', '#f-iban', '#f-phone'].map((s) => $(s)), frame: $('#frame'), body: $('#frame .frame-body'),
   };
-  const CAPS = [
-    'The customer opens their balance. Pointer physics say it is a hand; the endpoint returns the data.',
-    'An AI assistant attaches to the tab. Its driver markers are seen in 0.1–0.5 s — the page seals what is already on screen.',
-    'The agent asks for the balance. The endpoint applies your policy: balance is masked, export is blocked, the decision is logged.',
-    'The person confirms presence with a passkey. The session is theirs again for five minutes; data comes back.',
-  ];
   const LOGS = [
     'balance.read → allow · actor=human_like · HUMAN_KINEMATICS',
     'seal · indicators=[overlay_marker, injected_global] · 0.3 s after attach',
     'balance.read → mask · report.export → block · actor=agent · sticky',
     'reclaim → webauthn ok · actor=human · 5 min window',
   ];
-  const DUR = [4800, 5200, 6200, 5200];
-  let step = 0, storyTimer = 0, pauseT = 0, visible = false, paused = false, storyStart = 0, timers = [];
+  let step = -1, timers = [];
   const wait = (ms) => new Promise((r) => timers.push(setTimeout(r, ms)));
   const cancelRun = () => { timers.forEach(clearTimeout); timers = []; };
+  // the pointer's path is drawn on a canvas over the frame: a curve for the hand, a dashed straight jump for the driver
+  const ftrail = document.createElement('canvas'); ftrail.className = 'f-trail'; S.body.appendChild(ftrail);
+  const fctx = ftrail.getContext('2d');
+  function trailSize() { const r = S.body.getBoundingClientRect(); const d = Math.min(2, devicePixelRatio || 1); if (ftrail.width !== Math.round(r.width * d)) { ftrail.width = Math.round(r.width * d); ftrail.height = Math.round(r.height * d); } fctx.setTransform(d, 0, 0, d, 0, 0); }
+  function clearTrail() { trailSize(); fctx.clearRect(0, 0, ftrail.width, ftrail.height); }
+  function drawHandPath(a, b, ms) {
+    trailSize(); const pts = []; const n = 48;
+    for (let i = 0; i <= n; i++) { const u = i / n, e = 10 * u ** 3 - 15 * u ** 4 + 6 * u ** 5; pts.push({ x: a.x + (b.x - a.x) * e + Math.sin(u * Math.PI) * 26, y: a.y + (b.y - a.y) * e - Math.sin(u * Math.PI) * 18 + (Math.random() - .5) * 1.6 }); }
+    const t0 = performance.now(); let k = 1;
+    const tick = () => { const u = Math.min(1, (performance.now() - t0) / ms); const upto = Math.max(1, Math.round(u * n)); fctx.lineCap = 'round'; for (; k <= upto; k++) { fctx.strokeStyle = 'rgba(124,240,192,.8)'; fctx.lineWidth = 2; fctx.beginPath(); fctx.moveTo(pts[k - 1].x, pts[k - 1].y); fctx.lineTo(pts[k].x, pts[k].y); fctx.stroke(); } if (u < 1 && step === 0) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+  function drawJump(a, b) {
+    trailSize(); fctx.setLineDash([4, 6]); fctx.strokeStyle = 'rgba(255,184,107,.75)'; fctx.lineWidth = 1.5; fctx.beginPath(); fctx.moveTo(a.x, a.y); fctx.lineTo(b.x, b.y); fctx.stroke(); fctx.setLineDash([]);
+    fctx.fillStyle = 'rgba(255,184,107,.9)'; fctx.beginPath(); fctx.arc(b.x, b.y, 3, 0, Math.PI * 2); fctx.fill();
+  }
   function movePointer(x, y, agent = false) { S.pointer.classList.toggle('agent', agent); S.pointer.classList.add('show'); S.pointer.style.transition = agent ? 'left 0s,top 0s,opacity .3s' : 'left .9s cubic-bezier(.3,.9,.4,1),top .9s cubic-bezier(.5,.4,.4,1),opacity .3s'; S.pointer.style.left = x + 'px'; S.pointer.style.top = y + 'px'; }
-  function targetOf(el) { const fb = S.frame.querySelector('.frame-body').getBoundingClientRect(), r = el.getBoundingClientRect(); return { x: r.left - fb.left + r.width * (0.35 + Math.random() * 0.3), y: r.top - fb.top + r.height * (0.4 + Math.random() * 0.2) }; }
+  function targetOf(el) { const fb = S.body.getBoundingClientRect(), r = el.getBoundingClientRect(); return { x: r.left - fb.left + r.width * (0.35 + Math.random() * 0.3), y: r.top - fb.top + r.height * (0.4 + Math.random() * 0.2) }; }
   function seal(on) { S.amount.classList.toggle('sealed', on); S.kv.forEach((b) => b.classList.toggle('sealed', on)); }
   function notice(text, cls) { S.notice.textContent = text; S.notice.className = 'f-notice show ' + (cls || ''); }
-  function setStep(i, { manual = false } = {}) {
-    clearTimeout(storyTimer); cancelRun();
-    step = i; storyStart = performance.now();
-    S.steps.forEach((b, k) => { b.classList.toggle('on', k === i); b.classList.toggle('done', k < i); b.style.setProperty('--dur', DUR[i] + 'ms'); if (k === i) { b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; } });
-    S.cap.classList.add('fade'); setTimeout(() => { S.cap.textContent = CAPS[i]; S.cap.classList.remove('fade'); }, 250);
-    typeLog(LOGS[i]);
-    if (manual) { paused = true; clearTimeout(pauseT); pauseT = setTimeout(() => { paused = false; if (visible) setStep((step + 1) % 4); }, 14000); }
-    run(i).then(() => {
-      if (!visible || paused || reduced) return;
-      clearTimeout(storyTimer);
-      storyTimer = setTimeout(() => setStep((step + 1) % 4), Math.max(400, DUR[i] - (performance.now() - storyStart)));
-    });
-  }
   let logTimer = 0;
   function typeLog(text) {
     clearInterval(logTimer); if (reduced) { S.log.textContent = text; return; }
@@ -185,37 +183,104 @@
     logTimer = setInterval(() => { k = Math.min(text.length, k + 2); S.log.textContent = text.slice(0, k); if (k >= text.length) clearInterval(logTimer); }, 14);
   }
   function aiSay(text, thinkMs = 700) { S.ai.classList.add('typing'); S.ai.textContent = ''; return wait(thinkMs).then(() => { S.ai.classList.remove('typing'); S.ai.textContent = text; }); }
+  function setStep(i) {
+    if (i === step) return;
+    cancelRun(); step = i;
+    S.steps.forEach((el, k) => el.classList.toggle('on', k === i));
+    typeLog(LOGS[i]);
+    window.NTMorph && window.NTMorph.setState(i === 1 || i === 2 ? 1 : 0);
+    run(i);
+  }
   async function run(i) {
+    clearTrail();
     if (i === 0) {
       S.guard.className = 'f-guard'; S.guard.lastElementChild.textContent = 'Session protected'; S.agent.classList.remove('in'); S.passkey.classList.remove('in');
       seal(false); S.amount.textContent = '$4,939.10'; S.notice.className = 'f-notice'; S.btn.textContent = 'Show balance';
-      const p = targetOf(S.btn); movePointer(p.x - 220, p.y + 90); await wait(150); movePointer(p.x, p.y); await wait(1000);
-      S.btn.classList.add('pressed'); await wait(140); S.btn.classList.remove('pressed'); notice('Verified: human click \u00b7 hand-shaped path, 118 ms press', 'ok');
+      const p = targetOf(S.btn), a = { x: p.x - 220, y: p.y + 90 }; movePointer(a.x, a.y); await wait(150); movePointer(p.x, p.y); drawHandPath(a, p, 900); await wait(1000);
+      S.btn.classList.add('pressed'); await wait(140); S.btn.classList.remove('pressed'); notice('Verified: human click · hand-shaped path, 118 ms press', 'ok');
     } else if (i === 1) {
-      S.pointer.classList.remove('show'); await wait(300); S.agent.classList.add('in'); S.ai.classList.add('typing'); S.ai.textContent = '';
-      await wait(700); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'AI agent attached \u2014 screen sealed'; seal(true); S.notice.className = 'f-notice';
-      await wait(400); await aiSay('I can see the account, but the balance field shows \u2022\u2022\u2022\u2022 .', 600);
+      S.pointer.classList.remove('show'); S.passkey.classList.remove('in'); seal(false); S.amount.textContent = '$4,939.10'; S.notice.className = 'f-notice';
+      await wait(300); S.agent.classList.add('in'); S.ai.classList.add('typing'); S.ai.textContent = '';
+      await wait(700); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'AI agent attached — screen sealed'; seal(true);
+      await wait(400); await aiSay('I can see the account, but the balance field shows •••• .', 600);
     } else if (i === 2) {
-      const p = targetOf(S.btn); movePointer(p.x, p.y, true); await wait(500); S.btn.classList.add('pressed'); await wait(60); S.btn.classList.remove('pressed');
-      await wait(300); S.amount.textContent = '$\u2022,\u2022\u2022\u2022.\u2022\u2022'; S.amount.classList.remove('sealed'); notice('Masked for AI agents by policy \u00b7 balance.read \u2192 mask', 'warn');
-      await wait(1400); await aiSay('Trying \u201cDownload statement\u201d\u2026', 500); const q = targetOf(S.btn.nextElementSibling); movePointer(q.x, q.y, true); await wait(600);
-      S.guard.className = 'f-guard block'; S.guard.lastElementChild.textContent = 'Export blocked for agents'; notice('report.export \u2192 block \u00b7 confirm with a passkey to continue', 'bad');
-      await wait(500); await aiSay('The download is blocked for assistants \u2014 you\u2019ll need to confirm it yourself.', 600);
+      S.agent.classList.add('in'); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'AI agent attached — screen sealed'; S.passkey.classList.remove('in');
+      const p = targetOf(S.btn), a = { x: 30, y: 24 }; movePointer(p.x, p.y, true); drawJump(a, p); await wait(500); S.btn.classList.add('pressed'); await wait(60); S.btn.classList.remove('pressed');
+      await wait(300); S.amount.textContent = '$•,•••.••'; S.amount.classList.remove('sealed'); notice('Masked for AI agents by policy · balance.read → mask', 'warn');
+      await wait(1400); await aiSay('Trying “Download statement”…', 500); const q = targetOf(S.btn.nextElementSibling); movePointer(q.x, q.y, true); drawJump(p, q); await wait(600);
+      S.guard.className = 'f-guard block'; S.guard.lastElementChild.textContent = 'Export blocked for agents'; notice('report.export → block · confirm with a passkey to continue', 'bad');
+      await wait(500); await aiSay('The download is blocked for assistants — you’ll need to confirm it yourself.', 600);
     } else {
-      S.pointer.classList.remove('show'); S.passkey.classList.add('in'); await wait(1900); S.passkey.classList.remove('in');
-      S.agent.classList.remove('in'); S.guard.className = 'f-guard'; S.guard.lastElementChild.textContent = 'You\u2019re back \u00b7 5:00';
-      seal(false); S.amount.textContent = '$4,939.10'; notice('Presence verified with a passkey \u00b7 session reclaimed', 'ok');
+      S.pointer.classList.remove('show'); S.agent.classList.remove('in'); S.passkey.classList.add('in'); await wait(1800); S.passkey.classList.remove('in');
+      S.guard.className = 'f-guard'; S.guard.lastElementChild.textContent = 'You’re back · 5:00';
+      seal(false); S.amount.textContent = '$4,939.10'; notice('Presence verified with a passkey · session reclaimed', 'ok');
     }
   }
-  S.steps.forEach((b) => b.addEventListener('click', () => setStep(+b.dataset.step, { manual: true })));
-  if ('IntersectionObserver' in window) {
-    new IntersectionObserver((es) => {
-      const v = es[0].isIntersecting;
-      if (v === visible) return;
-      visible = v;
-      if (v) setStep(step); else { clearTimeout(storyTimer); cancelRun(); }
-    }, { threshold: 0.3 }).observe(S.frame);
-  } else { visible = true; setStep(0); }
+  if ('IntersectionObserver' in window && innerWidth > 980) {
+    const sio = new IntersectionObserver((es) => { es.forEach((e) => { if (e.isIntersecting) setStep(+e.target.dataset.step); }); }, { rootMargin: '-45% 0px -45% 0px', threshold: 0 });
+    S.steps.forEach((el) => sio.observe(el));
+    setTimeout(() => { if (step < 0) setStep(0); }, 800);
+  } else {
+    // narrow screens: the steps are cards; tap one to play it, otherwise play through slowly
+    S.steps.forEach((el) => el.addEventListener('click', () => setStep(+el.dataset.step)));
+    if ('IntersectionObserver' in window) { const fio = new IntersectionObserver((es) => { if (es[0].isIntersecting) { setStep(0); fio.disconnect(); } }, { threshold: .3 }); fio.observe(S.frame); } else setStep(0);
+  }
+
+  // ---------------------------------------------------------------- 3D point cloud (WebGL): a fingerprint that becomes a lattice when the agent is in
+  (function morph() {
+    const cv = $('#morph'); if (!cv || reduced) return;
+    const gl = cv.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: true, powerPreference: 'low-power' }); if (!gl) return;
+    const N = 2744; // 14³ — the lattice; the fingerprint uses the same count so every point has a home in both shapes
+    const A = new Float32Array(N * 3), B = new Float32Array(N * 3);
+    // A: a fingerprint in 3D — nine oval ridges, staggered breaks, a gentle dome in z
+    let i = 0;
+    const perRing = Math.floor(N / 9);
+    for (let k = 0; k < 9; k++) {
+      const rx = 0.08 + 0.1 * k, ry = 0.1 + 0.115 * k, open = k >= 5;
+      for (let j = 0; j < perRing; j++) {
+        const u = j / perRing, a0 = open ? (-200 + 220 * u) : (-180 + 360 * u), a = a0 * Math.PI / 180;
+        const gap = Math.sin(a * 3 + k * 1.7) > 0.93;                            // ridge breaks
+        const r = gap ? 0 : 1;
+        A[i * 3] = rx * Math.cos(a) * r; A[i * 3 + 1] = ry * Math.sin(a) * r * 0.9; A[i * 3 + 2] = (0.25 - (rx * rx + ry * ry) * 0.18) * r; i++;
+      }
+    }
+    for (; i < N; i++) { A[i * 3] = 0; A[i * 3 + 1] = 0; A[i * 3 + 2] = 0.26; }
+    // B: a cubic lattice — the shape of a program
+    i = 0; for (let x = 0; x < 14; x++) for (let y = 0; y < 14; y++) for (let z = 0; z < 14; z++) { B[i * 3] = (x / 13 - .5) * 1.2; B[i * 3 + 1] = (y / 13 - .5) * 1.2; B[i * 3 + 2] = (z / 13 - .5) * 1.2; i++; }
+    const VS = `attribute vec3 a;attribute vec3 b;uniform float m;uniform float t;uniform vec2 R;uniform float dpr;varying float vz;varying float vm;
+      void main(){float mm=smoothstep(0.,1.,m);vec3 p=mix(a,b,mm);
+        float cy=cos(t*.25),sy=sin(t*.25);p=vec3(p.x*cy+p.z*sy,p.y,-p.x*sy+p.z*cy);
+        float cx=cos(.35),sx=sin(.35);p=vec3(p.x,p.y*cx-p.z*sx,p.y*sx+p.z*cx);
+        float d=2.6+p.z;vec2 s=p.xy/d*vec2(R.y/R.x,1.)*2.4;gl_Position=vec4(s,0.,1.);
+        gl_PointSize=(3.6-p.z*1.6)*dpr*(1.-mm*.2);vz=p.z;vm=mm;}`;
+    const FS = `precision mediump float;varying float vz;varying float vm;
+      void main(){vec2 c=gl_PointCoord-.5;float d=dot(c,c);if(d>.25)discard;float e=smoothstep(.25,.05,d);
+        vec3 mint=vec3(.486,.941,.753),amber=vec3(1.,.72,.42);vec3 col=mix(mint,amber,vm);
+        float depth=clamp(.6+vz*.7,.35,1.);gl_FragColor=vec4(col*depth*e,e*depth);}`;
+    const sh = (t, src) => { const o = gl.createShader(t); gl.shaderSource(o, src); gl.compileShader(o); return gl.getShaderParameter(o, gl.COMPILE_STATUS) ? o : null; };
+    const vs = sh(gl.VERTEX_SHADER, VS), fs = sh(gl.FRAGMENT_SHADER, FS); if (!vs || !fs) return;
+    const prog = gl.createProgram(); gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog); if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return;
+    gl.useProgram(prog);
+    const buf = (data, name) => { const bo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, bo); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW); const loc = gl.getAttribLocation(prog, name); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0); };
+    buf(A, 'a'); buf(B, 'b');
+    const uM = gl.getUniformLocation(prog, 'm'), uT = gl.getUniformLocation(prog, 't'), uR = gl.getUniformLocation(prog, 'R'), uD = gl.getUniformLocation(prog, 'dpr');
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    let target = 0, m = 0, live = false, t0 = performance.now();
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    const size = () => { const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; gl.viewport(0, 0, w, h); } };
+    addEventListener('resize', size, { passive: true });
+    function frame(now) {
+      if (!live || document.visibilityState !== 'visible') return;
+      size(); m += (target - m) * .045;
+      gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.uniform1f(uM, m); gl.uniform1f(uT, (now - t0) / 1000); gl.uniform2f(uR, cv.width, cv.height); gl.uniform1f(uD, dpr);
+      gl.drawArrays(gl.POINTS, 0, N); requestAnimationFrame(frame);
+    }
+    window.NTMorph = { setState: (v) => { target = v; } };
+    const mio = 'IntersectionObserver' in window ? new IntersectionObserver((es) => { live = es[0].isIntersecting; if (live) requestAnimationFrame(frame); }, { threshold: 0 }) : null;
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && live) requestAnimationFrame(frame); });
+    if (mio) mio.observe(cv); else { live = true; requestAnimationFrame(frame); }
+  })();
 
   // ---------------------------------------------------------------- demo apps
   let apps = [];
