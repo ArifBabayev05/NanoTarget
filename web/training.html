@@ -45,6 +45,23 @@
     <div class="stepper" id="stepper"></div>
     <div class="task" id="task"><div class="num" id="t-num"></div><h2 id="t-title"></h2><p id="t-text"></p></div>
     <div class="stage" id="stage" data-nt-zone></div>
+
+    <section class="hud" id="hud" hidden>
+      <header class="hud-top">
+        <span class="hud-title">Canlı mühərrik</span>
+        <span class="hud-sub" id="hud-sub">son klikin fizikası — serverdən</span>
+        <span class="hud-tally" id="hud-tally"></span>
+      </header>
+      <div class="hud-body">
+        <div class="hud-trace">
+          <canvas id="trace" width="620" height="200"></canvas>
+          <div class="hud-verdict" id="hud-verdict"><span class="res unknown">gözlənilir</span></div>
+        </div>
+        <div class="hud-meters" id="hud-meters"></div>
+      </div>
+      <div class="hud-flags" id="hud-flags"></div>
+      <div class="spark" id="spark"></div>
+    </section>
     <div class="results" id="results" hidden></div>
   </div>
 
