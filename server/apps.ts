@@ -175,5 +175,6 @@ export function publicApp(a: AppDef) {
     id: a.id, name: a.name, tagline: a.tagline, sector: a.sector, initials: a.initials, accent: a.accent, accountTitle: a.accountTitle, intro: a.intro,
     resources: a.resources.map((r) => ({ id: r.id, title: r.title, button: r.button, method: r.method, view: r.view, input: r.input ?? null, note: r.note ?? null })),
     promptSteps: a.promptSteps,
+    rules: a.policy.rules.map((r) => ({ resource: r.resource, onAgent: r.onAgent, onArtifact: r.onArtifact, onUnknown: r.onUnknown })),
   };
 }

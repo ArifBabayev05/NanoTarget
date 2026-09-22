@@ -1,5 +1,5 @@
 /* NanoTarget lab (training + sandbox): dark, animated, consistent with the landing */
-:root { --bg: #070907; --bg2: #0c0f0d; --ink: #f4f6f4; --ink-dim: #9aa39c; --ink-faint: #4a524d; --accent: #3ddc84; --accent-2: #8bf0b9; --red: #ff5d6c; --amber: #f5c451; --line: rgba(255,255,255,.08); --card: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015)); --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; --mono: "JetBrains Mono", ui-monospace, Menlo, monospace; --r: 20px; }
+:root { --bg: #070907; --bg2: #0c0f0d; --ink: #f4f6f4; --ink-dim: #9aa39c; --ink-faint: #4a524d; --accent: #3ddc84; --accent-2: #8bf0b9; --red: #ff5d6c; --amber: #f5c451; --line: rgba(255,255,255,.08); --card: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015)); --font: "Geist", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; --mono: "Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace; --r: 20px; }
 * { box-sizing: border-box; } [hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--font); -webkit-font-smoothing: antialiased; }
 a { color: inherit; text-decoration: none; }
@@ -110,3 +110,11 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; } th { text-ali
 @keyframes countup { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .who button::after { content: "→"; position: absolute; right: 22px; top: 24px; color: var(--ink-faint); transition: transform .25s, color .25s; }
 .who button { position: relative; } .who button:hover::after { transform: translateX(4px); color: var(--accent); }
+
+/* cross-document page transitions (Chrome/Edge; others ignore) */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: 260ms ease-out both vt-out; }
+::view-transition-new(root) { animation: 380ms cubic-bezier(.2,.7,.2,1) both vt-in; }
+@keyframes vt-out { to { opacity: 0; transform: translateY(-6px); } }
+@keyframes vt-in { from { opacity: 0; transform: translateY(10px); } }
+@media (prefers-reduced-motion: reduce) { ::view-transition-old(root), ::view-transition-new(root) { animation: none; } }
