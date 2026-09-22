@@ -1,9 +1,0 @@
-{
-  "hosting": {
-    "public": "firebase/public",
-    "ignore": ["**/.*"],
-    "rewrites": [{ "source": "**", "function": { "functionId": "app", "region": "us-central1" } }],
-    "headers": [{ "source": "**", "headers": [{ "key": "X-Frame-Options", "value": "DENY" }] }]
-  },
-  "functions": [{ "source": "firebase/functions", "runtime": "nodejs22", "codebase": "default", "ignore": ["node_modules", ".git"] }]
-}
