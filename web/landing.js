@@ -146,7 +146,7 @@
     steps: $$('#story-steps .ss'), guard: $('#f-guard'), amount: $('#f-amount'), btn: $('#f-btn'), notice: $('#f-notice'),
     agent: $('#f-agent'), ai: $('#f-ai'), passkey: $('#f-passkey'), pointer: $('#f-pointer'), log: $('#f-log'),
     kv: ['#f-name', '#f-iban', '#f-phone'].map((s) => $(s)), frame: $('#frame'), body: $('#frame .frame-body'),
-    ptag: $('#f-pointer-tag'), note: $('#story-note'), noteTitle: $('#note-title'), noteText: $('#note-text'), noteMetric: $('#note-metric'),
+    note: $('#story-note'), noteTitle: $('#note-title'), noteText: $('#note-text'), noteMetric: $('#note-metric'),
   };
   const LOGS = [
     'balance.read → allow · actor=human_like · HUMAN_KINEMATICS',
@@ -173,14 +173,28 @@
     trailSize(); const pts = []; const n = 48;
     for (let i = 0; i <= n; i++) { const u = i / n, e = 10 * u ** 3 - 15 * u ** 4 + 6 * u ** 5; pts.push({ x: a.x + (b.x - a.x) * e + Math.sin(u * Math.PI) * 26, y: a.y + (b.y - a.y) * e - Math.sin(u * Math.PI) * 18 + (Math.random() - .5) * 1.6 }); }
     const t0 = performance.now(); let k = 1;
-    const tick = () => { const u = Math.min(1, (performance.now() - t0) / ms); const upto = Math.max(1, Math.round(u * n)); fctx.lineCap = 'round'; for (; k <= upto; k++) { fctx.strokeStyle = 'rgba(124,240,192,.8)'; fctx.lineWidth = 2; fctx.beginPath(); fctx.moveTo(pts[k - 1].x, pts[k - 1].y); fctx.lineTo(pts[k].x, pts[k].y); fctx.stroke(); } if (u < 1 && step === 0) requestAnimationFrame(tick); };
+    const tick = () => { const u = Math.min(1, (performance.now() - t0) / ms); const upto = Math.max(1, Math.round(u * n)); fctx.lineCap = 'round'; for (; k <= upto; k++) { const f = k / n; fctx.strokeStyle = `rgba(124,240,192,${(0.18 + 0.72 * f).toFixed(2)})`; fctx.lineWidth = 1.2 + 1.4 * f; fctx.beginPath(); fctx.moveTo(pts[k - 1].x, pts[k - 1].y); fctx.lineTo(pts[k].x, pts[k].y); fctx.stroke(); } if (u < 1 && step === 0) requestAnimationFrame(tick); };
     requestAnimationFrame(tick);
   }
   function drawJump(a, b) {
-    trailSize(); fctx.setLineDash([4, 6]); fctx.strokeStyle = 'rgba(255,184,107,.75)'; fctx.lineWidth = 1.5; fctx.beginPath(); fctx.moveTo(a.x, a.y); fctx.lineTo(b.x, b.y); fctx.stroke(); fctx.setLineDash([]);
-    fctx.fillStyle = 'rgba(255,184,107,.9)'; fctx.beginPath(); fctx.arc(b.x, b.y, 3, 0, Math.PI * 2); fctx.fill();
+    trailSize(); fctx.setLineDash([3, 7]); fctx.strokeStyle = 'rgba(255,184,107,.6)'; fctx.lineWidth = 1.2; fctx.beginPath(); fctx.moveTo(a.x, a.y); fctx.lineTo(b.x, b.y); fctx.stroke(); fctx.setLineDash([]);
+    fctx.fillStyle = 'rgba(255,184,107,.95)'; fctx.beginPath(); fctx.arc(b.x, b.y, 3, 0, Math.PI * 2); fctx.fill();
+    fctx.strokeStyle = 'rgba(255,184,107,.35)'; fctx.lineWidth = 1; fctx.beginPath(); fctx.arc(b.x, b.y, 8, 0, Math.PI * 2); fctx.stroke();
   }
-  function movePointer(x, y, agent = false) { S.ptag.textContent = agent ? 'AI agent' : 'Ada · customer'; S.pointer.classList.remove('quiet'); S.pointer.classList.toggle('agent', agent); S.pointer.classList.add('show'); S.pointer.style.transition = agent ? 'left 0s,top 0s,opacity .3s' : 'left .9s cubic-bezier(.3,.9,.4,1),top .9s cubic-bezier(.5,.4,.4,1),opacity .3s'; S.pointer.style.left = x + 'px'; S.pointer.style.top = y + 'px'; }
+  function movePointer(x, y, agent = false) { S.pointer.classList.toggle('agent', agent); S.pointer.classList.add('show'); S.pointer.style.transition = agent ? 'left 0s,top 0s,opacity .3s' : 'left .9s cubic-bezier(.3,.9,.4,1),top .9s cubic-bezier(.5,.4,.4,1),opacity .3s'; S.pointer.style.left = x + 'px'; S.pointer.style.top = y + 'px'; }
+  // The point where a straight line from `from` meets the edge of `el`, backed off by `gap` px: paths stop
+  // there instead of running over the label; the cursor tip lands just inside the same edge.
+  function edgeOf(el, from, gap = 8) {
+    const fb = S.body.getBoundingClientRect(), r = el.getBoundingClientRect();
+    const L = r.left - fb.left, T = r.top - fb.top, R = L + r.width, B = T + r.height, cx = (L + R) / 2, cy = (T + B) / 2;
+    const dx = cx - from.x, dy = cy - from.y, len = Math.hypot(dx, dy) || 1;
+    let t = 1;
+    if (dx) { const tx = ((dx > 0 ? L : R) - from.x) / dx; if (tx > 0 && tx < t && Math.abs(from.y + dy * tx - cy) <= r.height / 2) t = tx; }
+    if (dy) { const ty = ((dy > 0 ? T : B) - from.y) / dy; if (ty > 0 && ty < t && Math.abs(from.x + dx * ty - cx) <= r.width / 2) t = ty; }
+    if (t >= 1) t = Math.max(0, 1 - 20 / len);
+    const ex = from.x + dx * t, ey = from.y + dy * t;
+    return { stop: { x: ex - (dx / len) * gap, y: ey - (dy / len) * gap }, tip: { x: ex + (dx / len) * 6, y: ey + (dy / len) * 6 } };
+  }
   function targetOf(el) { const fb = S.body.getBoundingClientRect(), r = el.getBoundingClientRect(); return { x: r.left - fb.left + r.width * (0.35 + Math.random() * 0.3), y: r.top - fb.top + r.height * (0.4 + Math.random() * 0.2) }; }
   function seal(on) { S.amount.classList.toggle('sealed', on); S.kv.forEach((b) => b.classList.toggle('sealed', on)); }
   function notice(text, cls) { S.notice.textContent = text; S.notice.className = 'f-notice show ' + (cls || ''); }
@@ -204,8 +218,8 @@
     if (i === 0) {
       S.guard.className = 'f-guard'; S.guard.lastElementChild.textContent = 'Session protected'; S.agent.classList.remove('in'); S.passkey.classList.remove('in');
       seal(false); S.amount.textContent = '$4,939.10'; S.notice.className = 'f-notice'; S.btn.textContent = 'Show balance';
-      const p = targetOf(S.btn), a = { x: p.x - 220, y: p.y + 90 }; movePointer(a.x, a.y); await wait(150); movePointer(p.x, p.y); drawHandPath(a, p, 900); await wait(1000);
-      S.pointer.classList.add('quiet'); S.btn.classList.add('pressed'); await wait(140); S.btn.classList.remove('pressed'); notice('Verified: human click', 'ok');
+      const c = targetOf(S.btn), a = { x: c.x - 240, y: c.y + 110 }, e = edgeOf(S.btn, a); movePointer(a.x, a.y); await wait(150); movePointer(e.tip.x, e.tip.y); drawHandPath(a, e.stop, 900); await wait(1000);
+      S.btn.classList.add('pressed'); await wait(140); S.btn.classList.remove('pressed'); notice('Verified: human click', 'ok');
       note('The click came from a hand', 'Before answering, the server looks at how the pointer moved. This path curved, trembled and slowed onto the button — so the real balance comes back.', 'ok', 'curved path · slows onto the button · 118 ms press');
     } else if (i === 1) {
       S.pointer.classList.remove('show'); S.passkey.classList.remove('in'); seal(false); S.amount.textContent = '$4,939.10'; S.notice.className = 'f-notice';
@@ -215,12 +229,13 @@
       await wait(400); await aiSay('I can see the account, but the balance field shows •••• .', 600);
     } else if (i === 2) {
       S.agent.classList.add('in'); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'AI agent attached — screen sealed'; S.passkey.classList.remove('in');
-      const p = targetOf(S.btn), a = { x: 30, y: 24 }; movePointer(p.x, p.y, true); drawJump(a, p); await wait(500); S.pointer.classList.add('quiet'); S.btn.classList.add('pressed'); await wait(60); S.btn.classList.remove('pressed');
+      const fb = S.body.getBoundingClientRect(), ar = S.agent.getBoundingClientRect(); const a = { x: ar.left - fb.left, y: ar.top - fb.top + ar.height * 0.6 };
+      const e = edgeOf(S.btn, a, 6); movePointer(e.tip.x, e.tip.y, true); drawJump(a, e.stop); await wait(500); S.btn.classList.add('pressed'); await wait(60); S.btn.classList.remove('pressed');
       await wait(300); S.amount.textContent = '$•,•••.••'; S.amount.classList.remove('sealed'); notice('Masked for AI agents · balance.read → mask', 'warn');
       note('The assistant clicks — the server answers differently', 'No pointer path and an instant press: a program. Your policy says balance → mask, so the same endpoint returns the number hidden.', 'warn', 'no path · jumped to the centre · 2 ms press');
-      await wait(1400); await aiSay('Trying “Download statement”…', 500); const q = targetOf(S.btn.nextElementSibling); movePointer(q.x, q.y, true); drawJump(p, q); await wait(600);
+      await wait(1400); await aiSay('Trying “Download statement”…', 500); const e2 = edgeOf(S.btn.nextElementSibling, a, 6); clearTrail(); movePointer(e2.tip.x, e2.tip.y, true); drawJump(a, e2.stop); await wait(600);
       S.guard.className = 'f-guard block'; S.guard.lastElementChild.textContent = 'Export blocked for agents'; notice('report.export → block', 'bad');
-      clearTrail(); drawJump(p, q); note('Downloading everything is refused', 'A statement export hands over the whole account in one click. For agents the policy says block; a person can still do it after a passkey.', 'bad', 'report.export → block');
+      note('Downloading everything is refused', 'A statement export hands over the whole account in one click. For agents the policy says block; a person can still do it after a passkey.', 'bad', 'report.export → block');
       await wait(500); await aiSay('The download is blocked for assistants — you’ll need to confirm it yourself.', 600);
     } else {
       S.pointer.classList.remove('show'); S.agent.classList.remove('in'); S.passkey.classList.add('in'); await wait(1800); S.passkey.classList.remove('in');
