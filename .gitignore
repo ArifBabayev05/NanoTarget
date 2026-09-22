@@ -15,3 +15,14 @@ examples/express-bank/onehuman.db*
 .agents/
 skills-lock.json
 onehuman.policy.draft.json
+
+# firebase target: generated bundle, copied static roots, secrets
+firebase/functions/app.js
+firebase/functions/web/
+firebase/functions/sdk/
+firebase/functions/docs/
+firebase/functions/server/
+firebase/functions/.env
+firebase/functions/node_modules/
+.firebase/
+firebase-debug.log
