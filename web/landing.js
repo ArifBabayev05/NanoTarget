@@ -146,7 +146,7 @@
     steps: $$('#story-steps .ss'), guard: $('#f-guard'), amount: $('#f-amount'), btn: $('#f-btn'), notice: $('#f-notice'),
     agent: $('#f-agent'), ai: $('#f-ai'), passkey: $('#f-passkey'), pointer: $('#f-pointer'), log: $('#f-log'),
     kv: ['#f-name', '#f-iban', '#f-phone'].map((s) => $(s)), frame: $('#frame'), body: $('#frame .frame-body'),
-    ptag: $('#f-pointer-tag'), pathTag: $('#f-path-tag'), callout: $('#f-callout'), calloutTitle: $('#f-callout-title'), calloutText: $('#f-callout-text'),
+    ptag: $('#f-pointer-tag'), note: $('#story-note'), noteTitle: $('#note-title'), noteText: $('#note-text'), noteMetric: $('#note-metric'),
   };
   const LOGS = [
     'balance.read → allow · actor=human_like · HUMAN_KINEMATICS',
@@ -162,16 +162,13 @@
   const fctx = ftrail.getContext('2d');
   function trailSize() { const r = S.body.getBoundingClientRect(); const d = Math.min(2, devicePixelRatio || 1); if (ftrail.width !== Math.round(r.width * d)) { ftrail.width = Math.round(r.width * d); ftrail.height = Math.round(r.height * d); } fctx.setTransform(d, 0, 0, d, 0, 0); }
   function clearTrail() { trailSize(); fctx.clearRect(0, 0, ftrail.width, ftrail.height); }
-  function pathTag(text, x, y, agent) { S.pathTag.textContent = text; S.pathTag.className = 'f-path-tag' + (agent ? ' agent' : ''); S.pathTag.style.left = x + 'px'; S.pathTag.style.top = y + 'px'; requestAnimationFrame(() => S.pathTag.classList.add('show')); }
-  function callout(title, text, cls) { S.calloutTitle.textContent = title; S.calloutText.textContent = text; S.callout.className = 'f-callout ' + (cls || ''); requestAnimationFrame(() => S.callout.classList.add('show')); }
-  function hideNotes() { S.pathTag.classList.remove('show'); S.callout.classList.remove('show'); }
-  // a dotted connector from the callout to the element it explains
-  function connect(el) {
-    if (!el) return; const fb = S.body.getBoundingClientRect(), c = S.callout.getBoundingClientRect(), r = el.getBoundingClientRect();
-    const x0 = c.right - fb.left, y0 = c.top - fb.top + 12, x1 = r.left - fb.left + r.width / 2, y1 = r.bottom - fb.top + 4;
-    fctx.setLineDash([2, 5]); fctx.strokeStyle = 'rgba(242,242,243,.35)'; fctx.lineWidth = 1; fctx.beginPath(); fctx.moveTo(x0, y0); fctx.bezierCurveTo(x0 + 40, y0, x1, y1 + 30, x1, y1); fctx.stroke(); fctx.setLineDash([]);
-    fctx.fillStyle = 'rgba(242,242,243,.7)'; fctx.beginPath(); fctx.arc(x1, y1, 2.5, 0, Math.PI * 2); fctx.fill();
+  let metric = '';
+  function note(title, text, cls, m) {
+    metric = m || metric;
+    S.note.classList.remove('show');
+    setTimeout(() => { S.noteTitle.textContent = title; S.noteText.textContent = text; S.noteMetric.textContent = metric; S.note.className = 'story-note ' + (cls || ''); requestAnimationFrame(() => S.note.classList.add('show')); }, 180);
   }
+  function hideNotes() { metric = ''; S.note.classList.remove('show'); }
   function drawHandPath(a, b, ms) {
     trailSize(); const pts = []; const n = 48;
     for (let i = 0; i <= n; i++) { const u = i / n, e = 10 * u ** 3 - 15 * u ** 4 + 6 * u ** 5; pts.push({ x: a.x + (b.x - a.x) * e + Math.sin(u * Math.PI) * 26, y: a.y + (b.y - a.y) * e - Math.sin(u * Math.PI) * 18 + (Math.random() - .5) * 1.6 }); }
@@ -183,7 +180,7 @@
     trailSize(); fctx.setLineDash([4, 6]); fctx.strokeStyle = 'rgba(255,184,107,.75)'; fctx.lineWidth = 1.5; fctx.beginPath(); fctx.moveTo(a.x, a.y); fctx.lineTo(b.x, b.y); fctx.stroke(); fctx.setLineDash([]);
     fctx.fillStyle = 'rgba(255,184,107,.9)'; fctx.beginPath(); fctx.arc(b.x, b.y, 3, 0, Math.PI * 2); fctx.fill();
   }
-  function movePointer(x, y, agent = false) { S.ptag.textContent = agent ? 'AI agent' : 'Ada · customer'; S.pointer.classList.toggle('agent', agent); S.pointer.classList.add('show'); S.pointer.style.transition = agent ? 'left 0s,top 0s,opacity .3s' : 'left .9s cubic-bezier(.3,.9,.4,1),top .9s cubic-bezier(.5,.4,.4,1),opacity .3s'; S.pointer.style.left = x + 'px'; S.pointer.style.top = y + 'px'; }
+  function movePointer(x, y, agent = false) { S.ptag.textContent = agent ? 'AI agent' : 'Ada · customer'; S.pointer.classList.remove('quiet'); S.pointer.classList.toggle('agent', agent); S.pointer.classList.add('show'); S.pointer.style.transition = agent ? 'left 0s,top 0s,opacity .3s' : 'left .9s cubic-bezier(.3,.9,.4,1),top .9s cubic-bezier(.5,.4,.4,1),opacity .3s'; S.pointer.style.left = x + 'px'; S.pointer.style.top = y + 'px'; }
   function targetOf(el) { const fb = S.body.getBoundingClientRect(), r = el.getBoundingClientRect(); return { x: r.left - fb.left + r.width * (0.35 + Math.random() * 0.3), y: r.top - fb.top + r.height * (0.4 + Math.random() * 0.2) }; }
   function seal(on) { S.amount.classList.toggle('sealed', on); S.kv.forEach((b) => b.classList.toggle('sealed', on)); }
   function notice(text, cls) { S.notice.textContent = text; S.notice.className = 'f-notice show ' + (cls || ''); }
@@ -208,29 +205,28 @@
       S.guard.className = 'f-guard'; S.guard.lastElementChild.textContent = 'Session protected'; S.agent.classList.remove('in'); S.passkey.classList.remove('in');
       seal(false); S.amount.textContent = '$4,939.10'; S.notice.className = 'f-notice'; S.btn.textContent = 'Show balance';
       const p = targetOf(S.btn), a = { x: p.x - 220, y: p.y + 90 }; movePointer(a.x, a.y); await wait(150); movePointer(p.x, p.y); drawHandPath(a, p, 900); await wait(1000);
-      pathTag('curved path · slows onto the button · 118 ms press', (a.x + p.x) / 2 + 20, (a.y + p.y) / 2 - 28);
-      S.btn.classList.add('pressed'); await wait(140); S.btn.classList.remove('pressed'); notice('Verified: human click', 'ok');
-      await wait(300); callout('The click came from a hand', 'The server checks how the pointer moved before the press. This one curved, trembled and slowed down — so the real balance is returned.', 'ok'); await wait(50); connect(S.amount);
+      S.pointer.classList.add('quiet'); S.btn.classList.add('pressed'); await wait(140); S.btn.classList.remove('pressed'); notice('Verified: human click', 'ok');
+      note('The click came from a hand', 'Before answering, the server looks at how the pointer moved. This path curved, trembled and slowed onto the button — so the real balance comes back.', 'ok', 'curved path · slows onto the button · 118 ms press');
     } else if (i === 1) {
       S.pointer.classList.remove('show'); S.passkey.classList.remove('in'); seal(false); S.amount.textContent = '$4,939.10'; S.notice.className = 'f-notice';
       await wait(300); S.agent.classList.add('in'); S.ai.classList.add('typing'); S.ai.textContent = '';
       await wait(700); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'AI agent attached — screen sealed'; seal(true);
-      callout('An assistant joined the tab', 'Its browser tool leaves traces the page can see. 0.3 s later every number already on screen is blurred — before the assistant reads it.', 'warn'); await wait(50); connect(S.guard);
+      note('An assistant joined the tab', 'Its browser tool leaves traces the page can see. Within 0.3 s every number already on screen is blurred — before the assistant reads it.', 'warn', 'seal · 0.3 s after attach');
       await wait(400); await aiSay('I can see the account, but the balance field shows •••• .', 600);
     } else if (i === 2) {
       S.agent.classList.add('in'); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'AI agent attached — screen sealed'; S.passkey.classList.remove('in');
-      const p = targetOf(S.btn), a = { x: 30, y: 24 }; movePointer(p.x, p.y, true); drawJump(a, p); pathTag('no path · jumped to the centre · 2 ms press', (a.x + p.x) / 2 + 30, (a.y + p.y) / 2, true); await wait(500); S.btn.classList.add('pressed'); await wait(60); S.btn.classList.remove('pressed');
+      const p = targetOf(S.btn), a = { x: 30, y: 24 }; movePointer(p.x, p.y, true); drawJump(a, p); await wait(500); S.pointer.classList.add('quiet'); S.btn.classList.add('pressed'); await wait(60); S.btn.classList.remove('pressed');
       await wait(300); S.amount.textContent = '$•,•••.••'; S.amount.classList.remove('sealed'); notice('Masked for AI agents · balance.read → mask', 'warn');
-      callout('The assistant clicks — the server answers differently', 'No pointer path, an instant press: a program. Your policy says balance → mask, so the same endpoint returns the number hidden.', 'warn'); await wait(50); connect(S.amount);
+      note('The assistant clicks — the server answers differently', 'No pointer path and an instant press: a program. Your policy says balance → mask, so the same endpoint returns the number hidden.', 'warn', 'no path · jumped to the centre · 2 ms press');
       await wait(1400); await aiSay('Trying “Download statement”…', 500); const q = targetOf(S.btn.nextElementSibling); movePointer(q.x, q.y, true); drawJump(p, q); await wait(600);
       S.guard.className = 'f-guard block'; S.guard.lastElementChild.textContent = 'Export blocked for agents'; notice('report.export → block', 'bad');
-      clearTrail(); drawJump(p, q); callout('Downloading everything is refused', 'A statement export hands over the whole account in one click. For agents the policy says block; a person can still do it after a passkey.', 'bad'); await wait(50); connect(S.btn.nextElementSibling);
+      clearTrail(); drawJump(p, q); note('Downloading everything is refused', 'A statement export hands over the whole account in one click. For agents the policy says block; a person can still do it after a passkey.', 'bad', 'report.export → block');
       await wait(500); await aiSay('The download is blocked for assistants — you’ll need to confirm it yourself.', 600);
     } else {
       S.pointer.classList.remove('show'); S.agent.classList.remove('in'); S.passkey.classList.add('in'); await wait(1800); S.passkey.classList.remove('in');
       S.guard.className = 'f-guard'; S.guard.lastElementChild.textContent = 'You’re back · 5:00';
       seal(false); S.amount.textContent = '$4,939.10'; notice('Presence verified with a passkey · session reclaimed', 'ok');
-      callout('Ada proves she is there', 'Touch ID cannot be faked by an assistant. For five minutes the session is hers again and the data comes back.', 'ok'); await wait(50); connect(S.guard);
+      note('Ada proves she is there', 'Touch ID cannot be faked by an assistant. For five minutes the session is hers again and the data comes back.', 'ok', 'reclaim · webauthn · 5 min');
     }
   }
   if ('IntersectionObserver' in window && innerWidth > 980) {
