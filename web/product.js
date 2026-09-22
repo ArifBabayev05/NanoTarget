@@ -4,7 +4,7 @@
 (() => {
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const money = (n, unit) => n == null ? '••••' : `${Number(n).toLocaleString('az-AZ', { minimumFractionDigits: 2 })} ${unit || '₼'}`;
+  const money = (n, unit) => { if (n == null) return '••••'; const u = unit || 'USD'; const sym = u === 'USD' || u === '$' ? '$' : u + ' '; return `${sym}${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; };
   const room = new URL(location.href).searchParams.get('room');
   const q = `?room=${encodeURIComponent(room)}`;
   const appId = (document.querySelector('meta[name="nt-app"]') || {}).content || 'bank';
@@ -137,7 +137,7 @@
     if (v == null) return '<span class="chip">••••</span>';
     if (c.key === 'status') return `<span class="chip ${/Paid|Closed/.test(v) ? 'ok' : /Declined/.test(v) ? 'bad' : 'warn'}">${esc(v)}</span>`;
     if (c.key === 'stage') return `<span class="chip ${v === 'Closed won' ? 'ok' : ''}">${esc(v)}</span>`;
-    if (c.key === 'amount' || c.key === 'value') return typeof v === 'number' ? money(v).replace(' ₼', '') : esc(v);
+    if (c.key === 'amount' || c.key === 'value') return typeof v === 'number' ? money(v) : esc(v);
     return esc(v);
   };
 
@@ -154,9 +154,9 @@
 
   function bankLayout() {
     $('#page-title').textContent = 'Welcome back';
-    $('#page-sub').textContent = 'Cari hesab · AZN';
+    $('#page-sub').textContent = 'Current account · USD';
     $('#content').innerHTML = `
-      <div class="card hero-card c8"><h3>Current account</h3><p class="sub">•••• 2048</p><div class="amount" id="bank-amount">•••• $</div><small id="bank-note">Balance hidden</small><div class="actions" style="margin-top:16px"><button data-res="balance.read">Show balance</button><button data-res="report.export">Download statement (CSV)</button></div><div id="body-balance"></div></div>
+      <div class="card hero-card c8"><h3>Current account</h3><p class="sub">•••• 2048</p><div class="amount" id="bank-amount">$ ••••</div><small id="bank-note">Balance hidden</small><div class="actions" style="margin-top:16px"><button data-res="balance.read">Show balance</button><button data-res="report.export">Download statement (CSV)</button></div><div id="body-balance"></div></div>
       <div class="card c4"><h3>Quick actions</h3><p class="sub">Most used</p><div class="quick"><button disabled><span class="ico">⇄</span>Transfer</button><button disabled><span class="ico">▭</span>Top up</button><button disabled><span class="ico">≡</span>Bills</button><button disabled><span class="ico">＋</span>More</button></div></div>
       ${section('tx', 'Recent transactions', 'Search or show all')}
       ${section('profile', 'Personal details', 'Name, contact, IBAN', 'c6')}
@@ -207,7 +207,7 @@
         render(resource, def, res, body);
       } else {
         // blocked / error: show product notice, keep placeholders
-        if (resource === 'balance.read' && res.blocked) { $('#bank-amount').textContent = '•••• $'; $('#bank-note').textContent = 'Balance protected'; }
+        if (resource === 'balance.read' && res.blocked) { $('#bank-amount').textContent = '$ ••••'; $('#bank-note').textContent = 'Balance protected'; }
         if (resource === 'pipeline.read' && res.blocked) { $('#kpi-pipeline').textContent = '••••'; }
       }
       noticeFor(res, body, resource, retry);
@@ -228,7 +228,7 @@
     const d = res.data;
     switch (resource) {
       case 'balance.read': $('#bank-amount').textContent = money(d.value, d.unit); $('#bank-note').textContent = d.note || ''; body.innerHTML = ''; mark(['#bank-amount', '#bank-note'], res.masked); return;
-      case 'pipeline.read': $('#kpi-pipeline').textContent = money(d.value, d.unit).replace(',00', ''); $('#kpi-pipeline-sub').textContent = d.note || ''; body.innerHTML = ''; mark(['#kpi-pipeline', '#kpi-pipeline-sub'], res.masked); return;
+      case 'pipeline.read': $('#kpi-pipeline').textContent = money(d.value, d.unit).replace(/\.00$/, ''); $('#kpi-pipeline-sub').textContent = d.note || ''; body.innerHTML = ''; mark(['#kpi-pipeline', '#kpi-pipeline-sub'], res.masked); return;
       case 'customers.list': body.innerHTML = tableHtml(d, { clickable: true }); $('#kpi-customers').textContent = String((d.rows || []).length); mark(['#kpi-customers'], res.masked); body.querySelectorAll('tr.clickable').forEach((tr) => { tr.onclick = () => { const row = d.rows[Number(tr.dataset.row)]; openDrawer(`<h3>${esc(row.name)}</h3><p class="sub">${esc(row.company)}</p>${kvHtml([{ label: 'Phone', value: row.phone }, { label: 'Email', value: row.email || '••••' }, { label: 'Address', value: row.address || '••••' }, { label: 'Stage', value: row.stage }, { label: 'Value', value: money(row.value) }, { label: 'Notes', value: row.notes || '••••' }])}${res.masked ? '<div class="notice mask"><span class="ico">●</span><div>Contact details hidden.</div></div>' : ''}`); }; }); return;
       case 'medical.read': body.innerHTML = `<strong>${esc(d.title)}</strong>${(d.paragraphs || []).map((p) => `<p style="margin:6px 0">${esc(p)}</p>`).join('')}`; return;
       default:
@@ -286,7 +286,7 @@ At the end, write briefly what you saw at each step (data shown / hidden / block
     document.addEventListener('nt:sealed', (e) => {
       const g = $('#guard'); g.className = 'guard agent'; g.lastElementChild.textContent = 'AI agent detected · data hidden';
       if (e.detail && e.detail.first) toast('An AI agent attached — sensitive data on screen was hidden');
-      if (app.id === 'bank' && $('#bank-amount')) { $('#bank-amount').textContent = '•••• $'; $('#bank-note').textContent = 'Balance protected'; }
+      if (app.id === 'bank' && $('#bank-amount')) { $('#bank-amount').textContent = '$ ••••'; $('#bank-note').textContent = 'Balance protected'; }
       // re-fetch once, on the first seal: the server now answers masked/blocked (in observe mode the data
       // comes back full and is simply redacted again in place)
       if (e.detail && e.detail.first) { const again = [...shown]; shown.clear(); setTimeout(() => { for (const r of again) run(r, null); }, 400); }
