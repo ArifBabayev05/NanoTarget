@@ -1,0 +1,66 @@
+/**
+ * nanotarget CLI
+ *   npx nanotarget scan [dir]                      discover routes, sensitivity, identity; write nanotarget.policy.draft.json
+ *   npx nanotarget scan [dir] --json               same, machine-readable (for AI agents)
+ *   npx nanotarget scan [dir] --proposal           only the plain-language proposal to show the product owner
+ *   npx nanotarget verify <baseUrl> <protectedPath> [--base /nanotarget]   run the 4 post-integration checks
+ *   npx nanotarget secret                          print a fresh NT_SECRET
+ */
+import { randomBytes } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { renderProposal, renderReport, scan } from './scan.ts';
+
+const [cmd, ...rest] = process.argv.slice(2);
+const flag = (name: string) => { const i = rest.indexOf(name); return i >= 0 ? rest[i + 1] : undefined; };
+const has = (name: string) => rest.includes(name);
+const positional = rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && rest[i - 1] !== '--json'));
+
+async function main() {
+  if (cmd === 'scan') {
+    const root = resolve(positional[0] ?? process.cwd());
+    const r = scan(root);
+    writeFileSync(resolve(root, 'nanotarget.policy.draft.json'), JSON.stringify(r.policyDraft, null, 2) + '\n');
+    if (has('--json')) console.log(JSON.stringify({ ...r, proposalText: renderProposal(r) }, null, 2));
+    else if (has('--proposal')) console.log(renderProposal(r));
+    else console.log(renderReport(r));
+    return;
+  }
+  if (cmd === 'verify') {
+    const base = positional[0]; const path = positional[1]; const ntBase = flag('--base') ?? '/nanotarget';
+    if (!base || !path) { console.error('usage: nanotarget verify <baseUrl> <protectedPath> [--base /nanotarget]'); process.exit(2); }
+    const results: { name: string; ok: boolean; detail: string }[] = [];
+    const u = (p: string) => new URL(p, base).toString();
+    // 1. SDK is served
+    const sdk = await fetch(u(`${ntBase}/sdk.js`)).catch(() => null);
+    results.push({ name: 'SDK served', ok: !!sdk && sdk.ok && /sdk-v/.test(await sdk.text().catch(() => '')), detail: `GET ${ntBase}/sdk.js → ${sdk?.status ?? 'unreachable'}` });
+    // 2. protected endpoint answers with a decision and sets the session cookie
+    const r1 = await fetch(u(path)).catch(() => null);
+    const cookie = r1?.headers.get('set-cookie')?.split(';')[0] ?? '';
+    const b1 = r1 ? await r1.json().catch(() => null) : null;
+    const decisionHeader = r1?.headers.get('x-nt-decision');
+    results.push({ name: 'Decision on protected endpoint', ok: !!r1 && !!decisionHeader && (r1.status === 200 || r1.status === 403 || r1.status === 428), detail: `GET ${path} → ${r1?.status ?? 'unreachable'}, X-NT-Decision ${decisionHeader ? 'present' : 'MISSING (protect() not applied?)'}, _nt.decision=${b1?._nt?.decision ?? b1?.decision?.decision ?? '-'}` });
+    // 3. environment-only evidence (AI app browser UA) reaches the onArtifact branch
+    const r2 = await fetch(u(path), { headers: { 'user-agent': 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Claude/2.2553.1 Chrome/152.0.0.0 Safari/537.36' } }).catch(() => null);
+    const b2 = r2 ? await r2.json().catch(() => null) : null;
+    const codes2: string[] = b2?._nt?.reasonCodes ?? b2?.decision?.reasonCodes ?? [];
+    results.push({ name: 'Environment evidence recognised', ok: codes2.includes('AGENT_APP_BROWSER'), detail: `AI-app UA → ${r2?.status}, decision=${b2?._nt?.decision ?? b2?.decision?.decision ?? '-'}, codes=${codes2.join(',') || '-'}` });
+    // 4. attached agent (control markers via the SDK endpoint) changes the decision for the same session
+    const early = { startedMs: 0, observedMs: 500, webdriver: false, firstInteractionMs: null, dataDomMs: null, markers: [{ name: 'claude-stop', atMs: 100 }, { name: 'claude-cursor', atMs: 100 }], environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: [], focusWhileHiddenMs: null }, focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0, reading: { loadedHidden: false, readBursts: 0, firstReadBurstMs: null, lastReadBurstReads: 0, readBurstAnonymous: false, textExtracts: 0, firstTextExtractMs: null, visibilityFlickers: 0, firstFlickerMs: null, flickerResize: null, renderWhileHiddenMs: null, firstClick: null } };
+    const sig = await fetch(u(`${ntBase}/signals`), { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ early, interaction: null }) }).catch(() => null);
+    const sb = sig ? await sig.json().catch(() => null) : null;
+    const r3 = await fetch(u(path), { headers: { cookie } }).catch(() => null);
+    const b3 = r3 ? await r3.json().catch(() => null) : null;
+    const applied = b3?._nt?.decision ?? b3?.decision?.decision;
+    const observe = r3?.status === 200 && applied === 'allow' && (b3?._nt?.reasonCodes ?? b3?.decision?.reasonCodes ?? []).some((c: string) => /AGENT_CONTROL_MARKER|AGENT_ATTACHED_EARLIER/.test(c));
+    results.push({ name: 'Attached agent changes the decision', ok: sb?.connection?.state === 'agent_attached' && (r3?.status === 403 || applied === 'mask' || applied === 'step_up' || observe), detail: `signals → ${sb?.connection?.state ?? sig?.status ?? 'unreachable'}; then GET ${path} → ${r3?.status}, decision=${applied ?? '-'}${observe ? ' (observe mode: recorded, not enforced)' : ''}` });
+    let allOk = true;
+    for (const x of results) { allOk &&= x.ok; console.log(`${x.ok ? '✓' : '✗'} ${x.name}\n    ${x.detail}`); }
+    console.log(allOk ? '\nAll checks passed.' : '\nSome checks failed — see details above.');
+    process.exit(allOk ? 0 : 1);
+  }
+  if (cmd === 'secret') { console.log(randomBytes(32).toString('base64url')); return; }
+  console.log('nanotarget <scan [dir] [--json] | verify <baseUrl> <protectedPath> [--base /nanotarget] | secret>');
+  process.exit(cmd ? 2 : 0);
+}
+main().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });

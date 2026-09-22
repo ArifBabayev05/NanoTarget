@@ -1,0 +1,17 @@
+node_modules/
+data/
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
+api/
+.vercel
+.env
+.env.*
+packages/nanotarget/dist/
+packages/nanotarget/sdk/
+examples/express-bank/nanotarget.db*
+.claude/
+.agents/
+skills-lock.json
+nanotarget.policy.draft.json

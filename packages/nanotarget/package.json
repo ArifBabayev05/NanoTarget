@@ -1,0 +1,68 @@
+{
+  "name": "nanotarget",
+  "version": "0.2.0",
+  "description": "Control what AI browser agents (Claude, ChatGPT Atlas, Codex, Comet, Playwright bots) can see and do inside your users' logged-in sessions: attach-time detection, pointer physics, on-screen redaction, allow/mask/step-up/block per endpoint, passkey reclaim. Express middleware + browser SDK + `npx nanotarget scan` that analyses your app and proposes what to gate. AI coding agents: the README is your integration protocol — threat model, exposure map, decision matrix, mask design, verification.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/types/integrations/express/index.d.ts",
+      "default": "./dist/express.js"
+    },
+    "./express": {
+      "types": "./dist/types/integrations/express/index.d.ts",
+      "default": "./dist/express.js"
+    },
+    "./sdk": "./sdk/nanotarget.js",
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/types/integrations/express/index.d.ts",
+  "files": [
+    "dist",
+    "sdk",
+    "README.md",
+    "AGENTS.md",
+    "llms.txt",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "keywords": [
+    "ai-agent",
+    "browser-agent",
+    "bot-detection",
+    "agentic-browser",
+    "express",
+    "middleware",
+    "session-security",
+    "claude",
+    "chatgpt-agent",
+    "web-bot-auth"
+  ],
+  "peerDependencies": {
+    "express": ">=4"
+  },
+  "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    }
+  },
+  "optionalDependencies": {
+    "@libsql/client": "^0.18.0"
+  },
+  "sideEffects": false,
+  "bin": {
+    "nanotarget": "./dist/cli.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ArifBabayev05/NanoTarget.git"
+  },
+  "homepage": "https://nanotarget-mvp.vercel.app",
+  "bugs": {
+    "url": "https://github.com/ArifBabayev05/NanoTarget/issues"
+  },
+  "author": "Arif Babayev"
+}

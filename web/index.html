@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NanoTarget — the session is human + AI. Know who's clicking.</title>
+<meta name="description" content="NanoTarget detects AI browser agents the moment they attach to a logged-in session and decides per resource: allow, mask, step-up or block. Express middleware + browser SDK. npm i nanotarget.">
+<meta property="og:title" content="NanoTarget — the session is human + AI">
+<meta property="og:description" content="Server-side control over AI browser agents inside logged-in sessions. Detected at attach time, decided per endpoint, reclaimable by a passkey.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/landing.css">
+</head>
+<body>
+<div class="bg-glow" aria-hidden="true"></div>
+<header class="nav" id="nav">
+  <a class="brand" href="/"><span class="mark"><span></span></span>NanoTarget</a>
+  <nav class="links">
+    <a href="#how">How it works</a>
+    <a href="#demos">Live demos</a>
+    <a href="/docs/EVAL.md">Evidence</a>
+    <a href="https://github.com/ArifBabayev05/NanoTarget" target="_blank" rel="noopener">GitHub</a>
+  </nav>
+  <div class="nav-right">
+    <a class="btn ghost" href="/docs/INTEGRATION.md">Docs</a>
+    <a class="btn primary" href="https://www.npmjs.com/package/nanotarget" target="_blank" rel="noopener">npm i nanotarget</a>
+  </div>
+</header>
+
+<main>
+<section class="hero">
+  <h1 class="headline" aria-label="The session is human + AI. Know who's clicking.">
+    <span class="line dim">The session</span>
+    <span class="line dim">is no longer</span>
+    <span class="line bright"><span>just</span> <span class="fp" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M32 6c-9 0-17 5-21 13"/><path d="M53 20c-4-7-12-12-21-12"/><path d="M14 28c3-9 10-14 18-14s15 5 18 14"/><path d="M12 40c1-12 9-20 20-20s19 8 20 20"/><path d="M18 44c0-9 6-16 14-16s14 7 14 16c0 4-1 8-3 11"/><path d="M24 48c0-6 4-12 8-12s8 6 8 12c0 5-2 9-5 12"/><path d="M32 42v14"/><path d="M26 54c1-3 2-7 2-10"/><path d="M38 56c1-4 2-8 2-12"/></svg></span><span>human</span> <span class="plus">+</span> <span class="spark" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M32 4l5 19 19 5-19 5-5 19-5-19-19-5 19-5z"/><path d="M50 40l2 7 7 2-7 2-2 7-2-7-7-2 7-2z"/></svg></span><span class="ai">AI</span></span>
+  </h1>
+  <p class="sub">Customers now hand their signed-in banking, CRM and insurance sessions to AI agents. NanoTarget detects the moment an agent attaches and lets each endpoint decide what it may see: allow, mask, step up or block. A passkey gives the session back to the person.</p>
+
+  <div class="npm" id="npm">
+    <span class="prompt">$</span><code>npm i nanotarget</code>
+    <button class="copy" id="copy-npm">Copy</button>
+    <a class="npm-link" href="https://www.npmjs.com/package/nanotarget" target="_blank" rel="noopener">npmjs.com/package/nanotarget ↗</a>
+  </div>
+  <p class="hint">Or give the link to your AI coding agent and say “install this”. It scans your application, proposes what to gate, asks you nine questions and wires everything in.</p>
+
+  <div class="cursor-demo" id="cursor-demo">
+    <canvas id="cursors" width="1200" height="380"></canvas>
+    <div class="legend">
+      <span><i class="dot human"></i><b>Human</b> <em>curved, tremor, slows onto the target, 83–225 ms press</em></span>
+      <span><i class="dot agent"></i><b>Agent</b> <em>teleports to the centre, 1–4 ms press, no path</em></span>
+      <span><i class="dot bot"></i><b>Humanised bot</b> <em>smooth generated curve — caught by roughness and noise physics</em></span>
+    </div>
+  </div>
+</section>
+
+
+<section class="frame-wrap">
+  <div class="frame reveal">
+    <div class="frame-inner">
+      <h2 class="h2">Built for two audiences</h2>
+      <p class="lead">Bot management stops bots at the door. Enterprise browsers watch employees. Neither sees the agent a legitimate customer invites into their own session.</p>
+      <div class="two">
+        <article class="card dark reveal">
+          <h3>For banks, CRMs, insurers</h3>
+          <p>Keep serving customers who use AI — without handing the agent their balance, contacts or exports.</p>
+          <ul>
+            <li>Detected at attach time, before the first click</li>
+            <li>Per-endpoint policy in your own JSON, masking in your own code</li>
+            <li>Runs on your server — telemetry never leaves your network</li>
+          </ul>
+          <a class="btn primary" href="/bank">Open the bank demo</a>
+          <div class="art bank" aria-hidden="true"><div class="row"><span class="pill">Balance</span><span class="val">•••• ₼</span></div><div class="row"><span class="pill red">AI agent detected</span></div><div class="row"><span class="pill">IBAN</span><span class="val">AZ21 •••• 5756</span></div></div>
+        </article>
+        <article class="card dark reveal">
+          <h3>For AI coding agents</h3>
+          <p>The README is written for you. Install, scan, propose what to gate, ask nine questions, implement, verify.</p>
+          <ul>
+            <li><code>npx nanotarget scan --proposal</code> finds every reachable route</li>
+            <li>Three lines of Express, one script tag, one policy file</li>
+            <li><code>npx nanotarget verify</code> proves it works before you report</li>
+          </ul>
+          <button class="btn primary" id="copy-agent">Copy the prompt for your agent</button>
+          <div class="art code" aria-hidden="true"><pre>const nt = await nanotarget({ secret, policy, db });
+app.use(nt.middleware());
+app.get('/api/balance', nt.protect('balance.read'),
+  (req, res) =&gt; nt.send(req, res, data, mask));</pre></div>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="how" id="how">
+  <h2 class="h2 center reveal">Three layers, <span class="accent">one decision</span> at the endpoint</h2>
+  <div class="layers">
+    <article class="layer reveal">
+      <div class="num">01</div>
+      <h3>Attach time</h3>
+      <p>Agent tools leave traces the instant they take control: overlay markers, injected globals, evaluated-script read bursts, focus emulation, signed requests. Measured 0.1–0.5 s after attach — before the agent’s first action.</p>
+    </article>
+    <article class="layer reveal">
+      <div class="num">02</div>
+      <h3>Pointer physics</h3>
+      <p>A hand’s path is curved, its tremor grows with speed and comes in bursts, it slows onto the target and holds 83–225 ms. Drivers teleport and release in 1–4 ms; Bézier bots are parabola-clean. A boosted-tree model, cross-validated across people and devices: AUC 0.999, zero human false positives.</p>
+    </article>
+    <article class="layer reveal">
+      <div class="num">03</div>
+      <h3>Seal &amp; reclaim</h3>
+      <p>Data already on screen is redacted in the browser the moment an indicator appears — the agent’s read sees ••••. Once attached, the session stays “agent” until the person proves presence with a passkey (Touch ID) and takes it back.</p>
+    </article>
+  </div>
+  <div class="stats reveal" id="stats">
+    <div><b data-count="88">0</b><span>%</span><small>of human clicks unlock on the very first click</small></div>
+    <div><b data-count="99">0</b><span>%</span><small>of agent clicks caught on the first click</small></div>
+    <div><b data-count="0">0</b><span></span><small>false blocks across 15 recorded human and agent runs</small></div>
+    <div><b id="auc">0.999</b><span></span><small>model AUC, cross-validated across people and devices</small></div>
+  </div>
+</section>
+
+<section class="demos" id="demos">
+  <h2 class="h2 center reveal">Try it on <span class="accent">realistic applications</span></h2>
+  <p class="lead center reveal">Open an application as yourself — everything works. Then give the prompt to Claude, ChatGPT or Codex and watch the same account close its sensitive parts to the agent. All data is synthetic.</p>
+  <div class="apps reveal" id="apps"><div class="app"><span class="muted">Loading…</span></div></div>
+</section>
+
+<section class="cta reveal">
+  <h2 class="h2 center">Three lines on the server.<br><span class="accent">One tag on the page.</span></h2>
+  <div class="npm inline">
+    <span class="prompt">$</span><code>npm i nanotarget</code>
+    <button class="copy" data-copy="npm i nanotarget">Copy</button>
+  </div>
+  <div class="cta-links">
+    <a href="https://www.npmjs.com/package/nanotarget" target="_blank" rel="noopener">npm ↗</a>
+    <a href="https://github.com/ArifBabayev05/NanoTarget" target="_blank" rel="noopener">GitHub ↗</a>
+    <a href="/docs/INTEGRATION-AGENT.md">Integration protocol</a>
+    <a href="/docs/EVAL.md">Evaluation report</a>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <span>© 2026 NanoTarget · MIT licensed · all demo data is synthetic</span>
+  <span><a href="https://github.com/ArifBabayev05/NanoTarget" target="_blank" rel="noopener">GitHub</a> · <a href="https://www.npmjs.com/package/nanotarget" target="_blank" rel="noopener">npm</a> · <a href="/api/v1/version">engine version</a></span>
+</footer>
+<div class="toast" id="toast"></div>
+<script src="/landing.js"></script>
+</body>
+</html>

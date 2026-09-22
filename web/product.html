@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NanoTarget</title>
+<link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="/product.css">
+<script src="/sdk/nanotarget.js" data-endpoint="/api/v1/signals" data-zone="[data-nt-zone]"></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <a class="brand" href="/"><span class="logo" id="logo">··</span><span id="brand-name">…</span></a>
+    <nav id="nav"></nav>
+    <span class="spacer"></span>
+    <div class="user"><span class="av" id="user-av">··</span><div><strong id="user-name">Customer</strong><small id="user-sub">signed in</small></div></div>
+  </aside>
+  <main class="main" data-nt-zone>
+    <div class="topline">
+      <div><h1 id="page-title">…</h1><p id="page-sub"></p></div>
+      <span class="guard" id="guard"><i></i><span>Session protected</span></span>
+    </div>
+    <div class="grid" id="content"></div>
+  </main>
+</div>
+
+<button class="fab" id="fab">Test with an AI agent</button>
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet">
+  <h3>Let an AI agent try this page</h3>
+  <p>Paste the text below into Claude, ChatGPT/Codex or any other browser agent. The agent signs in to the same account — the sensitive parts stay closed to it.</p>
+  <textarea id="prompt" readonly></textarea>
+  <div class="row">
+    <button class="primary" id="copy-prompt">Copy prompt</button>
+    <button class="ghost" id="copy-link">Copy page link</button>
+    <a id="human-link" href="#"><button class="ghost">Try it myself</button></a>
+    <a id="lab-link" href="#" class="ghost" style="margin-left:auto;font-size:13px;color:var(--muted)">Technical view →</a>
+  </div>
+</div>
+
+<div class="drawer" id="drawer"><button class="ghost close" id="drawer-close">✕</button><div id="drawer-body"></div></div>
+
+<dialog id="stepup">
+  <form method="dialog" id="stepup-form">
+    <h3>Security confirmation</h3>
+    <p id="stepup-text">This action needs additional confirmation.</p>
+    <div id="stepup-code-wrap"><div class="code" id="stepup-code"></div><br><input id="stepup-answer" placeholder="Enter the code" maxlength="6" autocomplete="off" style="width:100%"></div>
+    <div class="actions" style="margin-top:14px"><button class="primary" value="ok" id="stepup-ok">Confirm</button><button class="ghost" type="button" id="stepup-cancel">Cancel</button></div>
+    <p id="stepup-error" style="color:var(--bad);margin-top:10px"></p>
+  </form>
+</dialog>
+<div class="toast" id="toast"></div>
+<script src="/product.js"></script>
+</body>
+</html>

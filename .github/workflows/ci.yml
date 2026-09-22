@@ -1,0 +1,24 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: node scripts/build-package.mjs
+      - name: Package installs and serves the SDK
+        run: |
+          cd packages/nanotarget && npm pack --pack-destination /tmp >/dev/null
+          mkdir -p /tmp/smoke && cd /tmp/smoke && npm init -y >/dev/null
+          npm i /tmp/nanotarget-*.tgz express >/dev/null
+          node -e "import('nanotarget/express').then(async ({nanotarget}) => { const nt = await nanotarget({ secret: 'ci-secret-ci-secret-ci-secret-ci-secret', db: 'memory', policy: { version: 'ci', enforcement: 'observe', rules: [{ resource: 'x.read', title: 'x', onAgent: 'block', onArtifact: 'mask', onUnknown: 'allow', onHumanLike: 'allow', actOn: ['verified','strong','control','behavioral'], minScore: 65 }] } }); console.log('ok', nt.basePath); nt.close(); })"

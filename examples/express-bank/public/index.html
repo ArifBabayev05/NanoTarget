@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="az">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acme Bank</title>
+<!-- NanoTarget: one script tag; the endpoint is derived from where the SDK is served -->
+<script src="/nanotarget/sdk.js"></script>
+<style>
+  body { font: 15px/1.5 -apple-system, Segoe UI, sans-serif; background: #f4f6fa; color: #0f172a; margin: 0; padding: 32px 16px; }
+  .card { max-width: 520px; margin: 0 auto 16px; background: #fff; border-radius: 16px; padding: 22px; box-shadow: 0 8px 24px rgba(15,23,42,.06); }
+  .amount { font-size: 36px; font-weight: 800; margin: 8px 0; }
+  button { font: inherit; padding: 10px 16px; border: 0; border-radius: 10px; background: #2563eb; color: #fff; cursor: pointer; }
+  .note { color: #64748b; font-size: 13px; }
+  .warn { background: #fee2e2; color: #b91c1c; padding: 10px 12px; border-radius: 10px; font-size: 14px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>Acme Bank · Cari hesab</h2>
+  <!-- data-nt-sensitive="full" marks what the SDK redacts the instant an agent attaches -->
+  <div class="amount" id="amount">•••• AZN</div>
+  <div class="note" id="iban"></div>
+  <button id="show">Balansı göstər</button>
+  <div id="msg"></div>
+</div>
+<div class="card">
+  <h3>Köçürmə</h3>
+  <button id="transfer">100 AZN köçür</button>
+  <div id="tmsg"></div>
+</div>
+<script>
+  const $ = (s) => document.querySelector(s);
+  async function call(url, init) {
+    // NanoTarget.fetch attaches the click telemetry; decisions arrive as 200 (allow/mask), 403 (block) or 428 (step-up)
+    const r = await NanoTarget.fetch(url, init);
+    return { status: r.status, body: await r.json() };
+  }
+  $('#show').onclick = async () => {
+    const { status, body } = await call('/api/balance');
+    if (status === 200) {
+      const full = body.balance !== null;
+      $('#amount').textContent = full ? body.balance.toFixed(2) + ' ' + body.currency : '•••• ' + body.currency;
+      $('#amount').setAttribute('data-nt-sensitive', full ? 'full' : 'masked');
+      $('#iban').textContent = body.iban;
+      $('#msg').innerHTML = full ? '' : '<div class="warn">Bəzi məlumatlar gizlədilib (' + body._nt.reasonCodes.join(', ') + ').</div>';
+    } else {
+      $('#amount').textContent = '•••• AZN';
+      $('#msg').innerHTML = '<div class="warn">' + (status === 403 ? 'Bu məlumat qorunur: sessiyanı AI agent idarə edir.' : 'Təsdiq tələb olunur.') + '</div>';
+    }
+  };
+  $('#transfer').onclick = async () => {
+    const { status, body } = await call('/api/transfer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: 'AZ..1944', amount: 100 }) });
+    $('#tmsg').innerHTML = status === 200 ? 'Köçürmə qəbul edildi.' : '<div class="warn">' + (status === 428 ? 'Əlavə təsdiq tələb olunur (kod: ' + (body.stepUp && body.stepUp.challenge) + ').' : 'Köçürmə bloklandı: AI agent.') + '</div>';
+  };
+  document.addEventListener('nt:sealed', () => { $('#amount').textContent = '•••• AZN'; $('#msg').innerHTML = '<div class="warn">AI agent qoşuldu — ekrandakı məlumat gizlədildi.</div>'; });
+</script>
+</body>
+</html>

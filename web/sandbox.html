@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="az">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kursor sandbox — NanoTarget</title>
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/lab.css">
+<style>
+  .board { position: relative; height: 520px; border-radius: var(--r); border: 1px solid var(--line); background: radial-gradient(120% 100% at 50% 0%, #0d1410, #080a08 70%); overflow: hidden; user-select: none; }
+  .board .hint { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-faint); font-size: 16px; text-align: center; padding: 24px; pointer-events: none; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; min-height: 30px; }
+  .chips .res { animation: pop .3s ease; }
+</style>
+</head>
+<body>
+<div class="glow" aria-hidden="true"></div>
+<div class="lab">
+  <div class="top">
+    <a class="brand" href="/"><span class="mark"></span>NanoTarget <small>· kursor sandbox</small></a>
+    <span class="pill" id="who-pill"><i></i><span>Kim klikləyir?</span></span>
+  </div>
+  <h1>On hədəf. <span class="accent">Hər klikə bir qərar.</span></h1>
+  <p class="lead">Görünən nömrəli düyməyə kliklə; hər klikdə növbətisi çıxır. Hər klikin trayektoriyası serverə gedir, hakim dərhal qiymət qaytarır — insan / sintetik / qeyri-müəyyən — və arxasındakı ölçüləri göstərir. Üç dəqiqə.</p>
+
+  <div class="who" id="who">
+    <button id="as-human"><b>Mən insanam</b><small>siçan və ya trackpad ilə özün klikləyəcəksən</small></button>
+    <button id="as-agent" class="agent-btn"><b>Mən AI agentəm</b><small>bu düyməni agent kliklədikdə seçilir</small></button>
+  </div>
+
+  <div id="run" hidden>
+    <div class="meta">
+      <span>Mənbə:</span>
+      <select id="source">
+        <option value="chrome-mouse">Chrome · siçan</option>
+        <option value="chrome-trackpad">Chrome · trackpad</option>
+        <option value="safari">Safari</option>
+        <option value="claude-pane-human">Claude tətbiqinin brauzeri · insan</option>
+        <option value="other">Digər</option>
+      </select>
+      <span class="progress" id="progress"></span>
+    </div>
+    <div class="board" id="board" data-nt-zone><div class="hint" id="hint">Başlamaq üçün düyməyə kliklə</div></div>
+    <div class="chips" id="results"></div>
+    <div class="summary" id="summary" hidden></div>
+  </div>
+
+  <div class="panel">
+    <h3>AI agent üçün prompt</h3>
+    <textarea id="agent-prompt" readonly></textarea>
+    <div class="actions"><button class="primary" id="copy-prompt">Promptu kopyala</button> <button class="ghost" id="restart">Yenidən başla</button> <a href="/training" style="display:inline-flex;align-items:center;padding:10px 16px;border:1px solid var(--line);border-radius:12px">Tam variant: 21 tapşırıq →</a></div>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div class="foot"><a href="/">← Ana səhifə</a><a href="/docs/EVAL.md">Qiymətləndirmə hesabatı</a><span>Bütün məlumat sintetikdir</span></div>
+</div>
+<script src="/sandbox.js"></script>
+</body>
+</html>

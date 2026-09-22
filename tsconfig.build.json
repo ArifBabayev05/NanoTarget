@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "rewriteRelativeImportExtensions": true,
+    "rootDir": ".",
+    "outDir": "packages/nanotarget/dist/types"
+  },
+  "include": [
+    "integrations/express/index.ts",
+    "integrations/cli/index.ts"
+  ]
+}
