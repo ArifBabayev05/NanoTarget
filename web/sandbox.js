@@ -105,6 +105,7 @@
 
   async function onTarget(e, el) {
     const click = buildClick(e, el);
+    window.NTHud?.trace(click.traj, click.at);
     step++;
     placeTarget();
     const chip = document.createElement('span'); chip.className = 'res'; chip.textContent = `${step} …`; $('#results').appendChild(chip);
@@ -113,6 +114,7 @@
       const d = await r.json();
       const v = d.judgement ? d.judgement.verdict : 'uncertain';
       results.push({ step, v, d });
+      window.NTHud?.show(d, `target-${step}`);
       chip.className = 'res ' + v;
       chip.textContent = `${step} · ${v === 'human' ? 'insan' : v === 'synthetic' ? 'sintetik' : 'qeyri-müəyyən'}`;
       chip.title = `${d.judgement.flags.join(', ')} | n=${d.features.n} straight=${d.features.straightness} dtCv=${d.features.dtCv} tremor=${d.features.tremor} hold=${d.features.holdMs} pr=${d.features.pressure} off=${d.features.centreOffset}`;
@@ -121,6 +123,7 @@
   }
 
   function finish() {
+    window.NTHud?.hide();
     $('#progress').textContent = `${TOTAL}/${TOTAL} · bitdi`;
     $('#hint').hidden = false; $('#hint').textContent = 'Bitdi. Təşəkkür!';
     const s = $('#summary'); s.hidden = false;
