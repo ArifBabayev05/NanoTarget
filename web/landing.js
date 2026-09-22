@@ -157,31 +157,8 @@
   let step = -1, timers = [];
   const wait = (ms) => new Promise((r) => timers.push(setTimeout(r, ms)));
   const cancelRun = () => { timers.forEach(clearTimeout); timers = []; };
-  // the pointer's path is drawn on a canvas over the frame: a curve for the hand, a dashed straight jump for the driver
-  const ftrail = document.createElement('canvas'); ftrail.className = 'f-trail'; S.body.appendChild(ftrail);
-  const fctx = ftrail.getContext('2d');
-  function trailSize() { const r = S.body.getBoundingClientRect(); const d = Math.min(2, devicePixelRatio || 1); if (ftrail.width !== Math.round(r.width * d)) { ftrail.width = Math.round(r.width * d); ftrail.height = Math.round(r.height * d); } fctx.setTransform(d, 0, 0, d, 0, 0); }
-  function clearTrail() { trailSize(); fctx.clearRect(0, 0, ftrail.width, ftrail.height); }
-  let metric = '';
-  function note(title, text, cls, m) {
-    metric = m || metric;
-    S.note.classList.remove('show');
-    setTimeout(() => { S.noteTitle.textContent = title; S.noteText.textContent = text; S.noteMetric.textContent = metric; S.note.className = 'story-note ' + (cls || ''); requestAnimationFrame(() => S.note.classList.add('show')); }, 180);
-  }
-  function hideNotes() { metric = ''; S.note.classList.remove('show'); }
-  function drawHandPath(a, b, ms) {
-    trailSize(); const pts = []; const n = 48;
-    for (let i = 0; i <= n; i++) { const u = i / n, e = 10 * u ** 3 - 15 * u ** 4 + 6 * u ** 5; pts.push({ x: a.x + (b.x - a.x) * e + Math.sin(u * Math.PI) * 26, y: a.y + (b.y - a.y) * e - Math.sin(u * Math.PI) * 18 + (Math.random() - .5) * 1.6 }); }
-    const t0 = performance.now(); let k = 1;
-    const tick = () => { const u = Math.min(1, (performance.now() - t0) / ms); const upto = Math.max(1, Math.round(u * n)); fctx.lineCap = 'round'; for (; k <= upto; k++) { const f = k / n; fctx.strokeStyle = `rgba(124,240,192,${(0.18 + 0.72 * f).toFixed(2)})`; fctx.lineWidth = 1.2 + 1.4 * f; fctx.beginPath(); fctx.moveTo(pts[k - 1].x, pts[k - 1].y); fctx.lineTo(pts[k].x, pts[k].y); fctx.stroke(); } if (u < 1 && step === 0) requestAnimationFrame(tick); };
-    requestAnimationFrame(tick);
-  }
-  function drawJump(a, b) {
-    trailSize(); fctx.setLineDash([3, 7]); fctx.strokeStyle = 'rgba(255,184,107,.6)'; fctx.lineWidth = 1.2; fctx.beginPath(); fctx.moveTo(a.x, a.y); fctx.lineTo(b.x, b.y); fctx.stroke(); fctx.setLineDash([]);
-    fctx.fillStyle = 'rgba(255,184,107,.95)'; fctx.beginPath(); fctx.arc(b.x, b.y, 3, 0, Math.PI * 2); fctx.fill();
-    fctx.strokeStyle = 'rgba(255,184,107,.35)'; fctx.lineWidth = 1; fctx.beginPath(); fctx.arc(b.x, b.y, 8, 0, Math.PI * 2); fctx.stroke();
-  }
-  function movePointer(x, y, agent = false) { S.pointer.classList.toggle('agent', agent); S.pointer.classList.add('show'); S.pointer.style.transition = agent ? 'left 0s,top 0s,opacity .3s' : 'left .9s cubic-bezier(.3,.9,.4,1),top .9s cubic-bezier(.5,.4,.4,1),opacity .3s'; S.pointer.style.left = x + 'px'; S.pointer.style.top = y + 'px'; }
+  // The pointer clicks: it grows and settles once, with a soft ring, so the press is seen.
+  function pressPointer() { S.pointer.classList.remove('click'); void S.pointer.offsetWidth; S.pointer.classList.add('click'); }
   // The point where a straight line from `from` meets the edge of `el`, backed off by `gap` px: paths stop
   // there instead of running over the label; the cursor tip lands just inside the same edge.
   function edgeOf(el, from, gap = 8) {
@@ -220,12 +197,12 @@
     run(i);
   }
   async function run(i) {
-    clearTrail(); hideNotes();
+    hideNotes(); S.pointer.classList.remove('click');
     if (i === 0) {
       S.guard.className = 'f-guard'; S.guard.lastElementChild.textContent = 'Session protected'; S.agent.classList.remove('in'); S.passkey.classList.remove('in');
       seal(false); S.amount.textContent = '$4,939.10'; S.notice.className = 'f-notice'; S.btn.textContent = 'Show balance';
-      const c = targetOf(S.btn), a = { x: c.x - 240, y: c.y + 110 }, e = edgeOf(S.btn, a); movePointer(a.x, a.y); await wait(150); movePointer(e.tip.x, e.tip.y); drawHandPath(a, e.stop, 900); await wait(1000);
-      S.btn.classList.add('pressed'); await wait(140); S.btn.classList.remove('pressed'); notice('Verified: human click', 'ok');
+      const c = targetOf(S.btn), a = { x: c.x - 240, y: c.y + 110 }, e = edgeOf(S.btn, a); movePointer(a.x, a.y); await wait(150); movePointer(e.tip.x, e.tip.y); await wait(1000);
+      pressPointer(); S.btn.classList.add('pressed'); await wait(140); S.btn.classList.remove('pressed'); notice('Verified: human click', 'ok');
       note('The click came from a hand', 'Before answering, the server looks at how the pointer moved. This path curved, trembled and slowed onto the button — so the real balance comes back.', 'ok', 'curved path · slows onto the button · 118 ms press');
     } else if (i === 1) {
       S.pointer.classList.remove('show'); S.passkey.classList.remove('in'); seal(false); S.amount.textContent = '$4,939.10'; S.notice.className = 'f-notice';
@@ -236,10 +213,10 @@
     } else if (i === 2) {
       placeAgent(); S.agent.classList.add('in'); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'Agent attached · sealed'; S.passkey.classList.remove('in');
       const fb = S.body.getBoundingClientRect(), ar = S.agent.getBoundingClientRect(); const a = { x: ar.left - fb.left + 4, y: ar.bottom - fb.top - 4 };
-      const e = edgeOf(S.btn, a, 6); movePointer(e.tip.x, e.tip.y, true); drawJump(a, e.stop); await wait(500); S.btn.classList.add('pressed'); await wait(60); S.btn.classList.remove('pressed');
+      const e = edgeOf(S.btn, a, 6); movePointer(e.tip.x, e.tip.y, true); await wait(500); pressPointer(); S.btn.classList.add('pressed'); await wait(60); S.btn.classList.remove('pressed');
       await wait(300); S.amount.textContent = '$•,•••.••'; S.amount.classList.remove('sealed'); notice('Masked for AI agents · balance.read → mask', 'warn');
       note('The assistant clicks — the server answers differently', 'No pointer path and an instant press: a program. Your policy says balance → mask, so the same endpoint returns the number hidden.', 'warn', 'no path · jumped to the centre · 2 ms press');
-      await wait(1400); await aiSay('Trying “Download statement”…', 500); const e2 = edgeOf(S.btn.nextElementSibling, a, 6); clearTrail(); movePointer(e2.tip.x, e2.tip.y, true); drawJump(a, e2.stop); await wait(600);
+      await wait(1400); await aiSay('Trying “Download statement”…', 500); const e2 = edgeOf(S.btn.nextElementSibling, a, 6); movePointer(e2.tip.x, e2.tip.y, true); await wait(500); pressPointer(); await wait(150);
       S.guard.className = 'f-guard block'; S.guard.lastElementChild.textContent = 'Export blocked'; notice('report.export → block', 'bad');
       note('Downloading everything is refused', 'A statement export hands over the whole account in one click. For agents the policy says block; a person can still do it after a passkey.', 'bad', 'report.export → block');
       await wait(500); await aiSay('The download is blocked for assistants — you’ll need to confirm it yourself.', 600);
