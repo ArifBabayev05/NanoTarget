@@ -13,6 +13,8 @@
 <link rel="stylesheet" href="/landing.css">
 </head>
 <body>
+<div class="scroll-line" id="scroll-line" aria-hidden="true"></div>
+<div class="cur" id="cur" aria-hidden="true"><i class="dot"></i><i class="ring"></i></div>
 <header class="nav" id="nav">
   <a class="brand" href="/"><span class="mark"><span></span></span>NanoTarget</a>
   <nav class="links">
@@ -23,7 +25,7 @@
   </nav>
   <div class="nav-right">
     <a class="btn ghost" href="https://github.com/ArifBabayev05/NanoTarget" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.71 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a>
-    <a class="btn primary" href="#install">Get started</a>
+    <a class="btn primary shimmer" href="#install">Get started</a>
   </div>
 </header>
 
@@ -33,16 +35,16 @@
   <div class="eyebrow reveal-now"><span class="dot"></span>Session security for the agentic web</div>
   <h1 class="h1" id="h1">
     <span class="w" style="--i:0">Your</span>
-    <span class="g fp w" style="--i:1" aria-hidden="true"><svg viewBox="0 0 24 24"><path pathLength="1" d="M12 4a8 8 0 0 0-8 8v3"/><path pathLength="1" d="M12 8a4 4 0 0 0-4 4v4"/><path pathLength="1" d="M12 12v5"/><path pathLength="1" d="M16 12a4 4 0 0 0-1.2-2.9"/><path pathLength="1" d="M20 12a8 8 0 0 0-3-6.2"/></svg><i class="ring"></i></span>
+    <span class="g fp w" style="--i:1" aria-hidden="true"><svg viewBox="0 0 24 24"><path pathLength="1" d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path pathLength="1" d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path pathLength="1" d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path pathLength="1" d="M2 12a10 10 0 0 1 18-6"/><path pathLength="1" d="M2 16h.01"/><path pathLength="1" d="M21.8 16c.2-2 .131-5.354 0-6"/><path pathLength="1" d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path pathLength="1" d="M8.65 22c.21-.66.45-1.32.57-2"/><path pathLength="1" d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg><i class="halo"></i></span>
     <span class="w" style="--i:2">customers</span> <span class="w" style="--i:3">now</span><br>
     <span class="w" style="--i:4">log</span> <span class="w" style="--i:5">in</span> <span class="w" style="--i:6">with</span>
-    <span class="g sp w" style="--i:7" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg></span>
+    <span class="g sp w" style="--i:7" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg></span>
     <span class="w" style="--i:8">AI</span> <span class="w" style="--i:9">agents.</span><br>
     <span class="muted"><span class="w" style="--i:10">Decide</span> <span class="w" style="--i:11">what</span> <span class="w" style="--i:12">they</span> <span class="w" style="--i:13">can</span> <span class="w rot-wrap" style="--i:14"><span class="rot" id="rot"><span class="on">see</span><span>download</span><span>change</span><span>send</span></span>.</span></span>
   </h1>
   <p class="sub reveal-now">NanoTarget detects an AI browser agent the moment it attaches to a signed-in session and lets every endpoint <b>allow</b>, <b>mask</b>, <b>step up</b> or <b>block</b> — with a passkey that hands the session back to the person. Three lines on the server. One tag on the page.</p>
   <div class="install reveal-now" id="install">
-    <div class="npm big">
+    <div class="npm big beam">
       <span class="npm-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect width="24" height="24" rx="3"/><path d="M4 8h16v8h-4V11h-2v5H4z" fill="#0a0a0b"/></svg></span>
       <span class="prompt">$</span><code>npm i nanotarget</code>
       <button class="copy" id="copy-npm" aria-label="Copy install command"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
@@ -55,9 +57,16 @@
   </div>
   <div class="proof reveal-now">
     <span><b>0.1–0.5 s</b> to detect Claude in Chrome</span>
-    <span><b>0</b> false blocks in 15 recorded human runs</span>
-    <span><b>0.999</b> AUC, cross-validated across people &amp; devices</span>
+    <span><b>0</b> false blocks in <b data-tick="15" data-dec="0">0</b> recorded human runs</span>
+    <span><b data-tick="0.999" data-dec="3">0.000</b> AUC, cross-validated across people &amp; devices</span>
     <span><b>MIT</b> · on your server · no data leaves</span>
+  </div>
+
+  <div class="marquee reveal-now" aria-label="Agent products the engine recognises">
+    <span class="marquee-label">Recognises the agents your customers already use</span>
+    <div class="marquee-track"><div class="marquee-row" id="marquee-row">
+      <span>Claude in Chrome</span><span>Claude desktop browser</span><span>ChatGPT Atlas</span><span>ChatGPT Agent</span><span>OpenAI Codex</span><span>Perplexity Comet</span><span>Playwright &amp; Puppeteer drivers</span><span>Web Bot Auth signed agents</span><span>Antigravity</span><span>Humanised bots (ghost-cursor)</span>
+    </div></div>
   </div>
 
   <!-- product story frame -->
@@ -68,7 +77,7 @@
       <button data-step="2"><b>03</b>Endpoint decides</button>
       <button data-step="3"><b>04</b>Person reclaims</button>
     </div>
-    <div class="tilt" id="tilt"><div class="bezel reveal"><div class="frame" id="frame">
+    <div class="tilt" id="tilt"><div class="bezel beam reveal"><div class="frame" id="frame">
       <div class="frame-bar"><span></span><span></span><span></span><em>bank.example.com/accounts</em></div>
       <div class="frame-body">
         <aside class="f-side"><div class="f-logo">NB</div><i></i><i></i><i></i><i></i></aside>
@@ -101,7 +110,7 @@
 
 <section class="features" id="how">
   <div class="sec-head reveal">
-    <h2 class="h2">Built for the session, not the door</h2>
+    <h2 class="h2 tr">Built for the session, not the door</h2>
     <p class="lead">Bot management stops bots before login. Enterprise browsers watch employees. Neither sees the agent a legitimate customer invites into their own account. NanoTarget works inside the session, at the endpoint that returns the data.</p>
   </div>
   <div class="grid3">
@@ -140,7 +149,7 @@
 
 <section class="physics reveal">
   <div class="sec-head">
-    <h2 class="h2">How it tells a hand from a program</h2>
+    <h2 class="h2 tr">How it tells a hand from a program</h2>
     <p class="lead">Live simulation of the three trajectory classes the engine sees: a hand, a browser driver, and a bot that tries to look like a hand.</p>
   </div>
   <div class="bezel reveal"><div class="cursor-demo">
@@ -155,7 +164,7 @@
 
 <section class="integrate" id="integrate">
   <div class="sec-head reveal">
-    <h2 class="h2">Integrate in an afternoon — or let your coding agent do it</h2>
+    <h2 class="h2 tr">Integrate in an afternoon — or let your coding agent do it</h2>
     <p class="lead">The npm README is written for AI coding agents: give it the link and say “install this”. It scans your app, maps what an agent could reach, proposes what to gate, asks you nine questions and wires everything in.</p>
   </div>
   <div class="code-tabs reveal">
@@ -192,14 +201,14 @@ verify with `npx nanotarget verify`, then report.</code></pre>
 
 <section class="demos" id="demos">
   <div class="sec-head reveal">
-    <h2 class="h2">Try it against a real agent</h2>
+    <h2 class="h2 tr">Try it against a real agent</h2>
     <p class="lead">Open an application as yourself — everything works. Then paste the prompt into Claude, ChatGPT or Codex and watch the same account close its sensitive parts to the agent. All data is synthetic.</p>
   </div>
   <div class="apps reveal" id="apps"><div class="app"><span class="muted">Loading…</span></div></div>
 </section>
 
 <section class="cta reveal">
-  <h2 class="h2">Know who’s clicking.</h2>
+  <h2 class="h2 tr">Know who’s clicking.</h2>
   <p class="lead">Open source under MIT. Runs on your server. Designed to be installed by the coding agent you already use.</p>
   <div class="hero-actions">
     <div class="npm"><span class="prompt">$</span><code>npm i nanotarget</code><button class="copy" data-copy="npm i nanotarget" aria-label="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div>

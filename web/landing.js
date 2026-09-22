@@ -79,6 +79,38 @@
     }, 2600);
   })();
 
+  // ---------------------------------------------------------------- cursor, scroll line, parallax, marquee, tickers, text reveal
+  if (matchMedia('(hover:hover) and (pointer:fine)').matches && innerWidth > 820 && !reduced) {
+    const cur = $('#cur'), dot = cur.querySelector('.dot'), ring = cur.querySelector('.ring');
+    let x = innerWidth / 2, y = innerHeight / 2, rx = x, ry = y, shown = false;
+    addEventListener('pointermove', (e) => { x = e.clientX; y = e.clientY; if (!shown) { shown = true; rx = x; ry = y; document.body.classList.add('has-cur'); } }, { passive: true });
+    addEventListener('pointerdown', () => cur.classList.add('press')); addEventListener('pointerup', () => cur.classList.remove('press'));
+    document.addEventListener('mouseleave', () => document.body.classList.remove('has-cur')); document.addEventListener('mouseenter', () => shown && document.body.classList.add('has-cur'));
+    addEventListener('pointerover', (e) => { const t = e.target; const el = t.closest && t.closest('a,button,[role=button],.f-btn,.tabs button,.story-steps button'); const txt = !el && t.closest && t.closest('p,h1,h2,h3,li,.sub,.lead'); cur.classList.toggle('hover', !!el); cur.classList.toggle('text', !!txt); });
+    (function loop() { rx += (x - rx) * .18; ry += (y - ry) * .18; dot.style.transform = `translate(${x}px,${y}px) translate(-50%,-50%)`; ring.style.transform = `translate(${rx}px,${ry}px) translate(-50%,-50%)`; requestAnimationFrame(loop); })();
+  }
+  if (!CSS.supports || !CSS.supports('animation-timeline: scroll()')) {
+    const line = $('#scroll-line'); const upd = () => { const h = document.documentElement; line.style.transform = `scaleX(${h.scrollHeight > h.clientHeight ? scrollY / (h.scrollHeight - h.clientHeight) : 0})`; };
+    addEventListener('scroll', upd, { passive: true }); upd();
+  }
+  if (!reduced) { const au = $('#aurora'); addEventListener('scroll', () => { if (au) au.style.transform = `translateX(-50%) translateY(${Math.min(200, scrollY * .22)}px)`; }, { passive: true }); }
+  (function marquee() { const row = $('#marquee-row'); if (!row) return; row.innerHTML += row.innerHTML; })();
+  (function tickers() {
+    const els = $$('[data-tick]'); if (!els.length) return;
+    const run = (el) => { const to = parseFloat(el.dataset.tick), dec = +el.dataset.dec || 0, t0 = performance.now(), dur = 1400; const step = (now) => { const u = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - u, 3); el.textContent = (to * e).toFixed(dec); if (u < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); };
+    if (!('IntersectionObserver' in window) || reduced) { els.forEach((el) => { el.textContent = parseFloat(el.dataset.tick).toFixed(+el.dataset.dec || 0); }); return; }
+    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { run(e.target); io.unobserve(e.target); } }), { threshold: .4 }); els.forEach((el) => io.observe(el));
+  })();
+  (function textReveal() {
+    $$('.tr').forEach((h) => {
+      const parts = []; h.childNodes.forEach((n) => { if (n.nodeType === 3) n.textContent.split(/(\s+)/).forEach((w) => parts.push(w)); else parts.push(n.outerHTML); });
+      let i = 0; h.innerHTML = parts.map((w) => (/^\s+$/.test(w) || !w ? w : /^</.test(w) ? w : `<span class="tw" style="--i:${i++}">${w}</span>`)).join('');
+    });
+    if (!('IntersectionObserver' in window) || reduced) { $$('.tr').forEach((h) => h.classList.add('in')); return; }
+    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: .3 }); $$('.tr').forEach((h) => io.observe(h));
+    setTimeout(() => $$('.tr:not(.in)').forEach((h) => { if (h.getBoundingClientRect().top < innerHeight) h.classList.add('in'); }), 1500);
+  })();
+
   // ---------------------------------------------------------------- reveal on scroll
   $$('.grid3 .feat').forEach((el, i) => el.style.setProperty('--i', i));
   const io = 'IntersectionObserver' in window ? new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px', threshold: 0.05 }) : null;
@@ -189,7 +221,7 @@
   const RULE_LABEL = { mask: 'mask', block: 'block', step_up: 'step-up', allow: 'allow' };
   $('#apps').innerHTML = apps.map((a) => {
     const rules = (a.rules || []).slice(0, 4).map((r) => `<span class="${esc(r.onAgent)}">${esc(r.resource)} · ${esc(RULE_LABEL[r.onAgent] || r.onAgent)}</span>`).join('');
-    return `<div class="app">
+    return `<div class="app reveal">
       <div class="glyph">${esc(a.initials)}</div>
       <h3>${esc(a.name)}</h3>
       <p>${esc(a.tagline)}</p>
@@ -197,6 +229,7 @@
       <div class="row"><a class="btn primary" href="/${esc(a.id)}">Open as yourself</a><button class="btn" data-prompt="${esc(a.id)}">Copy agent prompt</button></div>
     </div>`;
   }).join('') || '<div class="app"><p>Demo apps are offline right now.</p></div>';
+  $$('.apps .app.reveal').forEach((el, i) => { el.style.transitionDelay = `${i * 70}ms`; if (io) io.observe(el); else el.classList.add('in'); });
   document.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-prompt]'); if (!b) return;
     b.disabled = true;
