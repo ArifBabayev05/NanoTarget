@@ -199,7 +199,7 @@
   function placeAgent() {
     if (innerWidth <= 820) return;
     const fb = S.body.getBoundingClientRect(), card = S.body.querySelectorAll('.f-card')[1]; if (!card) return;
-    const r = card.getBoundingClientRect(); const w = Math.max(180, Math.round(r.width - 12));
+    const r = card.getBoundingClientRect(); const w = Math.max(150, Math.round(r.width - 12));
     S.agent.style.left = `${Math.round(r.left - fb.left + 6)}px`; S.agent.style.top = `${Math.round(r.top - fb.top + 6)}px`; S.agent.style.width = `${w}px`;
   }
   function seal(on) { S.amount.classList.toggle('sealed', on); S.kv.forEach((b) => b.classList.toggle('sealed', on)); }
