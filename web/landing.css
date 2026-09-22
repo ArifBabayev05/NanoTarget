@@ -15,6 +15,49 @@ b{font-weight:600}
 code{font-family:var(--mono)}
 ::selection{background:rgba(124,240,192,.25)}
 
+/* cursor — a dot and a lagging ring; grows over anything clickable */
+.cur{position:fixed;left:0;top:0;pointer-events:none;z-index:9999;opacity:0;transition:opacity .3s}
+body.has-cur .cur{opacity:1}
+body.has-cur,body.has-cur a,body.has-cur button,body.has-cur [role=button],body.has-cur .f-btn{cursor:none}
+.cur .dot{position:absolute;left:0;top:0;width:6px;height:6px;border-radius:50%;background:var(--fg);transform:translate(-50%,-50%);transition:width .2s,height .2s,background .2s}
+.cur .ring{position:absolute;left:0;top:0;width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(255,255,255,.5);transform:translate(-50%,-50%);transition:width .25s var(--ease),height .25s var(--ease),border-color .25s,background .25s}
+.cur.hover .ring{width:48px;height:48px;border-color:rgba(124,240,192,.8);background:rgba(124,240,192,.06)}
+.cur.hover .dot{width:4px;height:4px;background:var(--accent)}
+.cur.press .ring{width:22px;height:22px}
+.cur.text .ring{width:8px;height:30px;border-radius:4px}
+
+/* scroll progress line (scroll-driven where supported, JS elsewhere) */
+.scroll-line{position:fixed;left:0;top:0;height:2px;width:100%;background:linear-gradient(90deg,var(--accent),rgba(124,240,192,.4));transform-origin:left;transform:scaleX(0);z-index:60;pointer-events:none}
+@supports (animation-timeline:scroll()){.scroll-line{animation:scroll-line linear both;animation-timeline:scroll(root)}@keyframes scroll-line{to{transform:scaleX(1)}}}
+
+/* border beam (21st.dev pattern) */
+@property --ba{syntax:'<angle>';inherits:false;initial-value:0deg}
+.beam{position:relative}
+.beam::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;background:conic-gradient(from var(--ba),transparent 0 72%,rgba(124,240,192,.9) 86%,transparent 100%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:beam 7s linear infinite;pointer-events:none;z-index:2}
+@keyframes beam{to{--ba:360deg}}
+.bezel.beam::before{padding:1.5px}
+
+/* shimmer button */
+.btn.shimmer{position:relative;overflow:hidden}
+.btn.shimmer::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 35%,rgba(0,0,0,.14) 50%,transparent 65%);transform:translateX(-120%);animation:sheen 4s 1.5s infinite}
+
+/* marquee */
+.marquee{margin:44px auto 0;max-width:1000px}
+.marquee-label{display:block;text-align:center;font-size:12px;color:var(--fg3);letter-spacing:.02em;margin-bottom:12px}
+.marquee-track{overflow:hidden;-webkit-mask:linear-gradient(90deg,transparent,#000 15%,#000 85%,transparent);mask:linear-gradient(90deg,transparent,#000 15%,#000 85%,transparent)}
+.marquee-row{display:flex;gap:10px;width:max-content;animation:marquee 38s linear infinite}
+.marquee-track:hover .marquee-row{animation-play-state:paused}
+.marquee-row span{white-space:nowrap;font-size:13px;color:var(--fg2);border:1px solid var(--line);border-radius:999px;padding:6px 12px;background:var(--bg2)}
+@keyframes marquee{to{transform:translateX(-50%)}}
+
+/* text reveal on headings */
+.tr .tw{display:inline-block;opacity:0;filter:blur(8px);transform:translateY(10px);transition:opacity .6s var(--ease),filter .6s var(--ease),transform .6s var(--ease);transition-delay:calc(var(--i)*45ms)}
+.tr.in .tw{opacity:1;filter:blur(0);transform:none}
+
+/* dot pattern behind the feature grid */
+.features{position:relative}
+.features::before{content:"";position:absolute;left:50%;top:0;width:100vw;height:100%;transform:translateX(-50%);z-index:-1;background:radial-gradient(rgba(255,255,255,.07) 1px,transparent 1.2px) 0 0/22px 22px;-webkit-mask:radial-gradient(60% 60% at 50% 45%,#000 30%,transparent 100%);mask:radial-gradient(60% 60% at 50% 45%,#000 30%,transparent 100%);pointer-events:none}
+
 /* nav */
 .nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:0 28px;height:60px;
   background:rgba(10,10,11,.6);backdrop-filter:saturate(140%) blur(14px);-webkit-backdrop-filter:saturate(140%) blur(14px);border-bottom:1px solid transparent;transition:border-color .3s}
@@ -49,7 +92,10 @@ main{max-width:var(--w);margin:0 auto;padding:0 24px}
 @keyframes w-in{to{opacity:1;filter:blur(0);transform:none}}
 .rot-wrap{display:inline-flex;align-items:baseline}
 .rot{display:inline-grid;text-align:left;vertical-align:baseline;transition:width .55s var(--ease)}
-.rot>span{grid-area:1/1;justify-self:start;opacity:0;transform:translateY(.55em);filter:blur(8px);transition:opacity .5s var(--ease),transform .6s var(--ease),filter .5s;color:var(--fg2);white-space:nowrap}
+.rot>span{grid-area:1/1;justify-self:start;opacity:0;transform:translateY(.55em);filter:blur(8px);transition:opacity .5s var(--ease),transform .6s var(--ease),filter .5s;color:var(--accent);white-space:nowrap;text-shadow:0 0 28px rgba(124,240,192,.35)}
+.rot::after{content:"";position:absolute;left:0;right:0;bottom:.06em;height:.08em;border-radius:1em;background:linear-gradient(90deg,var(--accent),rgba(124,240,192,.2));transform-origin:left;animation:underline 2.6s var(--ease) infinite}
+.rot{position:relative}
+@keyframes underline{0%{transform:scaleX(0);opacity:0}18%{transform:scaleX(1);opacity:1}82%{transform:scaleX(1);opacity:1}100%{transform:scaleX(1);opacity:0}}
 .rot>span.on{opacity:1;transform:none;filter:blur(0)}
 .rot>span.out{opacity:0;transform:translateY(-.55em);filter:blur(8px)}
 .sub{font-size:clamp(16px,1.5vw,19px);color:var(--fg2);max-width:720px;margin:0 auto 34px;line-height:1.55;text-wrap:pretty}
@@ -151,19 +197,19 @@ main{max-width:var(--w);margin:0 auto;padding:0 24px}
 .install-row .btn.secondary{height:38px;border-radius:10px}
 @media (max-width:560px){.npm.big{height:52px;font-size:15px}.install-row .sep{display:none}}
 
-/* inline headline glyphs — the human + AI pair; the fingerprint draws itself on */
-.h1 .g{display:inline-grid;place-items:center;position:relative;width:.86em;height:.86em;border-radius:50%;margin:0 .12em 0 .02em;vertical-align:-.06em;border:1px solid var(--line2);background:var(--bg2)}
-.h1 .g svg{width:.58em;height:.58em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.h1 .g.fp{color:var(--accent);border-color:rgba(124,240,192,.45);background:rgba(124,240,192,.08);box-shadow:0 0 0 0 rgba(124,240,192,.25);animation:w-in .9s var(--ease) forwards,fp-breathe 3.2s ease-in-out 1.6s infinite;animation-delay:calc(.15s + var(--i) * 55ms),1.6s}
-.h1 .g.fp svg path{stroke-dasharray:1;stroke-dashoffset:1;animation:draw 1.1s var(--ease) forwards}
-.h1 .g.fp svg path:nth-child(1){animation-delay:.5s}.h1 .g.fp svg path:nth-child(2){animation-delay:.7s}.h1 .g.fp svg path:nth-child(3){animation-delay:.9s}.h1 .g.fp svg path:nth-child(4){animation-delay:1.05s}.h1 .g.fp svg path:nth-child(5){animation-delay:1.2s}
+/* inline headline glyphs — Lucide fingerprint (the hand) and sparkles (the agent) in glass badges */
+.h1 .g{display:inline-grid;place-items:center;position:relative;width:.82em;height:.82em;border-radius:26%;margin:0 .14em 0 .04em;vertical-align:-.1em;border:1px solid var(--line2);background:linear-gradient(160deg,rgba(255,255,255,.09),rgba(255,255,255,.02));box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 10px 30px -14px rgba(0,0,0,.9)}
+.h1 .g svg{width:.56em;height:.56em;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;position:relative;z-index:1}
+.h1 .g.fp{color:var(--accent);border-color:rgba(124,240,192,.45);background:linear-gradient(160deg,rgba(124,240,192,.2),rgba(124,240,192,.04))}
+.h1 .g.fp svg path{stroke-dasharray:1;stroke-dashoffset:1;animation:draw 1.2s var(--ease) forwards}
+.h1 .g.fp svg path:nth-child(1){animation-delay:.55s}.h1 .g.fp svg path:nth-child(2){animation-delay:.65s}.h1 .g.fp svg path:nth-child(3){animation-delay:.75s}.h1 .g.fp svg path:nth-child(4){animation-delay:.85s}.h1 .g.fp svg path:nth-child(5){animation-delay:.9s}.h1 .g.fp svg path:nth-child(6){animation-delay:.95s}.h1 .g.fp svg path:nth-child(7){animation-delay:1.05s}.h1 .g.fp svg path:nth-child(8){animation-delay:1.15s}.h1 .g.fp svg path:nth-child(9){animation-delay:1.25s}
 @keyframes draw{to{stroke-dashoffset:0}}
-@keyframes fp-breathe{0%,100%{box-shadow:0 0 0 0 rgba(124,240,192,.28)}50%{box-shadow:0 0 0 .22em rgba(124,240,192,0)}}
-.h1 .g.fp .ring{position:absolute;inset:-1px;border-radius:50%;border:1px solid rgba(124,240,192,.5);animation:ring-out 3.2s ease-out 1.6s infinite;pointer-events:none}
-@keyframes ring-out{0%{transform:scale(1);opacity:.7}70%,100%{transform:scale(1.55);opacity:0}}
-.h1 .g.sp{color:var(--accent2);border-color:rgba(255,184,107,.4);background:rgba(255,184,107,.08)}
-.h1 .g.sp svg{fill:currentColor;stroke:none;animation:spin-in 1.2s var(--ease) .9s both}
-@keyframes spin-in{from{transform:rotate(-90deg) scale(.3);opacity:0}to{transform:none;opacity:1}}
+.h1 .g.fp .halo{position:absolute;inset:-6px;border-radius:32%;background:radial-gradient(closest-side,rgba(124,240,192,.35),transparent);filter:blur(6px);opacity:0;animation:halo 3.4s ease-in-out 1.8s infinite;pointer-events:none}
+@keyframes halo{0%,100%{opacity:.25;transform:scale(.9)}50%{opacity:.7;transform:scale(1.08)}}
+.h1 .g.sp{color:var(--accent2);border-color:rgba(255,184,107,.45);background:linear-gradient(160deg,rgba(255,184,107,.2),rgba(255,184,107,.04))}
+.h1 .g.sp svg{animation:spin-in 1.1s var(--ease) .95s both}
+.h1 .g.sp svg path:first-child{fill:currentColor;fill-opacity:.25}
+@keyframes spin-in{from{transform:rotate(-70deg) scale(.4);opacity:0}to{transform:none;opacity:1}}
 
 /* device bezel — sections presented as hardware, as in the reference */
 .bezel{padding:9px;border-radius:24px;background:linear-gradient(180deg,#26262b,#121216);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),inset 0 -1px 0 rgba(0,0,0,.6),0 50px 110px -50px #000;transform-style:preserve-3d}
@@ -232,7 +278,9 @@ section{padding:96px 0}
 .foot a{margin-left:18px;color:var(--fg2)}.foot a:hover{color:var(--fg)}
 
 /* reveal */
-.reveal{opacity:0;transform:translateY(18px);transition:opacity .7s var(--ease),transform .7s var(--ease)}
+.reveal{opacity:0;transform:translateY(18px);transition:opacity .7s var(--ease),transform .7s var(--ease),filter .7s var(--ease)}
+.grid3 .feat.reveal,.apps .app.reveal{transform:translateY(14px) scale(.97);filter:blur(6px)}
+.grid3 .feat.reveal.in,.apps .app.reveal.in{filter:blur(0)}
 .reveal.in{opacity:1;transform:none}
 .reveal-now{animation:up .8s var(--ease) both}
 .reveal-now:nth-child(1){animation-delay:.05s}.reveal-now:nth-child(2){animation-delay:.12s}.reveal-now:nth-child(3){animation-delay:.2s}.reveal-now:nth-child(4){animation-delay:.28s}.reveal-now:nth-child(5){animation-delay:.36s}.reveal-now:nth-child(6){animation-delay:.5s}
