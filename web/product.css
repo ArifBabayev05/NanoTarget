@@ -147,14 +147,36 @@ dialog .code{font:600 22px var(--mono);letter-spacing:.14em;background:var(--sur
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
 @media (max-width:900px){
-  .shell{grid-template-columns:1fr}
-  .side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--line);padding:12px 14px;gap:6px}
-  .side .brand{margin:0 10px 0 0}
-  .side nav{display:flex;gap:4px;overflow-x:auto;flex:1}.side nav a{white-space:nowrap;padding:7px 10px;font-size:13px}
-  .side .spacer,.side .user small{display:none}
-  .side .user{border:0;margin:0;padding:4px 6px}
-  .main{padding:18px 16px 120px}
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .side{position:static;height:auto;min-width:0;overflow:hidden;flex-direction:row;flex-wrap:nowrap;align-items:center;border-right:0;border-bottom:1px solid var(--line);padding:10px 12px;gap:8px}
+  .side .brand{margin:0;flex:none;font-size:15px}
+  .side .brand span:last-child{display:none}
+  .side nav{display:flex;gap:4px;overflow-x:auto;flex:1 1 0%;min-width:0;scrollbar-width:none;-webkit-mask:linear-gradient(90deg,#000 88%,transparent);mask:linear-gradient(90deg,#000 88%,transparent)}
+  .side nav::-webkit-scrollbar{display:none}
+  .side nav a{white-space:nowrap;padding:7px 10px;font-size:13px;flex:none}
+  .side .spacer{display:none}
+  .side .user{border:0;margin:0;padding:0;flex:none}
+  .side .user div{display:none}
+  .main{min-width:0;padding:18px 14px 120px}
+  .topline{align-items:flex-start}
+  .topline h1{font-size:22px}
+  .guard{max-width:100%;white-space:normal;line-height:1.3}
   .c8,.c6,.c4{grid-column:span 12}
-  .kv{grid-template-columns:110px 1fr}
+  .grid{gap:12px}
+  .card{padding:18px;border-radius:14px}
+  .card .head{flex-wrap:wrap}
+  .card .head .actions{width:100%}
+  .card .head .actions input{flex:1 1 120px;min-width:0}
   .hero-card .amount{font-size:36px}
+  .hero-card .actions button{flex:1 1 auto}
+  .kv{grid-template-columns:104px minmax(0,1fr)}
+  .kv strong{overflow-wrap:anywhere}
+  .quick{grid-template-columns:repeat(2,1fr)}
+  .card table{display:block;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
+  .fab{font-size:13px;padding:10px 14px 10px 11px;max-width:calc(100vw - 24px)}
+  .fab .kbd{display:none}
+  .sheet{width:calc(100vw - 16px);bottom:8px;padding:18px 16px 14px;max-height:88vh}
+  .sheet .row .btn-agent{flex-basis:100%}
+  .drawer{width:100vw;border-left:0}
+  .toast{max-width:calc(100vw - 32px);text-align:center}
 }
