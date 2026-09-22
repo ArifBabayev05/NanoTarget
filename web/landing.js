@@ -17,6 +17,8 @@
   const onScroll = () => nav.classList.toggle('scrolled', scrollY > 8);
   addEventListener('scroll', onScroll, { passive: true }); onScroll();
 
+  $$('.g.fp svg path').forEach((pth, k) => pth.style.setProperty('--k', k));   // fingerprint ridges draw on in order
+
   // ---------------------------------------------------------------- hero: spotlight, aurora, rotating verb
   const hero = $('#hero');
   if (hero && matchMedia('(hover:hover) and (pointer:fine)').matches) {
