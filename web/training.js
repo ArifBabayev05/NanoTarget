@@ -1,6 +1,7 @@
 /* Təlim mühiti: 13 tapşırıq, hər klik xam trayektoriya + kontekst ilə yazılır; sonda real qərar mühərriki addım-addım işlədilir. */
 (() => {
   const $ = (s) => document.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const params = new URLSearchParams(location.search);
   const client = (() => { const k = 'nt-training-client'; try { const v = sessionStorage.getItem(k); if (v) return v; } catch {} const id = 't-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36); try { sessionStorage.setItem(k, id); } catch {} return id; })();
   let label = params.get('as') === 'agent' ? 'agent' : params.get('as') === 'human' ? 'human' : null;
@@ -24,7 +25,8 @@
   $('#restart').onclick = () => { try { sessionStorage.removeItem('nt-training-client'); sessionStorage.removeItem('nt-training-steps'); } catch {} location.href = location.pathname + (label ? `?as=${label}` : ''); };
 
   // ------------------------------------------------------------ raw capture (page-wide)
-  const stage = $('#stage');
+  const scene = $('#stage');            // the framed session: bar, sidebar, header
+  const stage = $('#stage-body');       // where each task renders
   let points = [], down = null, coalesced = 0, lastClickAt = null, hoverSince = null, hoverEl = null;
   let keys = 0, lastKey = 0, keyIntervals = [], inputEvents = 0, pasted = false, scrolls = 0, lastScroll = 0, wheelDeltas = 0;
   // The hand's approach survives a reload of this tab: a person who refreshes and clicks without moving still
@@ -119,7 +121,7 @@
     { id: 'targets', title: 'Nömrəli düymələr', text: 'Görünən nömrəli düyməyə kliklə. Hər klikdə növbətisi çıxır — 5 dəfə.', run(done) { let i = 0; const next = () => { stage.innerHTML = ''; if (i >= 5) return done(); if (stage.clientWidth < 200) { requestAnimationFrame(next); return; } const b = place(i + 1, rnd(44, 110), Math.random() < .35 ? 'sq' : ''); b.onclick = (e) => { record('targets', e); i++; next(); }; stage.appendChild(b); }; next(); } },
     { id: 'buttons-row', title: 'Ardıcıl düymələr', text: 'Soldan sağa dörd düyməni ardıcıl kliklə: Göstər, Yenilə, Axtar, Bağla.', run(done) { const names = ['Göstər', 'Yenilə', 'Axtar', 'Bağla']; let i = 0; stage.innerHTML = `<div class="row" style="margin-top:120px;justify-content:center">${names.map((n, k) => `<button data-k="${k}" class="${k === 0 ? 'primary' : ''}" style="padding:14px 22px">${n}</button>`).join('')}</div>`; stage.querySelectorAll('button').forEach((b) => { b.onclick = (e) => { if (Number(b.dataset.k) !== i) return; record('buttons-row', e); b.classList.remove('primary'); i++; const nb = stage.querySelector(`[data-k="${i}"]`); if (nb) nb.classList.add('primary'); else done(); }; }); } },
     { id: 'typing', title: 'Mətn yaz', text: 'Sahəyə “ödəniş tarixçəsi” yaz, sonra “Göndər” düyməsinə kliklə.', run(done) { stage.innerHTML = `<div style="margin-top:110px;display:flex;gap:10px;justify-content:center"><input id="ti" placeholder="Buraya yaz…" style="width:320px" autocomplete="off"><button class="primary" id="tb">Göndər</button></div>`; $('#tb').onclick = (e) => { if (($('#ti').value || '').trim().length < 3) { $('#ti').focus(); return; } record('typing', e, { typed: $('#ti').value.length }); done(); }; } },
-    { id: 'scroll-click', title: 'Aşağı sürüş', text: 'Səhifəni aşağı sürüşdür, ən altdakı “Təsdiqlə” düyməsini tap və kliklə.', run(done) { stage.classList.add('tall'); stage.innerHTML = `<p style="color:var(--muted)">Uzun hesabat mətni…</p>${'<p style="color:var(--line)">▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬</p>'.repeat(28)}<button class="primary bottom-anchor" id="sc">Təsdiqlə</button>`; $('#sc').onclick = (e) => { record('scroll-click', e); stage.classList.remove('tall'); window.scrollTo({ top: 0 }); done(); }; } },
+    { id: 'scroll-click', title: 'Aşağı sürüş', text: 'Səhifəni aşağı sürüşdür, ən altdakı “Təsdiqlə” düyməsini tap və kliklə.', run(done) { stage.classList.add('tall'); scene.classList.add('tall'); stage.innerHTML = `<p style="color:var(--muted)">Uzun hesabat mətni…</p>${'<p style="color:var(--line)">▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬</p>'.repeat(28)}<button class="primary bottom-anchor" id="sc">Təsdiqlə</button>`; $('#sc').onclick = (e) => { record('scroll-click', e); stage.classList.remove('tall'); scene.classList.remove('tall'); window.scrollTo({ top: 0 }); done(); }; } },
     { id: 'dropdown', title: 'Seçim', text: 'Siyahıdan “Son 3 ay” seç, sonra “Tətbiq et” düyməsinə kliklə.', run(done) { stage.innerHTML = `<div style="margin-top:110px;display:flex;gap:10px;justify-content:center;align-items:center"><select id="dd" style="font:inherit;padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface)"><option>Son ay</option><option>Son 3 ay</option><option>Son il</option></select><button class="primary" id="db">Tətbiq et</button></div>`; $('#db').onclick = (e) => { if ($('#dd').value !== 'Son 3 ay') return; record('dropdown', e); done(); }; } },
     { id: 'modal', title: 'Pəncərə', text: '“Detallar” düyməsinə kliklə, açılan pəncərəni sağ üstdəki ✕ ilə bağla.', run(done) { stage.innerHTML = `<div style="margin-top:120px;text-align:center"><button class="primary" id="mo">Detallar</button></div>`; $('#mo').onclick = (e) => { record('modal', e); const bg = document.createElement('div'); bg.className = 'modal-bg'; bg.innerHTML = `<div class="modal"><button class="x ghost" id="mx">✕</button><h3>Əməliyyat detalları</h3><p class="sub">Kommunal ödəniş · 42,10 AZN · 18 sentyabr</p></div>`; document.body.appendChild(bg); $('#mx').onclick = (e2) => { record('modal', e2); bg.remove(); done(); }; }; } },
     { id: 'double-click', title: 'İki dəfə klik', text: 'Kartın üstünə iki dəfə (double-click) kliklə.', run(done) { stage.innerHTML = `<div style="margin-top:90px;display:flex;justify-content:center"><div class="card-tile" id="dc" style="width:260px"><b>Yığım hesabı</b><br><span class="sub">•••• 4471</span></div></div>`; let n = 0; $('#dc').addEventListener('click', (e) => { record('double-click', e); n++; if (e.detail >= 2 || n >= 2) { $('#dc').classList.add('on'); setTimeout(done, 300); } }); } },
@@ -142,10 +144,10 @@
   // Each task belongs to a part of a real session; the lab announces the part as it changes,
   // so a run reads like a visit to a bank rather than a list of exercises.
   const PHASES = [
-    { name: 'Giriş', note: 'hesaba daxil olan adamın ilk hərəkətləri', ids: ['targets', 'buttons-row', 'typing'] },
-    { name: 'Hesab', note: 'balans, siyahı, axtarış', ids: ['scroll-click', 'dropdown', 'modal', 'double-click', 'keyboard', 'reload-click'] },
-    { name: 'Ödəniş', note: 'məbləğ seçimi, forma, təsdiq', ids: ['hover-dwell', 'slider', 'small-target', 'drag-drop', 'form-tab', 'hesitate', 'read-choose'] },
-    { name: 'Sənəd və fasilə', note: 'oxuma, gözləmə, sürətli təkrar', ids: ['near-miss', 'long-idle', 'select-text', 'free-move', 'rapid-fire'] },
+    { name: 'Giriş', note: 'hesaba daxil olan adamın ilk hərəkətləri', url: 'bank.example.com/login', title: 'Daxil ol', sub: 'Nano Bank · şəxsi hesab', ids: ['targets', 'buttons-row', 'typing'] },
+    { name: 'Hesab', note: 'balans, siyahı, axtarış', url: 'bank.example.com/accounts', title: 'Cari hesab', sub: 'Balans · əməliyyatlar · axtarış', ids: ['scroll-click', 'dropdown', 'modal', 'double-click', 'keyboard', 'reload-click'] },
+    { name: 'Ödəniş', note: 'məbləğ seçimi, forma, təsdiq', url: 'bank.example.com/payments/new', title: 'Yeni ödəniş', sub: 'Alıcı · məbləğ · təsdiq', ids: ['hover-dwell', 'slider', 'small-target', 'drag-drop', 'form-tab', 'hesitate', 'read-choose'] },
+    { name: 'Sənəd və fasilə', note: 'oxuma, gözləmə, sürətli təkrar', url: 'bank.example.com/documents', title: 'Sənədlər', sub: 'Çıxarış · şərtlər · IBAN', ids: ['near-miss', 'long-idle', 'select-text', 'free-move', 'rapid-fire'] },
   ];
   const phaseOf = (id) => PHASES.find((p) => p.ids.includes(id)) || PHASES[PHASES.length - 1];
 
@@ -184,10 +186,16 @@
       pe.innerHTML = `<b>${ph.name}</b><span>${ph.note}</span>`;
       pe.style.animation = 'none'; void pe.offsetWidth; pe.style.animation = '';
       const w = document.createElement('div'); w.className = 'wipe'; w.innerHTML = `<span>${ph.name}</span>`;
-      stage.appendChild(w); setTimeout(() => w.remove(), 900);
+      scene.appendChild(w); setTimeout(() => w.remove(), 900);
+      // the framed session moves to the page this phase happens on
+      const k = PHASES.indexOf(ph);
+      $$('#scene-side i').forEach((el, j) => el.classList.toggle('on', j === k));
+      const url = $('#scene-url'); url.classList.remove('nav'); void url.offsetWidth; url.textContent = ph.url; url.classList.add('nav');
+      $('#scene-title').textContent = ph.title; $('#scene-sub').textContent = ph.sub;
     }
     const pct = taskIndex / TASKS.length; const ring = $('#ring'); if (ring) { ring.style.strokeDashoffset = String(113 * (1 - pct)); $('#ring-label').textContent = Math.round(pct * 100) + '%'; }
     stage.classList.remove('swap'); void stage.offsetWidth; stage.classList.add('swap');
+    scene.classList.remove('tall');
     $('#progress').textContent = `${steps.length} hadisə yazıldı`;
     stage.classList.remove('tall'); stage.innerHTML = '';
     t.run(() => { taskIndex++; try { sessionStorage.setItem('nt-training-index', String(taskIndex)); } catch {} setTimeout(runTask, 250); });
@@ -201,7 +209,7 @@
     const early = window.NanoTarget ? window.NanoTarget.snapshot(false).early : null;
     let d = null;
     try { const r = await fetch('/api/v1/sandbox/assess-run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client, label, source: $('#source').value, early, steps }) }); d = await r.json(); } catch {}
-    stage.hidden = true;
+    scene.hidden = true;
     window.NTHud?.hide();
     const res = $('#results'); res.hidden = false;
     if (!d || !d.steps) { res.innerHTML = `<div class="summary bad"><h2>Nəticə alınmadı</h2><p>Kod: <span class="code">${client}</span> — bu kodu göndər, hadisələr artıq yazılıb.</p></div>`; return; }

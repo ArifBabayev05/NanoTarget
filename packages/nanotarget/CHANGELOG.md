@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.2.1 — 2026-09-22
+- **Judgement calls**: thirteen code patterns that should move the recommendation away from the default matrix (uncapped lists, aggregates embedding protected values, GraphQL field groups, recovery-data writes, non-idempotent money moves, file links, admin branches, regulated classes, SPA interceptors, SSR loaders, SDK-less clients, non-Node backends), each with the reason to give the user; plus the two habits — trace the number not the route, recommend then ask.
 - **Block and step-up design** in README/AGENTS.md, the half the mask cookbook did not cover: sibling leaks (an uncapped search next to a blocked export makes the block decorative), retry idempotency after a 428, per-resource short-lived grants, the passkey way back, audit observability, and token-bound downloads — with code for each.
 - **Worked exposure map**: the table the integrating agent should hand the owner before touching code, and the two rows careless integrations miss — an aggregate endpoint that embeds a protected value, and the profile write that is the account-takeover path.
 - **Mask cookbook**: ready implementations per data class (money, IBAN/card, names, contact, addresses, documents, lists, aggregates) and the seven rules that decide a mask's quality: mask the join, mask derived values, cap volume, keep the response contract, never mask an irreversible action, don't leak through errors, assert the real value is absent from the serialized mask.

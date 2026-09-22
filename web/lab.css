@@ -200,3 +200,41 @@ td{padding:9px 10px;border-bottom:1px solid var(--line)}
 .replay-top button{margin-left:auto;padding:7px 14px;font-size:13px}
 .replay canvas{display:block;width:100%;height:auto;background:#0d0d10}
 .replay-label{padding:10px 16px;border-top:1px solid var(--line);font:12.5px var(--mono);color:var(--ink-dim);display:flex;align-items:center;gap:8px}
+
+/* the training stage as a framed bank session */
+.stage.scene{padding:0;display:flex;flex-direction:column;min-height:0;background:#0d0d10}
+.stage.scene::before{display:none}
+.scene-bar{display:flex;align-items:center;gap:6px;height:38px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--bg3);flex:none}
+.scene-bar span{width:10px;height:10px;border-radius:50%;background:var(--line2)}
+.scene-bar em{margin-left:12px;font:12px var(--mono);color:var(--ink-faint);font-style:normal}
+.scene-bar em.nav{animation:url-in .6s var(--ease)}
+@keyframes url-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.scene-rec{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font:11px var(--mono);color:var(--ink-faint);font-weight:400}
+.scene-rec i{width:6px;height:6px;border-radius:50%;background:var(--red);animation:beat 1.4s infinite}
+.scene-grid{display:grid;grid-template-columns:56px 1fr;flex:1;min-height:400px}
+.scene-side{border-right:1px solid var(--line);padding:14px 0;display:flex;flex-direction:column;align-items:center;gap:14px}
+.scene-logo{width:28px;height:28px;border-radius:8px;background:var(--ink);color:var(--bg);font:600 11px var(--font);display:grid;place-items:center;margin-bottom:6px}
+.scene-side i{width:18px;height:18px;border-radius:5px;background:var(--line);transition:background .4s,box-shadow .4s}
+.scene-side i.on{background:var(--accent);box-shadow:0 0 0 4px rgba(124,240,192,.15)}
+.scene-main{display:flex;flex-direction:column;min-width:0}
+.scene-head{display:flex;justify-content:space-between;align-items:flex-start;padding:18px 22px 0}
+.scene-head b{display:block;font-weight:600;font-size:16px;letter-spacing:-.01em}
+.scene-head small{font-size:12px;color:var(--ink-faint)}
+.scene-guard{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-dim);border:1px solid var(--line);border-radius:999px;padding:4px 10px 4px 8px;background:var(--bg2)}
+.scene-guard i{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.scene-body{position:relative;flex:1;min-height:340px;padding:22px;overflow:hidden;user-select:none;transition:min-height .4s}
+.scene-body::before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:28px 28px;mask-image:radial-gradient(80% 80% at 50% 50%,#000 40%,transparent 100%);animation:drift 26s linear infinite;pointer-events:none}
+.scene-body>*{position:relative}
+.scene-body.swap{animation:swap .4s var(--ease)}
+.scene-body.tall,.stage.scene.tall .scene-body{min-height:1400px}
+.scene-body .target{position:absolute}
+.scene-body .hint{position:absolute;inset:0;display:grid;place-items:center;color:var(--ink-faint);font-size:15px;text-align:center;padding:24px;pointer-events:none}
+.scene-body button{border:0;border-radius:10px;padding:10px 16px;background:rgba(255,255,255,.07);color:var(--ink);cursor:pointer;transition:background .2s,transform .12s;font-family:var(--font)}
+.scene-body button:hover{background:rgba(255,255,255,.12)}
+.scene-body button.primary{background:var(--ink);color:#0a0a0b;font-weight:600}
+.scene-body input{background:var(--bg2);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:10px 14px;font-family:var(--font)}
+.scene-body input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,240,192,.18)}
+.scene-body .target{border-radius:50%;background:var(--accent);color:#06251a;font-weight:600;font-size:19px;display:grid;place-items:center;cursor:pointer;padding:0;animation:ping 1.8s ease-out infinite,pop .3s ease}
+.scene-body .target.sq{border-radius:14px}
+.scene-body .target:hover{background:var(--accent-2)}
+@media (max-width:720px){.scene-grid{grid-template-columns:1fr}.scene-side{display:none}}

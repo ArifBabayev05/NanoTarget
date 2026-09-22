@@ -87,6 +87,32 @@ Send the user a short document, in their language and with their route names, st
 4. **Rollout** — start in `observe` (nothing blocked, every decision recorded with what *would* have happened), review the decision log, flip to `enforce`.
 5. **What this does not cover** — say it plainly: server-to-server API keys, mobile apps without the SDK, and a person deliberately relaying data to an agent by hand.
 
+### Judgement calls — what you see in the code should change what you recommend
+
+The matrix is the default. You are expected to depart from it when the code tells you to, and to say why in one sentence. These are the patterns that should move your recommendation:
+
+| When you find… | Recommend | Because |
+| --- | --- | --- |
+| A list/search endpoint over customer records with no page size cap, or a cursor the client controls | `mask` **and** a hard row cap for agents; drop `nextCursor` | one agent pass reads the whole base; masking columns alone still leaks volume |
+| An aggregate endpoint (`/dashboard`, `/summary`, `/me`) that embeds a value you protect elsewhere | the same resource name and the same mask on the embedded field | the protection is per resource, not per URL — a second URL for the same number is a hole |
+| GraphQL / tRPC / JSON-RPC behind one URL | one resource **per field group**, decided in the resolver with `{ respond: false }` | URL-level rules cannot see which fields were asked for |
+| Writes to recovery data (phone, e-mail, address, security questions, devices) | `block` for agents, `step_up` otherwise, even if the app treats it as "profile" | changing recovery data is how an account is taken over *later*, after the agent is gone |
+| Money movement with an idempotency key already present | keep it, and bind the step-up grant to that key | otherwise the retry after `428` can run the transfer twice |
+| Money movement **without** an idempotency key | add one before wiring the step-up, and tell the user you did | a gate in front of a non-idempotent action creates the double-execution it was meant to prevent |
+| PDF/CSV/XLSX generation, `Content-Disposition: attachment`, signed S3/GCS URLs | protect the request that *issues* the link, token-bind the file route | the file URL outlives the decision; a copied link must be dead |
+| Role checks (`isAdmin`, `role === 'manager'`) on a route | `block` agents on the admin branch regardless of the data class | administrative reach multiplies the blast radius of one injected instruction |
+| Health, medical, HR, minors' data, biometric templates | `block` for agents; `mask` for environment-only; never `allow` on `onUnknown` for the raw record | the highest regulated classes; masking is not enough because the *existence* of a record is the secret |
+| A SPA that calls the API with `axios`/`ky`/a generated client | interceptor with `NanoTarget.sessionHeaders()` + `X-NT-Sample`, not `NanoTarget.fetch` rewrites | without the click sample a person inside an AI browser is never unlocked |
+| SSR pages that render protected values into HTML | mark the rendered elements `data-nt-sensitive="full"` **and** protect the data loader | seal-on-attach covers what is already on screen; the loader covers the next navigation |
+| A mobile app or partner API hitting the same endpoints without the SDK | say so explicitly in the report; those clients decide on `onUnknown` | the SDK is what turns "unknown" into "human"; be honest about where it is absent |
+| A non-Node backend | stop, propose the Node sidecar in front of the data endpoints, ask before continuing | there is no other server integration today; do not improvise one |
+
+When two rows apply, the stricter one wins. When none applies and the data is not in the matrix, ask — do not invent a class.
+
+Two habits that separate a good integration from a checklist run:
+- **Trace the number, not the route.** For each protected value, `grep` for where it is *read* (loader, resolver, serializer, template, test fixture) and where it is *derived* (totals, charts, exports, e-mails). Every place it appears is either protected the same way or listed as deliberately open.
+- **Say what you would do, then ask.** Every question in step 3 comes with your recommendation and the reason. A user who only gets a question will guess; a user who gets a recommendation will correct you when you are wrong — which is the point.
+
 ### Step 3 — Ask the nine decisions (each with your recommended default)
 1. Confirm/edit the resource list from the exposure map.
 2. Per resource, `onAgent` — default from the matrix.
