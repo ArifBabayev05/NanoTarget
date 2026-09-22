@@ -151,6 +151,8 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['GET', '/api/v1/sandbox/stats', sandbox.stats],
     ['GET', '/api/v1/sandbox/export', sandbox.exportSamples],
     ['POST', '/api/v1/sandbox/assess-run', sandbox.assessRun],
+    // the lab pages load the SDK without a session; its passive pushes land here instead of 404
+    ['POST', '/api/v1/sandbox/noop', async (_req, res) => json(res, 200, { ok: true })],
     ['GET', '/training', async (_req, res) => page(res, 'training.html', { 'nt-serverless': serverless ? '1' : '0' })],
     ['GET', '/api/v1/apps', appsApi],
     ['GET', '/api/v1/version', async (_req, res) => json(res, 200, { signal: SIGNAL_VERSION, kinematics: KINEMATICS_VERSION, model: model ? { version: model.version, trainedAt: model.trainedAt, humanAbove: model.humanAbove, syntheticBelow: model.syntheticBelow, report: model.report } : null })],

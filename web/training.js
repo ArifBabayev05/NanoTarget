@@ -164,6 +164,8 @@
     $('#t-num').textContent = `Tapşırıq ${taskIndex + 1} / ${TASKS.length}`; $('#t-title').textContent = t.title; $('#t-text').textContent = t.text;
     $('#stepper').innerHTML = TASKS.map((_, i) => `<i class="${i < taskIndex ? 'done' : i === taskIndex ? 'cur' : ''}"></i>`).join('');
     const tk = $('#task'); tk.style.animation = 'none'; void tk.offsetWidth; tk.style.animation = '';
+    const pct = taskIndex / TASKS.length; const ring = $('#ring'); if (ring) { ring.style.strokeDashoffset = String(113 * (1 - pct)); $('#ring-label').textContent = Math.round(pct * 100) + '%'; }
+    stage.classList.remove('swap'); void stage.offsetWidth; stage.classList.add('swap');
     $('#progress').textContent = `${steps.length} hadisə yazıldı`;
     stage.classList.remove('tall'); stage.innerHTML = '';
     t.run(() => { taskIndex++; try { sessionStorage.setItem('nt-training-index', String(taskIndex)); } catch {} setTimeout(runTask, 250); });
@@ -172,6 +174,7 @@
   async function finish() {
     $('#task').innerHTML = `<div class="num">Bitdi</div><h2>Təşəkkür — ${steps.length} hadisə yazıldı</h2><p>Real qərar mühərriki bütün ardıcıllığı addım-addım işlədir…</p>`;
     $('#stepper').innerHTML = TASKS.map(() => '<i class="done"></i>').join('');
+    const ring = $('#ring'); if (ring) { ring.style.strokeDashoffset = '0'; $('#ring-label').textContent = '100%'; }
     stage.innerHTML = '<div class="hint">Hesablanır…</div>';
     const early = window.NanoTarget ? window.NanoTarget.snapshot(false).early : null;
     let d = null;
