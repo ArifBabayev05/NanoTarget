@@ -132,6 +132,21 @@ main{max-width:var(--w);margin:0 auto;padding:0 24px}
 .story-cap.fade{opacity:0}
 
 
+/* install block — the npm line is the centre of the page */
+.install{display:flex;flex-direction:column;align-items:center;gap:14px}
+.npm.big{height:58px;padding:0 8px 0 10px;border-radius:14px;font-size:17px;gap:12px;border-color:rgba(255,255,255,.2);background:linear-gradient(180deg,#141418,#0f0f12);box-shadow:0 20px 50px -30px #000}
+.npm.big code{letter-spacing:-.01em}
+.npm.big .copy{height:42px;width:42px;border-radius:10px}
+.npm-mark{display:grid;place-items:center;width:26px;height:26px;color:#cb3837}
+.npm-mark svg{width:26px;height:26px;fill:currentColor}
+.install-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center}
+.npm-link{font:13.5px var(--mono);color:var(--fg2);border-bottom:1px solid var(--line2);padding-bottom:1px;transition:color .2s,border-color .2s}
+.npm-link:hover{color:var(--fg);border-color:var(--fg2)}
+.npm-link .ext{font-family:var(--sans)}
+.install-row .sep{color:var(--fg3)}
+.install-row .btn.secondary{height:38px;border-radius:10px}
+@media (max-width:560px){.npm.big{height:52px;font-size:15px}.install-row .sep{display:none}}
+
 /* inline headline glyphs — the human + AI motif */
 .h1 .g{display:inline-grid;place-items:center;width:.86em;height:.86em;border-radius:50%;margin-right:.14em;vertical-align:-.04em;border:1px solid var(--line2);background:var(--bg2)}
 .h1 .g svg{width:.58em;height:.58em;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}

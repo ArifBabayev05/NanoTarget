@@ -4,7 +4,7 @@
 - Learned per-click model (gradient-boosted trees, grouped CV AUC 0.999, zero human false positives) shipped in `dist/kinematics-model.json`; physics features against humanised bots (roughness, noise–speed coupling, kurtosis, autocorrelation); decisive rules for generated and noise-dressed curves.
 - Kinematics v16 / assessment v7: keyboard activation neutral, approach retained across clicks and reloads, cyborg-session handling, dominance rule.
 - README rewritten as a security-analysis protocol for AI coding agents: threat model, exposure map, default decision matrix, mask design, nine decisions, verification.
-- README/AGENTS.md gained a **mask cookbook** (ready implementations per data class plus the seven rules that decide a mask's quality: mask the join, mask derived values, cap volume, keep the contract, never mask irreversible actions, don't leak through errors, assert the real value is absent) and a paste-ready prompt for the user's coding agent.
+- README/AGENTS.md gained a **block and step-up design** section (sibling leaks, retry idempotency, grant scope, recovery, observability, token-bound downloads) and a **worked exposure map** showing the two rows integrations miss — an aggregate endpoint that embeds a protected value, and the profile write that is the account-takeover path — plus a **mask cookbook** (ready implementations per data class plus the seven rules that decide a mask's quality: mask the join, mask derived values, cap volume, keep the contract, never mask irreversible actions, don't leak through errors, assert the real value is absent) and a paste-ready prompt for the user's coding agent.
 - `/api/v1/version` reports engine, kinematics and model versions.
 
 ## 0.1.3 — 2026-09-21

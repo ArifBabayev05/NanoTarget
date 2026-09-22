@@ -166,6 +166,59 @@ Rules that decide a mask's quality, in the order they bite:
 6. **Errors must not leak.** A `403` body, a validation message or a stack trace that echoes the value defeats the mask.
 7. **Test the mask like a leak.** `JSON.stringify(masked)` must not contain the full value: `assert(!JSON.stringify(masked).includes(real.iban))`.
 
+### Block and step-up design — the half the mask cookbook does not cover
+
+Masking answers "what may this agent read". Blocking and step-up answer "what may this agent **do**", and they are where a bad integration leaks or annoys. Design them per resource, not per route:
+
+```js
+// 1) A blocked read must not be reconstructable from its neighbours.
+//    If report.export is blocked but transactions.search returns every row with no cap, the block is theatre.
+app.get('/api/transactions', nt.protect('transactions.search'), (req, res) =>
+  nt.send(req, res, rows, (full) => full.slice(0, 20).map(maskRow)));   // cap + mask, or the export block is moot
+
+// 2) A step-up is a gate in front of an action, not a banner after it.
+//    Do the work only after the grant exists; never "optimistically" and then undo.
+app.post('/api/transfer', nt.protect('transfer.create'), async (req, res) => {
+  if (req.nt.decision === 'step_up') return;            // protect() already answered 428 with the challenge
+  await transfer(req.body);                             // reached only with human evidence or a valid grant
+  res.json({ ok: true });
+});
+
+// 3) Downloads: gate the issuer, bind the file to the session and the resource.
+app.post('/api/statement', nt.protect('report.export'), (req, res) => res.json({ url: `/files/${req.nt.token()}` }));
+app.get('/files/:token', async (req, res) => {
+  const ok = await nt.engine.redeemToken(req.params.token, req.nt.session.id, 'report.export');
+  if (!ok) return res.sendStatus(403);                  // single use, bound, expires — a copied link is dead
+  streamStatement(res);
+});
+
+// 4) Fail closed on the thing that matters, open on the thing that does not.
+//    If the engine errors, a balance may still render masked; a transfer must not execute.
+```
+
+Decide these five for every blocked or stepped-up resource, and write the answers into your report:
+1. **Sibling leak** — which other endpoint returns the same data in another shape (dashboard aggregate, search, CSV, GraphQL field, mobile API, webhook replay)? Gate it the same way or the block is decorative.
+2. **Idempotency** — if the client retries after a `428`, does the action run twice? Bind the retry to the same request id.
+3. **Grant scope** — a step-up grant is per resource and short-lived (minutes). Never grant "the session is human now" globally from one confirmation.
+4. **Recovery** — what does the person do when they meant to use an agent? The answer is the passkey reclaim, and the UI must say so; a dead end turns into a support ticket.
+5. **Observability** — after the fact, can you show which decision fired, on which evidence, at which second? That is `nt.engine` audit; quote its shape in your report.
+
+### Worked example — what a good exposure map looks like
+
+The user gets a table like this, in their language, with their own route names, before any code changes:
+
+| Route | Resource | What an agent gets | Class | Agent | Env. only | Unknown | Mask / gate |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `GET /api/accounts/:id` | `balance.read` | Live balance + IBAN | money, read | mask | mask | allow | `amount: null`, IBAN first4+last4 |
+| `GET /api/dashboard` | `balance.read` | **Same balance**, embedded | money, read | mask | mask | allow | same mask on the embedded field |
+| `GET /api/tx?q=` | `transactions.search` | Whole history, searchable | money, bulk | mask | mask | allow | cap 20 rows, mask counterparty |
+| `POST /api/statements` | `report.export` | CSV of everything | export | block | step_up | step_up | token-bound download |
+| `POST /api/transfers` | `transfer.create` | Moves money | irreversible | block | step_up | step_up | no partial execution |
+| `POST /api/profile` | `profile.update` | Changes address/phone | account takeover path | block | step_up | step_up | — |
+| `GET /api/health` | — | Nothing | public | allow | allow | allow | left open, deliberately |
+
+Two lines in that table are the ones a careless integration misses: `/api/dashboard`, because the balance hides inside an aggregate, and `/api/profile`, because changing the recovery phone is how an account is taken over later. Read for those before you propose anything.
+
 ### Step 5 — Verify, then report
 ```bash
 npx nanotarget verify http://localhost:3000 /api/balance     # --base /prefix if you changed basePath
