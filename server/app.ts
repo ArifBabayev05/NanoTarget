@@ -178,6 +178,11 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['GET', '/api/v1/portal/me', portal.me],
     ['POST', '/api/v1/portal/keys', portal.createKey],
     ['POST', '/api/v1/portal/keys/revoke', portal.revokeKey],
+    ['POST', '/api/v1/portal/keys/rename', portal.renameKey],
+    ['POST', '/api/v1/portal/keys/lookup', portal.lookupKey],
+    ['GET', '/api/v1/portal/admin-keys', portal.listAdminKeys],
+    ['POST', '/api/v1/portal/admin-keys', portal.createAdminKey],
+    ['POST', '/api/v1/portal/admin-keys/revoke', portal.revokeAdminKey],
     ['GET', '/api/v1/portal/stats', portal.stats],
     ['GET', '/api/v1/portal/overview', portal.overview],
     ['POST', '/api/v1/ingest', portal.ingest],
@@ -215,6 +220,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
       const method = req.method ?? 'GET';
       const route = routes.find(([m, p]) => m === method && p === u.pathname);
       if (route) { await route[2](req, res); return; }
+      if (u.pathname === '/api/v1/manage' || u.pathname.startsWith('/api/v1/manage/')) { await portal.manage(req, res); return; }
       if (await resources.handle(req, res)) return;
       if (method === 'GET' && u.pathname.startsWith('/sdk/') && (await serveStatic(res, SDK, u.pathname.slice(5)))) return;
       if (method === 'GET' && u.pathname.startsWith('/docs/') && (await serveStatic(res, DOCS, u.pathname.slice(6)))) return;
