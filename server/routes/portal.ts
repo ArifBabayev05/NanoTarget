@@ -13,6 +13,7 @@ import type { TelemetryEvent } from '../db.ts';
 
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
 const SHORT = /^[a-zA-Z0-9_.:\-\/ ]{1,80}$/;
+const NAME = /^[^\x00-\x1f\x7f<>]{1,80}$/;   // key names: any printable text, no angle brackets
 const TOKEN = /^[a-z0-9_]{1,40}$/i;
 const SESSION_TTL_MS = 30 * 24 * 3600 * 1000;
 const COOKIE = 'nt_portal';
@@ -95,7 +96,7 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     const account = await accountOf(req);
     if (!account) return json(res, 401, { error: 'unauthenticated' });
     const b = (await readJson(req, 4000).catch(() => null)) as Record<string, unknown> | null | undefined;
-    const name = typeof b?.name === 'string' && SHORT.test(b.name.trim()) ? b.name.trim() : 'Default';
+    const name = typeof b?.name === 'string' && NAME.test(b.name.trim()) ? b.name.trim() : 'Default';
     if ((await store.listApiKeys(account)).filter((k) => !k.revoked).length >= 20) return json(res, 400, { error: 'too_many', message: 'Revoke a key before creating another (limit 20).' });
     const k = newApiKey();
     const id = await store.createApiKey(account, name, k.prefix, k.hash);

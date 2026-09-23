@@ -73,6 +73,8 @@ test('signup → key → ingest → stats', async () => {
   assert.deepEqual(st.tools, [{ tool: 'claude-chrome', sessions: 1 }]);
   assert.equal(st.recent.length, 4); assert.equal(st.recent[0].resource, 'report.export', 'newest first');
   assert.ok(st.series.length >= 1 && st.series.reduce((a: number, b: { n: number }) => a + b.n, 0) === 4);
+  for (const b of st.series) assert.equal(b.t % st.range.bucketMs, 0, 'series points sit on bucket boundaries');
+  assert.equal(st.series.length, 1, 'four events within a minute share one bucket');
 
   // another account cannot read this key; a revoked key stops ingesting
   const jar2: string[] = [];
