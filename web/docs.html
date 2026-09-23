@@ -282,6 +282,8 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
       <tr><td>A hash of the session id, the resource name, the decision, the actor, the session state, detected tool names, reason codes, enforcement mode, engine version</td><td>Request or response payloads, customer identities, e-mail addresses, IP addresses, URLs, page text, form values</td></tr>
     </tbody>
   </table>
+  <h3>Key lifecycle</h3>
+  <p>A key can be <b>rotated</b> — the same key keeps its name, environment and history while a new secret is issued and the old one stops working at once — or <b>revoked</b>, which stops its servers reporting but leaves everything it already reported in place. A revoked key can then be deleted, and its decisions go with it. The decision log exports to CSV for whatever range is on screen.</p>
 </section>
 
 <section id="manage">
@@ -293,9 +295,11 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
     <div><span>GET</span> /api/v1/manage/me <em>— the account, and this list</em></div>
     <div><span>GET</span> /api/v1/manage/keys <em>— list project keys</em></div>
     <div><span>POST</span> /api/v1/manage/keys <em>— {name, env, expiresInDays} → the raw key, once</em></div>
+    <div><span>POST</span> /api/v1/manage/keys/:id/rotate <em>— a new secret for the same key → the raw key, once</em></div>
     <div><span>DELETE</span> /api/v1/manage/keys/:id <em>— revoke</em></div>
     <div><span>GET</span> /api/v1/manage/overview?range=7d <em>— usage across every key</em></div>
     <div><span>GET</span> /api/v1/manage/stats?key=:id&amp;range=7d <em>— one key in depth</em></div>
+    <div><span>GET</span> /api/v1/manage/events?key=:id&amp;range=7d&amp;before=:id <em>— the decision log, paged</em></div>
   </div>
   <p class="fine">A management key can create and revoke project keys. Treat it like a password and revoke it when the job is done.</p>
 </section>

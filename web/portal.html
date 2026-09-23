@@ -117,7 +117,7 @@
           <div class="card"><div class="card-head"><h3>Agents seen</h3><span class="sub">distinct sessions</span></div><div class="bars" id="bars-tools"></div></div>
           <div class="card"><div class="card-head"><h3>Resources</h3><span class="sub">what agents reached for</span></div><div class="res" id="resources"></div></div>
         </div>
-        <div class="card"><div class="card-head"><h3>Recent decisions</h3><span class="sub" id="live">live · refreshes every 10 s</span></div><div class="log" id="log"></div></div>
+        <div class="card"><div class="card-head"><h3>Recent decisions</h3><span class="sub"><button class="linky on" id="live-toggle">live</button> · <button class="linky" id="export-csv">export CSV</button></span></div><div class="log" id="log"></div><div class="log-more"><button class="btn ghost" id="log-more">Load older</button></div></div>
       </section>
     </section>
 
@@ -153,6 +153,14 @@
       <div class="card">
         <div class="card-head"><h3>Account</h3></div>
         <div class="kv"><span>E-mail</span><b id="set-email"></b><span>Member since</span><b id="set-since"></b><span>Project keys</span><b id="set-keys"></b></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Password</h3><span class="sub">at least 8 characters</span></div>
+        <form class="pw-form" id="pw-form">
+          <label>Current password<input type="password" id="pw-current" autocomplete="current-password" required></label>
+          <label>New password<input type="password" id="pw-next" autocomplete="new-password" minlength="8" required></label>
+          <div class="row"><button class="btn primary" type="submit" id="pw-save">Change password</button><span class="fine" id="pw-msg"></span></div>
+        </form>
       </div>
       <div class="card">
         <div class="card-head"><h3>What we store</h3></div>
@@ -198,7 +206,24 @@
     </div>
   </div>
 </div>
-<div class="menu" id="row-menu" hidden><button data-act="activity">View activity</button><button data-act="setup">Set up this key</button><button data-act="rename">Rename…</button><button data-act="copy">Copy prefix</button><button data-act="revoke" class="danger">Revoke key</button></div>
+<div class="modal-bg" id="ask" hidden>
+  <div class="modal">
+    <h3 id="ask-title"></h3>
+    <p class="lead" id="ask-body"></p>
+    <label id="ask-label" hidden><span id="ask-label-text"></span><input id="ask-input" maxlength="80"></label>
+    <p class="hint" id="ask-hint" hidden></p>
+    <div class="row"><button class="btn primary" id="ask-ok">Confirm</button><button class="btn ghost" id="ask-cancel">Cancel</button></div>
+  </div>
+</div>
+<div class="modal-bg" id="rotated" hidden>
+  <div class="modal">
+    <h3 id="rotated-title">New secret</h3>
+    <p class="lead">Copy it now — it is shown once. The old secret already stops working; deploy this one.</p>
+    <div class="copyable"><pre class="code keyraw" id="rotated-raw"></pre><button class="copy" data-copy="#rotated-raw">Copy</button></div>
+    <div class="row"><button class="btn primary" id="rotated-done">Done</button></div>
+  </div>
+</div>
+<div class="menu" id="row-menu" hidden><button data-act="activity">View activity</button><button data-act="setup">Set up this key</button><button data-act="rename">Rename…</button><button data-act="copy">Copy prefix</button><button data-act="rotate">Rotate secret…</button><button data-act="revoke" class="danger">Revoke key</button><button data-act="delete" class="danger" hidden>Delete permanently…</button></div>
 <div class="toast" id="toast"></div>
 <script src="/portal.js"></script>
 </body>
