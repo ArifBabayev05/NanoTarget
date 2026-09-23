@@ -316,7 +316,13 @@ export function assess(input: AssessInput): Assessment {
   // dataset puts every human click at 6–10/0–1 and every agent click at 0–2/6–8). This is what lets a person
   // inside an AI browser window see their data on the first click instead of after a passkey.
   // Later clicks on the same button without moving are uncertain by construction; they must not undo it.
-  const strongClick = (j: Judgement) => j.verdict === 'human' && ((j.humanPts >= 8 && j.agentPts <= 1) || (j.flags.includes('model_human') && j.humanPts >= 7 && j.agentPts <= 3));
+  // A single click that unlocks a whole session must clear a higher bar than accumulated rule points:
+  // a smooth synthesiser (CDP `Input.dispatchMouseEvent` with forged `force`, a Bezier path, protocol-level
+  // reads) can earn curved_path + tremor + decelerates + held_press without ever moving like a hand. When the
+  // learned model is present its agreement is required for the pure-rule branch too — measured 2026-09-23 on
+  // 366 human clicks: 0 lost single-click unlocks, and it drops synthesiser single-click unlocks. The model's
+  // own confident verdict (second branch) already carries this.
+  const strongClick = (j: Judgement) => j.verdict === 'human' && ((j.humanPts >= 8 && j.agentPts <= 1 && (j.p === undefined || j.flags.includes('model_human'))) || (j.flags.includes('model_human') && j.humanPts >= 7 && j.agentPts <= 3));
   const strongHumanFirst = judgements.some(strongClick) && judgements.every((j) => j.verdict !== 'synthetic' && (j.agentPts <= 1 || j.flags.includes('model_human')));
   // Safari/Force Touch trackpads report pressure 0 on light taps (training run t-q4jdqo3c, 2026-09-22): a single
   // zero-pressure click therefore only vetoes the legacy (trajectory-less) rule, never kinematic evidence.
