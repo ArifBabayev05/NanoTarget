@@ -312,37 +312,19 @@
     const gl = cv.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: true, powerPreference: 'low-power' }); if (!gl) return;
     const N = 2744; // 14³ — the lattice; the fingerprint uses the same count so every point has a home in both shapes
     const A = new Float32Array(N * 3), B = new Float32Array(N * 3);
-    // A: a fingerprint — a loop pattern. Ridges follow a field around a core with a delta below it, so
-    // they bend and close the way a real print does instead of sitting as concentric rings.
+    // A: a fingerprint in 3D — nine oval ridges, staggered breaks, a gentle dome in z
     let i = 0;
-    const core = { x: 0.0, y: 0.12 }, delta = { x: 0.34, y: -0.42 };
-    const RIDGES = 13, perRidge = Math.floor(N / RIDGES);
-    for (let k = 0; k < RIDGES; k++) {
-      const t = k / (RIDGES - 1);                       // 0 = innermost loop, 1 = outermost
-      const rx = 0.055 + 0.62 * Math.pow(t, 1.08), ry = 0.075 + 0.78 * Math.pow(t, 1.05);
-      for (let j = 0; j < perRidge; j++) {
-        const u = j / perRidge;
-        // inner ridges are closed loops; outer ones open downward, where the finger continues
-        const span = t < 0.28 ? 360 : 306 - 52 * t;
-        const a = ((-90 - span / 2) + span * u) * Math.PI / 180;
-        let x = core.x + rx * Math.cos(a);
-        let y = core.y + ry * Math.sin(a);
-        // pull the field toward the delta: this is what makes a loop look like a loop
-        const dx = x - delta.x, dy = y - delta.y, d2 = dx * dx + dy * dy;
-        const pull = 0.055 * t / (d2 + 0.05);
-        x -= dx * pull; y -= dy * pull;
-        // ridges are not perfectly smooth, and they break
-        const wob = 0.012 * Math.sin(a * 7 + k * 2.1) * t;
-        x += wob; y += wob * 0.6;
-        const gap = Math.sin(a * 4.3 + k * 2.7) > 0.88 || (t > 0.55 && Math.sin(a * 2.1 - k) > 0.94);
-        const r = Math.hypot(x - core.x, y - core.y);
-        const z = 0.3 - r * r * 0.62;                   // the pad of a finger, curving away
-        if (gap) { A[i * 3] = 0; A[i * 3 + 1] = 0; A[i * 3 + 2] = 0; }
-        else { A[i * 3] = x; A[i * 3 + 1] = y; A[i * 3 + 2] = z; }
-        i++;
+    const perRing = Math.floor(N / 9);
+    for (let k = 0; k < 9; k++) {
+      const rx = 0.08 + 0.1 * k, ry = 0.1 + 0.115 * k, open = k >= 5;
+      for (let j = 0; j < perRing; j++) {
+        const u = j / perRing, a0 = open ? (-200 + 220 * u) : (-180 + 360 * u), a = a0 * Math.PI / 180;
+        const gap = Math.sin(a * 3 + k * 1.7) > 0.93;                            // ridge breaks
+        const r = gap ? 0 : 1;
+        A[i * 3] = rx * Math.cos(a) * r; A[i * 3 + 1] = ry * Math.sin(a) * r * 0.9; A[i * 3 + 2] = (0.25 - (rx * rx + ry * ry) * 0.18) * r; i++;
       }
     }
-    for (; i < N; i++) { A[i * 3] = 0; A[i * 3 + 1] = 0; A[i * 3 + 2] = 0; }
+    for (; i < N; i++) { A[i * 3] = 0; A[i * 3 + 1] = 0; A[i * 3 + 2] = 0.26; }
     // B: a cubic lattice — the shape of a program
     i = 0; for (let x = 0; x < 14; x++) for (let y = 0; y < 14; y++) for (let z = 0; z < 14; z++) { B[i * 3] = (x / 13 - .5) * 1.2; B[i * 3 + 1] = (y / 13 - .5) * 1.2; B[i * 3 + 2] = (z / 13 - .5) * 1.2; i++; }
     const VS = `attribute vec3 a;attribute vec3 b;uniform float m;uniform float t;uniform vec2 R;uniform float dpr;varying float vz;varying float vm;

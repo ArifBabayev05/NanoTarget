@@ -292,9 +292,11 @@ curl -H "Authorization: Bearer $NT_ADMIN" $BASE/api/v1/manage/keys          # li
 curl -H "Authorization: Bearer $NT_ADMIN" -H 'Content-Type: application/json' \
      -d '{"name":"bank-web","env":"production","expiresInDays":90}' \
      $BASE/api/v1/manage/keys                                               # create one → the raw key, once
+curl -X POST -H "Authorization: Bearer $NT_ADMIN" $BASE/api/v1/manage/keys/<id>/rotate   # new secret, same key
 curl -X DELETE -H "Authorization: Bearer $NT_ADMIN" $BASE/api/v1/manage/keys/<id>
 curl -H "Authorization: Bearer $NT_ADMIN" "$BASE/api/v1/manage/overview?range=7d"
 curl -H "Authorization: Bearer $NT_ADMIN" "$BASE/api/v1/manage/stats?key=<id>&range=7d"
+curl -H "Authorization: Bearer $NT_ADMIN" "$BASE/api/v1/manage/events?key=<id>&range=7d&limit=100"
 ```
 
 `POST /keys` answers with `{ id, name, env, expires, key }` — put `key` into the app's environment as `NT_API_KEY` and it starts reporting. `GET /manage/me` lists every endpoint, so an agent can discover the API from one call. A management key can create and revoke project keys: treat it like a password, and revoke it in the portal when the job is done.

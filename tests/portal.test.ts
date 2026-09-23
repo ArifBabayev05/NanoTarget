@@ -146,6 +146,16 @@ test('management keys drive the whole account over HTTP, the way an agent would'
   r = await fetch(`${base}/api/v1/manage/overview?range=24h`, { headers: A });
   assert.equal((await r.json()).totals[0].n, 1);
 
+  // rotate over HTTP: the agent gets a fresh secret without a human opening the portal
+  r = await fetch(`${base}/api/v1/manage/keys/${made.id}/rotate`, { method: 'POST', headers: A, body: '{}' });
+  assert.equal(r.status, 200);
+  const spun = await r.json();
+  assert.match(spun.key, /^nt_live_[a-f0-9]{40}$/);
+  assert.notEqual(spun.key, made.key);
+  r = await fetch(`${base}/api/v1/manage/events?key=${made.id}&range=7d&limit=5`, { headers: A });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray((await r.json()).events));
+
   r = await fetch(`${base}/api/v1/manage/keys/${made.id}`, { method: 'DELETE', headers: A });
   assert.equal((await r.json()).ok, true);
   r = await fetch(`${base}/api/v1/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${made.key}` }, body: JSON.stringify({ events: [] }) });
@@ -188,4 +198,77 @@ test('renaming a key works and stays inside the account', async () => {
   r = await fetch(`${base}/api/v1/portal/me`, { headers: hdr() });
   const mine = (await r.json()).keys.find((x: { id: string }) => x.id === keyId);
   assert.equal(mine.name, 'prod · bank-web');
+});
+
+test('rotating a key issues a new secret, retires the old one and keeps the history', async () => {
+  const ev = (resource: string) => ({ at: Date.now(), session: 'aaaabbbbccccdddd', resource, decision: 'allow', actor: 'human_like', state: 'no_indication', tools: [], reasons: [], enforcement: 'observe' });
+  const send = (key: string) => fetch(`${base}/api/v1/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ events: [ev('rotate.check')] }) });
+
+  let r = await fetch(`${base}/api/v1/portal/keys`, { method: 'POST', headers: hdr(), body: JSON.stringify({ name: 'rotate-me' }) });
+  const k = await r.json();
+  assert.equal((await send(k.key)).status, 202);
+
+  r = await fetch(`${base}/api/v1/portal/keys/rotate`, { method: 'POST', headers: hdr(), body: JSON.stringify({ id: k.id }) });
+  assert.equal(r.status, 200);
+  const rotated = await r.json();
+  assert.match(rotated.key, /^nt_live_[a-f0-9]{40}$/);
+  assert.notEqual(rotated.key, k.key);
+  assert.equal((await send(k.key)).status, 401, 'the old secret is dead the moment it is rotated');
+  assert.equal((await send(rotated.key)).status, 202);
+
+  r = await fetch(`${base}/api/v1/portal/me`, { headers: hdr() });
+  const mine = (await r.json()).keys.find((x: { id: string }) => x.id === k.id);
+  assert.equal(mine.prefix, rotated.prefix, 'the row keeps its identity — only the secret changed');
+  assert.equal(mine.events, 2, 'and its whole history');
+
+  r = await fetch(`${base}/api/v1/portal/keys/rotate`, { method: 'POST', headers: hdr(), body: JSON.stringify({ id: 'no-such-key' }) });
+  assert.equal(r.status, 404);
+
+  // the same key, paged backwards through its log
+  r = await fetch(`${base}/api/v1/portal/events?key=${k.id}&range=7d&limit=1`, { headers: hdr() });
+  assert.equal(r.status, 200);
+  const first = await r.json();
+  assert.equal(first.events.length, 1);
+  assert.equal(first.more, true);
+  r = await fetch(`${base}/api/v1/portal/events?key=${k.id}&range=7d&limit=1&before=${first.events[0].id}`, { headers: hdr() });
+  const next = await r.json();
+  assert.ok(next.events[0].id < first.events[0].id, 'the page after is strictly older');
+  r = await fetch(`${base}/api/v1/portal/events?key=not-mine&range=7d`, { headers: hdr() });
+  assert.equal(r.status, 404);
+});
+
+test('a key can only be deleted once revoked, and its decisions go with it', async () => {
+  let r = await fetch(`${base}/api/v1/portal/keys`, { method: 'POST', headers: hdr(), body: JSON.stringify({ name: 'throwaway' }) });
+  const k = await r.json();
+  await fetch(`${base}/api/v1/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${k.key}` }, body: JSON.stringify({ events: [{ at: Date.now(), session: 'ffffeeeeddddcccc', resource: 'x.read', decision: 'allow', actor: 'human_like', state: 'no_indication', tools: [], reasons: [], enforcement: 'observe' }] }) });
+
+  r = await fetch(`${base}/api/v1/portal/keys/delete`, { method: 'POST', headers: hdr(), body: JSON.stringify({ id: k.id }) });
+  assert.equal(r.status, 400, 'a live key is never deleted by accident');
+
+  await fetch(`${base}/api/v1/portal/keys/revoke`, { method: 'POST', headers: hdr(), body: JSON.stringify({ id: k.id }) });
+  r = await fetch(`${base}/api/v1/portal/keys/delete`, { method: 'POST', headers: hdr(), body: JSON.stringify({ id: k.id }) });
+  assert.equal((await r.json()).ok, true);
+
+  r = await fetch(`${base}/api/v1/portal/me`, { headers: hdr() });
+  assert.equal((await r.json()).keys.find((x: { id: string }) => x.id === k.id), undefined);
+  assert.equal((await app.store.exec('SELECT COUNT(*) AS n FROM telemetry WHERE key_id = ?', [k.id])).rows[0]!.n, 0);
+});
+
+test('changing the password needs the current one and invalidates it', async () => {
+  const H = { 'Content-Type': 'application/json', Origin: base };
+  let r = await fetch(`${base}/api/v1/portal/signup`, { method: 'POST', headers: H, body: JSON.stringify({ email: 'pw@corp.example', password: 'firstpassword' }) });
+  const c = r.headers.get('set-cookie')!.split(';')[0]!;
+  const mine = { ...H, Cookie: c };
+
+  r = await fetch(`${base}/api/v1/portal/account/password`, { method: 'POST', headers: mine, body: JSON.stringify({ current: 'wrong', next: 'secondpassword' }) });
+  assert.equal(r.status, 401);
+  r = await fetch(`${base}/api/v1/portal/account/password`, { method: 'POST', headers: mine, body: JSON.stringify({ current: 'firstpassword', next: 'short' }) });
+  assert.equal(r.status, 400);
+  r = await fetch(`${base}/api/v1/portal/account/password`, { method: 'POST', headers: mine, body: JSON.stringify({ current: 'firstpassword', next: 'secondpassword' }) });
+  assert.equal(r.status, 200);
+
+  r = await fetch(`${base}/api/v1/portal/login`, { method: 'POST', headers: H, body: JSON.stringify({ email: 'pw@corp.example', password: 'firstpassword' }) });
+  assert.equal(r.status, 401, 'the old password is gone');
+  r = await fetch(`${base}/api/v1/portal/login`, { method: 'POST', headers: H, body: JSON.stringify({ email: 'pw@corp.example', password: 'secondpassword' }) });
+  assert.equal(r.status, 200);
 });

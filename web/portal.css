@@ -250,3 +250,19 @@ select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .badge.env{text-transform:lowercase}
 .endpoints{display:grid;gap:4px;font:12.5px/1.6 var(--mono);color:var(--fg2)}
 .endpoints span{color:var(--accent)}
+
+/* a link-shaped button: used where a card header offers an action */
+.linky{background:none;border:0;padding:0;font:inherit;color:var(--fg2);cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line2)}
+.linky:hover{color:var(--fg)}
+.linky.on{color:var(--accent);text-decoration:none}
+.linky.on::before{content:"●";font-size:8px;vertical-align:2px;margin-right:5px}
+.log-more{display:flex;justify-content:center;padding:10px 0 2px}
+.log-more[hidden]{display:none}
+.pw-form{display:grid;gap:12px;max-width:380px}
+.pw-form label{display:grid;gap:6px;font-size:13px;color:var(--fg2)}
+.pw-form .row{align-items:center;gap:12px}
+.pw-form .fine.ok{color:var(--accent)}
+.pw-form .fine.bad{color:var(--danger)}
+#ask .modal label{display:grid;gap:6px;font-size:13px;color:var(--fg2);margin-bottom:4px}
+.tbl tr.gone td{opacity:.5}
+.tbl tr.gone .kname{text-decoration:line-through;text-decoration-color:var(--line2)}

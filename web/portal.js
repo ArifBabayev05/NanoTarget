@@ -18,6 +18,29 @@
   const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
   let toastT; const toast = (m) => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1800); };
+  // Every confirmation and every rename happens in the portal's own dialog: the browser's prompt()
+  // and confirm() look like a different product and cannot be styled or typed into by a screen reader
+  // in the same way. Resolves to the typed value, true, or null when the person backs out.
+  function ask({ title, body = '', hint = '', label = '', value = '', ok = 'Confirm', danger = false }) {
+    const el = $('#ask');
+    $('#ask-title').textContent = title;
+    $('#ask-body').textContent = body; $('#ask-body').hidden = !body;
+    $('#ask-hint').textContent = hint; $('#ask-hint').hidden = !hint;
+    $('#ask-label').hidden = !label; $('#ask-label-text').textContent = label; $('#ask-input').value = value;
+    const btn = $('#ask-ok'); btn.textContent = ok; btn.classList.toggle('danger', danger);
+    el.hidden = false;
+    setTimeout(() => (label ? $('#ask-input') : btn).focus(), 50);
+    return new Promise((resolve) => {
+      const done = (v) => { el.hidden = true; btn.onclick = null; $('#ask-cancel').onclick = null; el.onclick = null; removeEventListener('keydown', key); resolve(v); };
+      const key = (e) => { if (e.key === 'Escape') done(null); if (e.key === 'Enter' && label) { e.preventDefault(); accept(); } };
+      const accept = () => { const v = label ? $('#ask-input').value.trim() : true; done(label && !v ? null : v); };
+      btn.onclick = accept;
+      $('#ask-cancel').onclick = () => done(null);
+      el.onclick = (e) => { if (e.target === el) done(null); };
+      addEventListener('keydown', key);
+    });
+  }
+
   document.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-copy]'); if (!b) return;
     const el = $(b.dataset.copy); if (!el) return;
@@ -95,19 +118,21 @@
   }
 
   // ------------------------------------------------------------------ keys
-  let pastedKeyId = null;
+  let pastedKeyId = null, showRevoked = false;
   function renderKeyTable() {
     const q = ($('#key-search').value || '').trim().toLowerCase();
     const totals = overview?.totals || [];
-    const rows = (me.keys || []).filter((k) => !k.revoked)
+    const rows = (me.keys || []).filter((k) => showRevoked || !k.revoked)
       .filter((k) => (pastedKeyId ? k.id === pastedKeyId : !q || k.name.toLowerCase().includes(q) || k.prefix.toLowerCase().includes(q)));
     const now = Date.now();
     $('#key-rows').innerHTML = rows.length ? rows.map((k) => {
       const t = totals.find((x) => x.key === k.id) || { n: 0, sessions: 0, agentSessions: 0, gated: 0 };
       const pct = t.sessions ? Math.round(t.agentSessions / t.sessions * 100) : 0;
       const expired = k.expires && k.expires < now;
-      const status = expired ? '<span class="mode warn">expired</span>' : k.events ? '<span class="mode observe">reporting</span>' : '<span class="mode">no data yet</span>';
-      return `<tr data-id="${esc(k.id)}">
+      const status = k.revoked ? '<span class="mode warn">revoked</span>'
+        : expired ? '<span class="mode warn">expired</span>'
+        : k.events ? '<span class="mode observe">reporting</span>' : '<span class="mode">no data yet</span>';
+      return `<tr data-id="${esc(k.id)}"${k.revoked ? ' class="gone"' : ''}>
         <td><span class="kname">${esc(k.name)}</span><span class="kpre">${esc(k.prefix)}…</span></td>
         <td><span class="badge env">${esc(k.env || 'production')}</span></td>
         <td>${status}</td>
@@ -117,7 +142,11 @@
         <td><div class="prog"><div class="lbl"><span class="muted">${t.agentSessions} of ${t.sessions} sessions</span><b>${pct}%</b></div><div class="track"><i style="width:${pct}%"></i></div></div></td>
         <td style="text-align:right"><button class="dots" data-menu="${esc(k.id)}" aria-label="Key actions">⋮</button></td></tr>`;
     }).join('') : `<tr><td colspan="8" class="empty-cell">${q ? 'No keys match.' : 'No keys yet — create one to start receiving decisions.'}</td></tr>`;
-    $('#key-count').textContent = `${rows.length} key${rows.length === 1 ? '' : 's'}${pastedKeyId ? ' · matched the key you pasted' : ''}`;
+    const dead = (me.keys || []).filter((k) => k.revoked).length;
+    $('#key-count').innerHTML = `${rows.length} key${rows.length === 1 ? '' : 's'}${pastedKeyId ? ' · matched the key you pasted' : ''}`
+      + (dead ? ` · <button class="linky${showRevoked ? ' on' : ''}" id="toggle-revoked">${showRevoked ? 'hiding' : 'show'} ${dead} revoked</button>` : '');
+    const t = $('#toggle-revoked');
+    if (t) t.onclick = () => { showRevoked = !showRevoked; renderKeyTable(); };
   }
   // typing a name filters; pasting a whole key asks the server which key it is (the raw key is hashed there)
   let lookupT;
@@ -138,7 +167,15 @@
   const menu = $('#row-menu'); let menuKey = null;
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-menu]');
-    if (b) { menuKey = b.dataset.menu; const r = b.getBoundingClientRect(); menu.hidden = false; menu.style.left = `${Math.min(innerWidth - 190, r.right - 180)}px`; menu.style.top = `${r.bottom + 6}px`; e.stopPropagation(); return; }
+    if (b) {
+      menuKey = b.dataset.menu;
+      // a revoked key can only be restored to the list or removed for good; a live one has the rest
+      const dead = !!(me.keys || []).find((x) => x.id === menuKey)?.revoked;
+      $$('#row-menu [data-act]').forEach((x) => { x.hidden = ['delete'].includes(x.dataset.act) ? !dead : dead; });
+      const r = b.getBoundingClientRect(); menu.hidden = false;
+      menu.style.left = `${Math.min(innerWidth - 190, r.right - 180)}px`; menu.style.top = `${r.bottom + 6}px`;
+      e.stopPropagation(); return;
+    }
     if (!e.target.closest('#row-menu')) menu.hidden = true;
   });
   menu.addEventListener('click', async (e) => {
@@ -148,15 +185,42 @@
     if (act === 'setup') { setupKeyId = k.id; location.hash = 'integrate'; }
     if (act === 'copy') { try { await navigator.clipboard.writeText(k.prefix); toast('Prefix copied'); } catch {} }
     if (act === 'rename') {
-      const name = prompt('New name for this key', k.name); if (!name) return;
-      try { await api('/api/v1/portal/keys/rename', { method: 'POST', body: JSON.stringify({ id: k.id, name }) }); me = await api('/api/v1/portal/me'); renderKeyTable(); renderWorkspace(); toast('Renamed'); } catch (e) { toast(e.message); }
+      const name = await ask({ title: 'Rename key', label: 'Name', value: k.name, ok: 'Rename' }); if (!name) return;
+      try { await api('/api/v1/portal/keys/rename', { method: 'POST', body: JSON.stringify({ id: k.id, name }) }); await refreshKeys(); toast('Renamed'); } catch (e) { toast(e.message); }
+    }
+    if (act === 'rotate') {
+      const yes = await ask({
+        title: `Rotate "${k.name}"?`, ok: 'Rotate', danger: true,
+        body: 'A new secret is issued for this same key. Its name, environment and history stay; the old secret stops working the moment you confirm.',
+        hint: 'Deploy the new secret to your servers right after — anything still holding the old one stops reporting.',
+      });
+      if (!yes) return;
+      try {
+        const d = await api('/api/v1/portal/keys/rotate', { method: 'POST', body: JSON.stringify({ id: k.id }) });
+        $('#rotated-title').textContent = k.name; $('#rotated-raw').textContent = d.key; $('#rotated').hidden = false;
+        await refreshKeys();
+      } catch (e) { toast(e.message); }
     }
     if (act === 'revoke') {
-      if (!confirm(`Revoke "${k.name}"? Servers using it stop reporting immediately.`)) return;
-      await api('/api/v1/portal/keys/revoke', { method: 'POST', body: JSON.stringify({ id: k.id }) }); toast('Key revoked');
-      me = await api('/api/v1/portal/me'); if (keyId === k.id) keyId = liveKeys()[0]?.id || null; renderKeyTable(); renderWorkspace();
+      const yes = await ask({ title: `Revoke "${k.name}"?`, ok: 'Revoke', danger: true, body: 'Servers using this key stop reporting immediately. The decisions it already reported stay in Activity.' });
+      if (!yes) return;
+      try { await api('/api/v1/portal/keys/revoke', { method: 'POST', body: JSON.stringify({ id: k.id }) }); toast('Key revoked'); } catch (e) { return toast(e.message); }
+      if (keyId === k.id) keyId = liveKeys()[0]?.id || null;
+      await refreshKeys();
+    }
+    if (act === 'delete') {
+      const typed = await ask({
+        title: `Delete "${k.name}" for good?`, ok: 'Delete', danger: true, label: `Type the key's name to confirm`,
+        body: 'The key and every decision it reported are removed. This cannot be undone.',
+      });
+      if (typed !== k.name) return void (typed && toast('The name did not match — nothing was deleted'));
+      try { await api('/api/v1/portal/keys/delete', { method: 'POST', body: JSON.stringify({ id: k.id }) }); toast('Key deleted'); await refreshKeys(); await loadOverview().catch(() => {}); renderKeyTable(); } catch (e) { toast(e.message); }
     }
   });
+  $('#rotated-done').onclick = () => { $('#rotated').hidden = true; };
+  $('#rotated').addEventListener('click', (e) => { if (e.target === $('#rotated')) $('#rotated').hidden = true; });
+  /** the key list changed on the server: pull it back and repaint everything that shows it */
+  async function refreshKeys() { me = await api('/api/v1/portal/me'); renderKeyTable(); renderWorkspace(); }
   function openModal() { $('#modal').hidden = false; $('#modal-new').hidden = false; $('#modal-show').hidden = true; $('#key-name').value = ''; $('#modal-title').textContent = 'New API key'; setTimeout(() => $('#key-name').focus(), 50); }
   const closeModal = () => { $('#modal').hidden = true; };
   $('#key-add').onclick = openModal; $('#modal-close').onclick = closeModal;
@@ -211,14 +275,63 @@
       if (buckets.length <= 31 && (buckets.length <= 12 || i % Math.ceil(buckets.length / 8) === 0)) { ctx.fillStyle = cFg3; ctx.fillText(fmtDay(b.t), x + bw / 2, H - 6); }
     });
   }
-  let lastRecent = [];
+  let lastRecent = [], older = [], live = true;
+  const logRow = (e) => `<div class="e"><span class="t">${fmtT(e.at)}</span><span class="s">${esc(e.session.slice(0, 8))}</span><span class="r" title="${esc(e.resource)}">${esc(e.resource)}</span><span class="chip ${esc(e.decision)}">${esc(e.decision)}</span><span class="st"><span class="chip ${esc(e.actor)}">${esc(ACTOR_WORD[e.actor] || e.actor)}</span>${e.tools.length ? ` <span class="chip">${esc(e.tools[0])}</span>` : ''}</span><span class="reasons" title="${esc(e.reasons.join(', '))}">${esc(STATE_WORD[e.state] || e.state)} · ${esc(e.reasons.slice(0, 3).join(' · '))}</span></div>`;
   function filterLog(q) {
     const s = (q || '').toLowerCase();
-    const rows = lastRecent.filter((e) => !s || [e.resource, e.decision, e.actor, e.state, ...e.tools, ...e.reasons].join(' ').toLowerCase().includes(s));
-    $('#log').innerHTML = rows.length ? rows.map((e) => `<div class="e"><span class="t">${fmtT(e.at)}</span><span class="s">${esc(e.session.slice(0, 8))}</span><span class="r" title="${esc(e.resource)}">${esc(e.resource)}</span><span class="chip ${esc(e.decision)}">${esc(e.decision)}</span><span class="st"><span class="chip ${esc(e.actor)}">${esc(ACTOR_WORD[e.actor] || e.actor)}</span>${e.tools.length ? ` <span class="chip">${esc(e.tools[0])}</span>` : ''}</span><span class="reasons" title="${esc(e.reasons.join(', '))}">${esc(STATE_WORD[e.state] || e.state)} · ${esc(e.reasons.slice(0, 3).join(' · '))}</span></div>`).join('') : '<div class="empty-row">No decisions yet.</div>';
+    // the newest page comes from stats; anything the reader asked for beyond it is appended below
+    const seen = new Set(), all = [];
+    for (const e of [...lastRecent, ...older]) { const k = `${e.at}|${e.session}|${e.resource}|${e.decision}`; if (!seen.has(k)) { seen.add(k); all.push(e); } }
+    const rows = all.filter((e) => !s || [e.resource, e.decision, e.actor, e.state, ...e.tools, ...e.reasons].join(' ').toLowerCase().includes(s));
+    $('#log').innerHTML = rows.length ? rows.map(logRow).join('') : '<div class="empty-row">No decisions yet.</div>';
+    $('#log-more').parentElement.hidden = !rows.length;
   }
+  $('#live-toggle').onclick = () => {
+    live = !live;
+    $('#live-toggle').classList.toggle('on', live);
+    $('#live-toggle').textContent = live ? 'live' : 'paused';
+    if (live) loadStats(); else clearTimeout(timer);
+  };
+  $('#log-more').onclick = async () => {
+    const b = $('#log-more'); b.disabled = true; b.textContent = 'Loading…';
+    try {
+      const oldest = [...lastRecent, ...older].reduce((m, e) => (e.id && (!m || e.id < m) ? e.id : m), null);
+      const d = await api(`/api/v1/portal/events?key=${encodeURIComponent(keyId)}&range=${range}&limit=100${oldest ? `&before=${oldest}` : ''}`);
+      older = older.concat(d.events);
+      filterLog($('#search').value);
+      b.hidden = !d.more;
+      if (!d.events.length) toast('That is the whole range');
+    } catch (e) { toast(e.message); } finally { b.disabled = false; b.textContent = 'Load older'; }
+  };
+  // the export walks the range server-side, so it is the log the reader sees, not just the visible page
+  $('#export-csv').onclick = async () => {
+    if (!keyId) return;
+    const btn = $('#export-csv'); btn.disabled = true; btn.textContent = 'exporting…';
+    try {
+      const rows = []; let before = null;
+      for (let page = 0; page < 40; page++) {
+        const d = await api(`/api/v1/portal/events?key=${encodeURIComponent(keyId)}&range=${range}&limit=500${before ? `&before=${before}` : ''}`);
+        rows.push(...d.events);
+        if (!d.more || !d.events.length) break;
+        before = d.events[d.events.length - 1].id;
+      }
+      const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const csv = ['time,session,resource,decision,actor,state,tools,reasons,enforcement']
+        .concat(rows.map((e) => [new Date(e.at).toISOString(), e.session, e.resource, e.decision, e.actor, e.state, e.tools.join(' '), e.reasons.join(' '), e.enforcement].map(cell).join(',')))
+        .join('\n');
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = `nanotarget-${keyName(keyId).replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${range}.csv`;
+      a.click(); URL.revokeObjectURL(url);
+      toast(`${rows.length.toLocaleString()} decision${rows.length === 1 ? '' : 's'} exported`);
+    } catch (e) { toast(e.message); } finally { btn.disabled = false; btn.textContent = 'export CSV'; }
+  };
+  let logScope = '';
   async function loadStats() {
     clearTimeout(timer);
+    // a different key or range is a different log: drop the pages the reader had loaded for the old one
+    const scope = `${keyId}|${range}`;
+    if (scope !== logScope) { logScope = scope; older = []; $('#log-more').hidden = false; }
     if (!keyId) { $('#empty').hidden = false; $('#stats').hidden = true; $('#empty h2').textContent = 'Create your first API key'; $('#empty p').textContent = 'Each key is one project. Put it into your server as apiKey and every decision shows up here.'; $('#snippet').innerHTML = codeSnippet(''); $('#curl-hint').textContent = 'npx nanotarget verify http://localhost:3000 /api/balance'; return; }
     let d; try { d = await api(`/api/v1/portal/stats?key=${encodeURIComponent(keyId)}&range=${range}`); } catch (e) { toast(e.message); return; }
     const total = Object.values(d.decisions).reduce((a, b) => a + b, 0);
@@ -240,7 +353,7 @@
       drawChart(d.series, d.range.since, d.range.bucketMs, d.now);
       lastRecent = d.recent; filterLog($('#search').value);
     }
-    timer = setTimeout(loadStats, 10000);
+    if (live) timer = setTimeout(loadStats, 10000);
   }
   addEventListener('resize', () => { if (currentView() === 'activity' && !$('#stats').hidden) loadStats(); });
 
@@ -296,7 +409,8 @@
     $('#admin-rows').innerHTML = adminKeys.length ? adminKeys.map((k) => `<div class="admin-row"><div><b>${esc(k.name)}</b><div class="meta">${esc(k.prefix)}… · created ${day(k.created)} · ${k.calls.toLocaleString()} call${k.calls === 1 ? '' : 's'} · last used ${ago(k.lastSeen)}</div></div><button class="btn ghost" data-admin-revoke="${esc(k.id)}">Revoke</button></div>`).join('')
       : '<p class="fine" style="margin:0">No management keys yet. Create one to let an agent or a CI job manage this account.</p>';
     $$('[data-admin-revoke]').forEach((b) => b.addEventListener('click', async () => {
-      if (!confirm('Revoke this management key? Anything using it stops working immediately.')) return;
+      const name = adminKeys.find((x) => x.id === b.dataset.adminRevoke)?.name || 'this key';
+      if (!await ask({ title: `Revoke "${name}"?`, ok: 'Revoke', danger: true, body: 'Anything using this management key — an agent, a CI job — stops working immediately.' })) return;
       await api('/api/v1/portal/admin-keys/revoke', { method: 'POST', body: JSON.stringify({ id: b.dataset.adminRevoke }) });
       toast('Management key revoked'); renderSettings();
     }));
@@ -304,13 +418,25 @@
       ['GET', '/api/v1/manage/me', 'whose account this key administers'],
       ['GET', '/api/v1/manage/keys', 'list project keys'],
       ['POST', '/api/v1/manage/keys', '{name, expiresInDays, env} → the raw key, once'],
+      ['POST', '/api/v1/manage/keys/:id/rotate', 'new secret for the same key'],
       ['DELETE', '/api/v1/manage/keys/:id', 'revoke one'],
       ['GET', '/api/v1/manage/overview?range=7d', 'usage across every key'],
       ['GET', '/api/v1/manage/stats?key=:id', 'one key in depth'],
+      ['GET', '/api/v1/manage/events?key=:id', 'the decision log, paged'],
     ].map(([m, p, d]) => `<div><span>${m}</span> ${esc(p)} <span style="color:var(--fg3)">— ${esc(d)}</span></div>`).join('');
   }
   $('#admin-add').onclick = () => { $('#admin-modal').hidden = false; $('#admin-new').hidden = false; $('#admin-show').hidden = true; $('#admin-name').value = ''; setTimeout(() => $('#admin-name').focus(), 50); };
   $('#admin-cancel').onclick = () => { $('#admin-modal').hidden = true; };
+  $('#pw-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const b = $('#pw-save'), msg = $('#pw-msg');
+    b.disabled = true; msg.className = 'fine'; msg.textContent = '';
+    try {
+      await api('/api/v1/portal/account/password', { method: 'POST', body: JSON.stringify({ current: $('#pw-current').value, next: $('#pw-next').value }) });
+      $('#pw-form').reset(); msg.className = 'fine ok'; msg.textContent = 'Password changed.'; toast('Password changed');
+    } catch (err) { msg.className = 'fine bad'; msg.textContent = err.message; } finally { b.disabled = false; }
+  });
+
   $('#admin-done').onclick = () => { $('#admin-modal').hidden = true; renderSettings(); };
   $('#admin-modal').addEventListener('click', (e) => { if (e.target === $('#admin-modal')) $('#admin-modal').hidden = true; });
   $('#admin-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#admin-create').click(); });

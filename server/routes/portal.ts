@@ -177,6 +177,66 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     json(res, 200, { ok: await store.revokeApiKey(id, account) });
   };
 
+  /** rotate: the key keeps its name, environment and history; the old secret stops working at once */
+  const rotateKey = async (req: Req, res: Res) => {
+    if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    const b = (await readJson(req, 2000).catch(() => null)) as Record<string, unknown> | null | undefined;
+    const rotated = await rotate(account, typeof b?.id === 'string' ? b.id : '');
+    return 'error' in rotated ? json(res, 404, rotated) : json(res, 200, rotated);
+  };
+
+  /** shared by the portal and the management API */
+  async function rotate(account: string, id: string) {
+    const k = newApiKey();
+    if (!(await store.rotateApiKey(id, account, k.prefix, k.hash))) return { error: 'not_found', message: 'No live key with that id.' };
+    return { id, prefix: k.prefix, key: k.raw };
+  }
+
+  /** deleting is for revoked keys only, and it takes their reported decisions with them */
+  const deleteKey = async (req: Req, res: Res) => {
+    if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    const b = (await readJson(req, 2000).catch(() => null)) as Record<string, unknown> | null | undefined;
+    const ok = await store.deleteApiKey(typeof b?.id === 'string' ? b.id : '', account);
+    if (!ok) return json(res, 400, { error: 'not_revoked', message: 'Revoke the key first — then it can be deleted.' });
+    json(res, 200, { ok });
+  };
+
+  const changePassword = async (req: Req, res: Res) => {
+    if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    const b = (await readJson(req, 4000).catch(() => null)) as Record<string, unknown> | null | undefined;
+    const current = typeof b?.current === 'string' ? b.current : '';
+    const next = typeof b?.next === 'string' ? b.next : '';
+    const acc = await store.accountByEmail((await store.accountById(account))?.email ?? '');
+    if (!acc || !verifyPassword(current, acc.pass)) return json(res, 401, { error: 'invalid', message: 'Current password is wrong.' });
+    if (next.length < 8 || next.length > 200) return json(res, 400, { error: 'bad_password', message: 'Use at least 8 characters.' });
+    await store.setAccountPassword(account, hashPassword(next));
+    json(res, 200, { ok: true });
+  };
+
+  /** the decision log, paged — the portal's "load more" and its CSV export read the same rows */
+  const events = async (req: Req, res: Res) => {
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    const u = url(req);
+    const key = u.searchParams.get('key') ?? '';
+    if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
+    const rows = await eventPage(key, u);
+    json(res, 200, { key, events: rows, more: rows.length === pageSize(u) });
+  };
+
+  const pageSize = (u: URL) => Math.min(500, Math.max(1, Number(u.searchParams.get('limit')) || 100));
+  const eventPage = (key: string, u: URL) => {
+    const range = RANGES[u.searchParams.get('range') ?? '7d'] ?? RANGES['7d']!;
+    const before = Number(u.searchParams.get('before'));
+    return store.telemetryEvents(key, Date.now() - range.since, Number.isFinite(before) && before > 0 ? before : null, pageSize(u));
+  };
+
   const stats = async (req: Req, res: Res) => {
     const account = await accountOf(req);
     if (!account) return json(res, 401, { error: 'unauthenticated' });
@@ -245,6 +305,10 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
       const made = await makeKey(account, body);
       return 'error' in made ? json(res, 400, made) : json(res, 201, made);
     }
+    if (path.endsWith('/rotate') && method === 'POST') {
+      const rotated = await rotate(account, path.slice(5, -7));
+      return 'error' in rotated ? json(res, 404, rotated) : json(res, 200, rotated);
+    }
     if (path.startsWith('keys/') && method === 'DELETE') {
       const id = path.slice(5);
       return json(res, 200, { ok: await store.revokeApiKey(id, account) });
@@ -261,19 +325,27 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
       const now = Date.now();
       return json(res, 200, { key, range: { since: now - range.since, bucketMs: range.bucket }, now, ...(await store.telemetryStats(key, now - range.since, range.bucket)) });
     }
+    if (path === 'events' && method === 'GET') {
+      const key = u.searchParams.get('key') ?? '';
+      if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
+      const rows = await eventPage(key, u);
+      return json(res, 200, { key, events: rows, more: rows.length === pageSize(u) });
+    }
     return json(res, 404, { error: 'unknown_endpoint', endpoints: MANAGE_ENDPOINTS });
   };
 
-  return { signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
+  return { signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
 }
 
 export const MANAGE_ENDPOINTS = [
   'GET    /api/v1/manage/me                     — whose account this key administers',
   'GET    /api/v1/manage/keys                   — list project keys',
   'POST   /api/v1/manage/keys                   — create one {name, expiresInDays?: 0|7|30|90|365, env?: production|staging|development} → returns the raw key once',
+  'POST   /api/v1/manage/keys/:id/rotate        — new secret for the same key → returns the raw key once',
   'DELETE /api/v1/manage/keys/:id               — revoke one',
   'GET    /api/v1/manage/overview?range=7d      — usage across every key',
   'GET    /api/v1/manage/stats?key=:id&range=7d — one key: sessions, agents, resources, recent decisions',
+  'GET    /api/v1/manage/events?key=:id&range=7d&before=:id&limit=100 — the decision log, paged',
 ];
 
 const DECISIONS = new Set(['allow', 'mask', 'block', 'step_up']);

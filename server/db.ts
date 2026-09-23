@@ -208,6 +208,8 @@ const MIGRATIONS = [
 ];
 
 export type ApiKeyRow = { id: string; name: string; prefix: string; created: number; revoked: number | null; lastSeen: number | null; events: number; expires: number | null; env: string };
+/** stored JSON columns are written by us, but a bad row must not take a whole page down */
+const safeList = (v: unknown): string[] => { try { const a: unknown = JSON.parse(String(v)); return Array.isArray(a) ? a.map(String) : []; } catch { return []; } };
 const apiKeyRow = (x: Row): ApiKeyRow => ({ id: String(x.id), name: String(x.name), prefix: String(x.prefix), created: Number(x.created), revoked: x.revoked == null ? null : Number(x.revoked), lastSeen: x.last_seen == null ? null : Number(x.last_seen), events: Number(x.events), expires: x.expires == null ? null : Number(x.expires), env: String(x.env ?? 'production') });
 
 export type TelemetryEvent = { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; version: string };
@@ -219,7 +221,7 @@ export type TelemetryStats = {
   tools: { tool: string; sessions: number }[];
   sessions: { total: number; agent: number };
   series: { t: number; n: number; agent: number; gated: number }[];
-  recent: { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string }[];
+  recent: { id: number; at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string }[];
 };
 
 export type TelemetryOverview = {
@@ -477,6 +479,10 @@ export class Store {
     const r = await this.sql.execute('SELECT id, email, pass, created FROM accounts WHERE email = ?', [email]);
     const x = r.rows[0]; return x ? { id: String(x.id), email: String(x.email), pass: String(x.pass), created: Number(x.created) } : null;
   }
+  async setAccountPassword(id: string, passHash: string): Promise<boolean> {
+    const r = await this.sql.execute('UPDATE accounts SET pass = ? WHERE id = ?', [passHash, id]);
+    return r.rowsAffected > 0;
+  }
   async accountById(id: string): Promise<{ id: string; email: string; created: number } | null> {
     const r = await this.sql.execute('SELECT id, email, created FROM accounts WHERE id = ?', [id]);
     const x = r.rows[0]; return x ? { id: String(x.id), email: String(x.email), created: Number(x.created) } : null;
@@ -552,6 +558,21 @@ export class Store {
     const r = await this.sql.execute('UPDATE api_keys SET revoked = ? WHERE id = ? AND account = ? AND revoked IS NULL', [now, id, account]);
     return r.rowsAffected > 0;
   }
+  /** rotation keeps the key's identity — name, environment and its whole history — and only the secret changes */
+  async rotateApiKey(id: string, account: string, prefix: string, hash: string): Promise<boolean> {
+    const r = await this.sql.execute('UPDATE api_keys SET prefix = ?, hash = ? WHERE id = ? AND account = ? AND revoked IS NULL', [prefix, hash, id, account]);
+    return r.rowsAffected > 0;
+  }
+  /** removing a revoked key takes its reported decisions with it */
+  async deleteApiKey(id: string, account: string): Promise<boolean> {
+    const owned = await this.sql.execute('SELECT 1 FROM api_keys WHERE id = ? AND account = ? AND revoked IS NOT NULL', [id, account]);
+    if (!owned.rows.length) return false;
+    await this.sql.batch([
+      { sql: 'DELETE FROM telemetry WHERE key_id = ?', args: [id] as SqlArg[] },
+      { sql: 'DELETE FROM api_keys WHERE id = ? AND account = ?', args: [id, account] as SqlArg[] },
+    ]);
+    return true;
+  }
 
   async insertTelemetry(keyId: string, events: TelemetryEvent[], now = Date.now()) {
     if (!events.length) return;
@@ -571,7 +592,7 @@ export class Store {
       this.sql.execute("SELECT tools, COUNT(DISTINCT session) AS n FROM telemetry WHERE key_id = ? AND at >= ? AND tools != '[]' GROUP BY tools", [keyId, since]),
       this.sql.execute(`SELECT COUNT(DISTINCT session) AS total, COUNT(DISTINCT CASE WHEN ${agentCase} THEN session END) AS agent FROM telemetry WHERE key_id = ? AND at >= ?`, [keyId, since]),
       this.sql.execute(`SELECT CAST(at / ? AS INTEGER) * ? AS t, COUNT(*) AS n, SUM(CASE WHEN ${agentCase} THEN 1 ELSE 0 END) AS agent, SUM(CASE WHEN decision IN ('mask','block','step_up') THEN 1 ELSE 0 END) AS gated FROM telemetry WHERE key_id = ? AND at >= ? GROUP BY t ORDER BY t`, [bucketMs, bucketMs, keyId, since]),
-      this.sql.execute('SELECT at, session, resource, decision, actor, state, tools, reasons, enforcement FROM telemetry WHERE key_id = ? ORDER BY id DESC LIMIT 60', [keyId]),
+      this.sql.execute('SELECT id, at, session, resource, decision, actor, state, tools, reasons, enforcement FROM telemetry WHERE key_id = ? AND at >= ? ORDER BY id DESC LIMIT 60', [keyId, since]),
     ]);
     const toolCounts: Record<string, number> = {};
     for (const x of tools.rows) { let arr: unknown = []; try { arr = JSON.parse(String(x.tools)); } catch { /* ignore */ } if (Array.isArray(arr)) for (const t of arr) toolCounts[String(t)] = (toolCounts[String(t)] ?? 0) + Number(x.n); }
@@ -584,8 +605,19 @@ export class Store {
       tools: Object.entries(toolCounts).sort((a, b) => b[1] - a[1]).map(([tool, sessions]) => ({ tool, sessions })),
       sessions: { total: Number(s0.total ?? 0), agent: Number(s0.agent ?? 0) },
       series: series.rows.map((x) => ({ t: Number(x.t), n: Number(x.n), agent: Number(x.agent), gated: Number(x.gated) })),
-      recent: recent.rows.map((x) => ({ at: Number(x.at), session: String(x.session), resource: String(x.resource), decision: String(x.decision), actor: String(x.actor), state: String(x.state), tools: JSON.parse(String(x.tools)) as string[], reasons: JSON.parse(String(x.reasons)) as string[], enforcement: String(x.enforcement) })),
+      recent: recent.rows.map((x) => ({ id: Number(x.id), at: Number(x.at), session: String(x.session), resource: String(x.resource), decision: String(x.decision), actor: String(x.actor), state: String(x.state), tools: safeList(x.tools), reasons: safeList(x.reasons), enforcement: String(x.enforcement) })),
     };
+  }
+
+  /** the decision log, oldest-last, paged by id so an export can walk the whole range */
+  async telemetryEvents(keyId: string, since: number, beforeId: number | null, limit: number): Promise<{ id: number; at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string }[]> {
+    const r = beforeId == null
+      ? await this.sql.execute('SELECT id, at, session, resource, decision, actor, state, tools, reasons, enforcement FROM telemetry WHERE key_id = ? AND at >= ? ORDER BY id DESC LIMIT ?', [keyId, since, limit])
+      : await this.sql.execute('SELECT id, at, session, resource, decision, actor, state, tools, reasons, enforcement FROM telemetry WHERE key_id = ? AND at >= ? AND id < ? ORDER BY id DESC LIMIT ?', [keyId, since, beforeId, limit]);
+    return r.rows.map((x) => ({
+      id: Number(x.id), at: Number(x.at), session: String(x.session), resource: String(x.resource), decision: String(x.decision),
+      actor: String(x.actor), state: String(x.state), tools: safeList(x.tools), reasons: safeList(x.reasons), enforcement: String(x.enforcement),
+    }));
   }
 
   /** the overview: every key of an account, per bucket and in total, in two queries */
