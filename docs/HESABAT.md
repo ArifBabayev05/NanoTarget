@@ -524,3 +524,29 @@ Nəticə YC sənədi üçün: "kinematika ilk klikdə insanı azad edir və bug�
 ## 21. Gecə yekunu (22→23 sentyabr 2026)
 
 kin-v16 / assess-v7, model `gbdt` vaxtsız. Klik səviyyəsi: insan kliklərinin **87,9%-i ilk klikdə açır**, agent kliklərinin **99,2%-i ilk klikdə tutulur**; insan→sintetik 2/397 (köhnə toxunuşlar), agent→insan 1/824. Sessiya səviyyəsi: 15 real dövrə, **0 səhv**. Avtomatik hesabat: `npm run eval` → `docs/EVAL.md`. Bilinən prinsipial hədd: yazılmış insan yolunun insanlaşdırılmış basma ilə təkrarı klik səviyyəsində ayrılmır — sessiya qatı və kirayəçi üzrə imza indeksi bunun cavabıdır.
+
+## 22. Skriptli CDP botu — saxta `force`, hamar yol, oxumadan (23 sentyabr 2026)
+
+İstifadəçinin sualı: "insanların bildiyi başqa aldatma yolları ola bilər — onları öngör, araşdır, sistemi inkişaf etdir." Bunun üçün **yerli red-team stendi** yazıldı (`scripts/redteam.mjs`, deploya getmir): real Chrome-u `puppeteer-core` ilə sürür, dörd strategiyanı canlı bank səhifəsinə tətbiq edir, hər birinin aşkarlanıb-aşkarlanmadığını və həssas resursun sızıb-sızmadığını sayır. `--capture` ilə adversarial trayektoriyaları `sandbox` datasetinə (`label=agent, source=cdp-*`) yazır ki korpus böyüsün.
+
+**Nə tutulur (dəyişməz):**
+- `naive` (adi `page.click`, webdriver açıq): 12/12 agent.
+- `teleport` (webdriver yamaqlı, amma yol yox, pressure 0): 12/12 agent — kinematika + ani basma tutur.
+- `reader` (gizli + saxta force + əyri yol, **amma əvvəlcə `page.evaluate` ilə səhifəni oxuyur** — ümumi LLM agenti kimi): 12/12 agent — `MAIN_WORLD_READ_BURST` / `TEXT_EXTRACT` tələləri işləyir. **Bu vacibdir: səhifəni oxuyan hər ümumi agent tutulur.**
+
+**Nə keçir (yeni tapılan boşluq):**
+- `evasive` — gizli (`--disable-blink-features=AutomationControlled` + `navigator.webdriver` yamağı) + CDP `Input.dispatchMouseEvent` ilə **`force: 0.5`** (pressure saxtalaşdırılır) + əyri, yavaşlayan, titrəyən Bezier yol + elementi **CDP box-model** ilə tapır (səhifə JS-inə toxunmur, ona görə oxuma tələsi yaranmır) + səhifəni ümumiyyətlə oxumur (koordinatı əvvəlcədən bilir). Nəticə: **headful Chrome-da 16/16 balans sızdı, 0/16 agent aşkarlandı** — hamısı `human_like` (və ya `unknown`, çünki bank `balance.read`-də `onUnknown: allow`).
+
+**Niyə kinematik qatda təhlükəsiz bağlanmır (ölçülüb):**
+- Bu yol insan manifoldunun içindədir. `generated_curve` həddini (roughness < 0.32) genişlətmək və ya `residualRms` həddi qoymaq — **398 real insan siçan klikinə qarşı 5–9 yalan-müsbət** verir (chrome-mouse istifadəçilərinin sürətli, hamar flick-ləri). Yəni sıxmaq real insanları bloklayar.
+- `pressure=0.5`-i insan sübutu saymağı ləğv etmək 366 insan klikinin **83-nü** (23%) "human" verdiktindən salır — CDP `force`-u saxtalaşdırdığı üçün siqnal artıq təkbaşına etibarlı deyil, amma tam çıxarmaq da real insanlara baha başa gəlir.
+- `coalesced/moves` nisbəti də ayırmır: insanlar 0–6.7 arası, real CDP agentləri (`agent-chrome`) ~0 — üst-üstə düşür.
+
+**Landed təhlükəsiz düzəliş (assess-v7):** tək klikin bütün sessiyanı açması (`strongHumanFirst`) artıq **öyrənən modelin razılığını** (`model_human`) tələb edir — sırf qayda xalları (curved_path + tremor + decelerates + held_press) hamar sintezatorun toplaya biləcəyi şeydir. Ölçü (23.09, 366 insan kliki): **0 itirilmiş insan tək-klik açılışı**; offline sintezator tək-klik açılışını azaldır. **Amma headful-da model də aldanır**, ona görə bu, boşluğu tam bağlamır — dürüst qeyd.
+
+**Prinsipial nəticə:** heç bir tək klient-tərəf xüsusiyyəti diqqətli, oxumayan, saxta-force CDP botunu real insandan yalan-müsbətsiz ayırmır. Bu, §11/§16/§20-nin dürüst xəttinin davamıdır. Qalıq təhlükə **ümumi AI agenti deyil** (o oxuyur → tutulur), **məlum saytın düzəninə yazılmış skriptdir** (credential-stuffing səviyyəsi). Cavab qatları:
+1. **Sessiya təsdiqi (Arifin UX qərarı):** `block`-səviyyəli resurs tək klikin insan verdikti ilə açılmamalı — ikinci insan əməliyyatı, davamlı pəncərə, ya da WebAuthn tələb etməli. Xərc: real insan ilk həssas klikində bir dəfə təsdiq edər (§21-in "87,9% ilk klikdə" prinsipinə qarşı gedir) — ona görə bu, məhsul qərarıdır, mən tək tərəfli dəyişmədim.
+2. **Kirayəçi üzrə imza/davranış indeksi:** eyni yolu/ritmi yüz minlərlə sessiyada təkrar edən bot fermi hər sessiya keçsə də aqreqatda görünür (§20-nin sonu).
+3. **Ambient davranış siqnalı (data lazımdır):** skriptli bot yalnız hədəfə bir yaxınlaşma çəkir — oxuma dayanması, sürüşmə, boş jitter yoxdur; insan "yeni girib" saniyələrlə ətraf hərəkət yaradır. Bunu təhlükəsiz qapı etmək üçün daha çox real insan datası lazımdır — məhz stend `--capture` ilə korpusu böyüdür.
+
+**Vəziyyət:** `scripts/redteam.mjs` təkrar ölçmə üçün qalır; korpusa `cdp-evasive` sinfi əlavə olundu (gələcək model təlimi üçün). 120 test keçir.
