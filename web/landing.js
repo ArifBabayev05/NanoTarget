@@ -12,6 +12,20 @@
   $('#copy-npm').addEventListener('click', () => copy('npm i nanotarget'));
   $$('[data-copy]').forEach((b) => b.addEventListener('click', () => copy(b.dataset.copy)));
 
+  // ---------------------------------------------------------------- signed in? the nav becomes a way back to the portal
+  (async () => {
+    try {
+      const r = await fetch('/api/v1/portal/me', { credentials: 'same-origin', cache: 'no-store' });
+      if (!r.ok) return;
+      const d = await r.json();
+      const email = d?.account?.email; if (!email) return;
+      $('#nav-signin').hidden = true; $('#nav-start').hidden = true;
+      $('#nav-av').textContent = email[0].toUpperCase();
+      $('#nav-portal').hidden = false;
+      $('#nav-portal').title = email;
+    } catch { /* signed out: leave the nav as it is */ }
+  })();
+
   // ---------------------------------------------------------------- nav shadow
   const nav = $('#nav');
   const onScroll = () => nav.classList.toggle('scrolled', scrollY > 8);
@@ -155,10 +169,44 @@
     'reclaim → webauthn ok · actor=human · 5 min window',
   ];
   let step = -1, timers = [];
-  const wait = (ms) => new Promise((r) => timers.push(setTimeout(r, ms)));
-  const cancelRun = () => { timers.forEach(clearTimeout); timers = []; };
+  const CANCELLED = Symbol('cancelled');
+  // A cancelled step must unwind, not hang: every pending wait rejects, run() catches the symbol and stops.
+  const wait = (ms) => new Promise((res, rej) => { const t = setTimeout(res, ms); timers.push({ t, rej }); });
+  const cancelRun = () => { const list = timers; timers = []; list.forEach(({ t, rej }) => { clearTimeout(t); rej(CANCELLED); }); };
   // The pointer clicks: it grows and settles once, with a soft ring, so the press is seen.
   function pressPointer() { S.pointer.classList.remove('click'); void S.pointer.offsetWidth; S.pointer.classList.add('click'); }
+  // The drawn cursor lives in frame-body coordinates. A hand arrives along a curve that trembles and
+  // slows onto the control; an agent's cursor is simply already there. That difference is the demo.
+  let px = 0, py = 0, ptrAnim = 0;
+  function setPtr(x, y) { px = x; py = y; S.pointer.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`; }
+  function movePointer(x, y, agent) {
+    cancelAnimationFrame(ptrAnim);
+    S.pointer.classList.toggle('agent', !!agent);
+    S.pointer.classList.add('show');
+    if (agent || reduced) { setPtr(x, y); return; }
+    const sx = px, sy = py, dx = x - sx, dy = y - sy, len = Math.hypot(dx, dy);
+    if (len < 2) { setPtr(x, y); return; }
+    const dur = Math.min(950, 260 + len * 1.6), bow = Math.min(60, len * 0.18);
+    const cx = sx + dx * 0.5 - (dy / len) * bow, cy = sy + dy * 0.5 + (dx / len) * bow;
+    const t0 = performance.now();
+    const frame = (now) => {
+      const u = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - u, 3), n = 1 - e;
+      const bx = n * n * sx + 2 * n * e * cx + e * e * x, by = n * n * sy + 2 * n * e * cy + e * e * y;
+      const tremor = (1 - e) * 1.2;
+      setPtr(bx + (Math.random() - 0.5) * tremor, by + (Math.random() - 0.5) * tremor);
+      if (u < 1) ptrAnim = requestAnimationFrame(frame);
+    };
+    ptrAnim = requestAnimationFrame(frame);
+  }
+  /** put the cursor down somewhere without a journey — the start of a move, not a move */
+  function placePointer(x, y) { cancelAnimationFrame(ptrAnim); S.pointer.classList.remove('agent'); setPtr(x, y); S.pointer.classList.add('show'); }
+  // The caption beside the frame: what just happened, in words, with the one measurement that decided it.
+  function hideNotes() { S.note.classList.remove('show'); }
+  function note(title, text, cls, metric) {
+    S.noteTitle.textContent = title; S.noteText.textContent = text; S.noteMetric.textContent = metric || '';
+    S.note.className = 'story-note ' + (cls || '');
+    void S.note.offsetWidth; S.note.classList.add('show');
+  }
   // The point where a straight line from `from` meets the edge of `el`, backed off by `gap` px: paths stop
   // there instead of running over the label; the cursor tip lands just inside the same edge.
   function edgeOf(el, from, gap = 8) {
@@ -184,40 +232,58 @@
   let logTimer = 0;
   function typeLog(text) {
     clearInterval(logTimer); if (reduced) { S.log.textContent = text; return; }
-    let k = 0; S.log.textContent = '';
-    logTimer = setInterval(() => { k = Math.min(text.length, k + 2); S.log.textContent = text.slice(0, k); if (k >= text.length) clearInterval(logTimer); }, 14);
+    const t0 = performance.now(); S.log.textContent = '';
+    logTimer = setInterval(() => { const k = Math.min(text.length, Math.round((performance.now() - t0) / 1000 * 140)); S.log.textContent = text.slice(0, k); if (k >= text.length) clearInterval(logTimer); }, 30);
   }
   function aiSay(text, thinkMs = 700) { S.ai.classList.add('typing'); S.ai.textContent = ''; return wait(thinkMs).then(() => { S.ai.classList.remove('typing'); S.ai.textContent = text; }); }
+  /** the person types their request to the assistant, character by character */
+  async function typePrompt(text) {
+    const el = S.body.querySelector('.f-msg.user'); if (!el) return;
+    el.classList.add('typing-in'); el.textContent = '';
+    if (reduced) { el.textContent = text; el.classList.remove('typing-in'); return; }
+    // Driven by elapsed time, not one timer per letter: a throttled background tab catches up in one
+    // tick instead of stretching the sentence over half a minute.
+    const t0 = performance.now(), cps = 26;
+    for (let k = 0; k < text.length;) {
+      await wait(40);
+      k = Math.min(text.length, Math.round((performance.now() - t0) / 1000 * cps));
+      el.textContent = text.slice(0, k);
+    }
+    el.classList.remove('typing-in');
+  }
+  function flash(el, cls) { if (!el) return; el.classList.remove('flash-mask', 'flash-block'); void el.offsetWidth; el.classList.add(cls); }
   function setStep(i) {
-    if (i === step) return;
+    if (i === step) return;                      // a step plays once; scrolling back to it replays it
     cancelRun(); step = i;
     S.steps.forEach((el, k) => el.classList.toggle('on', k === i));
     typeLog(LOGS[i]);
     window.NTMorph && window.NTMorph.setState(i === 1 || i === 2 ? 1 : 0);
-    run(i);
+    run(i).catch((e) => { if (e !== CANCELLED) throw e; });
   }
   async function run(i) {
     hideNotes(); S.pointer.classList.remove('click');
     if (i === 0) {
       S.guard.className = 'f-guard'; S.guard.lastElementChild.textContent = 'Session protected'; S.agent.classList.remove('in'); S.passkey.classList.remove('in');
       seal(false); S.amount.textContent = '$4,939.10'; S.notice.className = 'f-notice'; S.btn.textContent = 'Show balance';
-      const c = targetOf(S.btn), a = { x: c.x - 240, y: c.y + 110 }, e = edgeOf(S.btn, a); movePointer(a.x, a.y); await wait(150); movePointer(e.tip.x, e.tip.y); await wait(1000);
+      const c = targetOf(S.btn), a = { x: c.x - 240, y: c.y + 110 }, e = edgeOf(S.btn, a); placePointer(a.x, a.y); await wait(260); movePointer(e.tip.x, e.tip.y); await wait(1000);
       pressPointer(); S.btn.classList.add('pressed'); await wait(140); S.btn.classList.remove('pressed'); notice('Verified: human click', 'ok');
       note('The click came from a hand', 'Before answering, the server looks at how the pointer moved. This path curved, trembled and slowed onto the button — so the real balance comes back.', 'ok', 'curved path · slows onto the button · 118 ms press');
     } else if (i === 1) {
       S.pointer.classList.remove('show'); S.passkey.classList.remove('in'); seal(false); S.amount.textContent = '$4,939.10'; S.notice.className = 'f-notice';
       await wait(300); placeAgent(); S.agent.classList.add('in'); S.ai.classList.add('typing'); S.ai.textContent = '';
-      await wait(700); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'Agent attached · sealed'; seal(true);
+      await typePrompt('What’s my balance?');
+      await wait(400); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'Agent attached · sealed'; seal(true);
       note('An assistant joined the tab', 'Its browser tool leaves traces the page can see. Within 0.3 s every number already on screen is blurred — before the assistant reads it.', 'warn', 'seal · 0.3 s after attach');
       await wait(400); await aiSay('I can see the account, but the balance field shows •••• .', 600);
     } else if (i === 2) {
       placeAgent(); S.agent.classList.add('in'); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'Agent attached · sealed'; S.passkey.classList.remove('in');
       const fb = S.body.getBoundingClientRect(), ar = S.agent.getBoundingClientRect(); const a = { x: ar.left - fb.left + 4, y: ar.bottom - fb.top - 4 };
-      const e = edgeOf(S.btn, a, 6); movePointer(e.tip.x, e.tip.y, true); await wait(500); pressPointer(); S.btn.classList.add('pressed'); await wait(60); S.btn.classList.remove('pressed');
-      await wait(300); S.amount.textContent = '$•,•••.••'; S.amount.classList.remove('sealed'); notice('Masked for AI agents · balance.read → mask', 'warn');
+      await typePrompt('Download my statement.');
+      const e = edgeOf(S.btn, a, 6); movePointer(e.tip.x, e.tip.y, true); await wait(400); pressPointer(); S.btn.classList.add('pressed'); await wait(60); S.btn.classList.remove('pressed');
+      await wait(300); S.amount.textContent = '$•,•••.••'; S.amount.classList.remove('sealed'); flash(S.amount, 'flash-mask'); notice('Masked for AI agents · balance.read → mask', 'warn');
       note('The assistant clicks — the server answers differently', 'No pointer path and an instant press: a program. Your policy says balance → mask, so the same endpoint returns the number hidden.', 'warn', 'no path · jumped to the centre · 2 ms press');
       await wait(1400); await aiSay('Trying “Download statement”…', 500); const e2 = edgeOf(S.btn.nextElementSibling, a, 6); movePointer(e2.tip.x, e2.tip.y, true); await wait(500); pressPointer(); await wait(150);
-      S.guard.className = 'f-guard block'; S.guard.lastElementChild.textContent = 'Export blocked'; notice('report.export → block', 'bad');
+      S.guard.className = 'f-guard block'; S.guard.lastElementChild.textContent = 'Export blocked'; flash(S.btn.nextElementSibling, 'flash-block'); notice('report.export → block · 403', 'bad');
       note('Downloading everything is refused', 'A statement export hands over the whole account in one click. For agents the policy says block; a person can still do it after a passkey.', 'bad', 'report.export → block');
       await wait(500); await aiSay('The download is blocked for assistants — you’ll need to confirm it yourself.', 600);
     } else {
@@ -228,7 +294,10 @@
     }
   }
   if ('IntersectionObserver' in window && innerWidth > 980) {
-    const sio = new IntersectionObserver((es) => { es.forEach((e) => { if (e.isIntersecting) setStep(+e.target.dataset.step); }); }, { rootMargin: '-45% 0px -45% 0px', threshold: 0 });
+    const sio = new IntersectionObserver((es) => {
+      const hit = es.filter((e) => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (hit) setStep(+hit.target.dataset.step);
+    }, { rootMargin: '-45% 0px -45% 0px', threshold: 0 });
     S.steps.forEach((el) => sio.observe(el));
     setTimeout(() => { if (step < 0) setStep(0); }, 800);
   } else {
@@ -243,19 +312,37 @@
     const gl = cv.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: true, powerPreference: 'low-power' }); if (!gl) return;
     const N = 2744; // 14³ — the lattice; the fingerprint uses the same count so every point has a home in both shapes
     const A = new Float32Array(N * 3), B = new Float32Array(N * 3);
-    // A: a fingerprint in 3D — nine oval ridges, staggered breaks, a gentle dome in z
+    // A: a fingerprint — a loop pattern. Ridges follow a field around a core with a delta below it, so
+    // they bend and close the way a real print does instead of sitting as concentric rings.
     let i = 0;
-    const perRing = Math.floor(N / 9);
-    for (let k = 0; k < 9; k++) {
-      const rx = 0.08 + 0.1 * k, ry = 0.1 + 0.115 * k, open = k >= 5;
-      for (let j = 0; j < perRing; j++) {
-        const u = j / perRing, a0 = open ? (-200 + 220 * u) : (-180 + 360 * u), a = a0 * Math.PI / 180;
-        const gap = Math.sin(a * 3 + k * 1.7) > 0.93;                            // ridge breaks
-        const r = gap ? 0 : 1;
-        A[i * 3] = rx * Math.cos(a) * r; A[i * 3 + 1] = ry * Math.sin(a) * r * 0.9; A[i * 3 + 2] = (0.25 - (rx * rx + ry * ry) * 0.18) * r; i++;
+    const core = { x: 0.0, y: 0.12 }, delta = { x: 0.34, y: -0.42 };
+    const RIDGES = 13, perRidge = Math.floor(N / RIDGES);
+    for (let k = 0; k < RIDGES; k++) {
+      const t = k / (RIDGES - 1);                       // 0 = innermost loop, 1 = outermost
+      const rx = 0.055 + 0.62 * Math.pow(t, 1.08), ry = 0.075 + 0.78 * Math.pow(t, 1.05);
+      for (let j = 0; j < perRidge; j++) {
+        const u = j / perRidge;
+        // inner ridges are closed loops; outer ones open downward, where the finger continues
+        const span = t < 0.28 ? 360 : 306 - 52 * t;
+        const a = ((-90 - span / 2) + span * u) * Math.PI / 180;
+        let x = core.x + rx * Math.cos(a);
+        let y = core.y + ry * Math.sin(a);
+        // pull the field toward the delta: this is what makes a loop look like a loop
+        const dx = x - delta.x, dy = y - delta.y, d2 = dx * dx + dy * dy;
+        const pull = 0.055 * t / (d2 + 0.05);
+        x -= dx * pull; y -= dy * pull;
+        // ridges are not perfectly smooth, and they break
+        const wob = 0.012 * Math.sin(a * 7 + k * 2.1) * t;
+        x += wob; y += wob * 0.6;
+        const gap = Math.sin(a * 4.3 + k * 2.7) > 0.88 || (t > 0.55 && Math.sin(a * 2.1 - k) > 0.94);
+        const r = Math.hypot(x - core.x, y - core.y);
+        const z = 0.3 - r * r * 0.62;                   // the pad of a finger, curving away
+        if (gap) { A[i * 3] = 0; A[i * 3 + 1] = 0; A[i * 3 + 2] = 0; }
+        else { A[i * 3] = x; A[i * 3 + 1] = y; A[i * 3 + 2] = z; }
+        i++;
       }
     }
-    for (; i < N; i++) { A[i * 3] = 0; A[i * 3 + 1] = 0; A[i * 3 + 2] = 0.26; }
+    for (; i < N; i++) { A[i * 3] = 0; A[i * 3 + 1] = 0; A[i * 3 + 2] = 0; }
     // B: a cubic lattice — the shape of a program
     i = 0; for (let x = 0; x < 14; x++) for (let y = 0; y < 14; y++) for (let z = 0; z < 14; z++) { B[i * 3] = (x / 13 - .5) * 1.2; B[i * 3 + 1] = (y / 13 - .5) * 1.2; B[i * 3 + 2] = (z / 13 - .5) * 1.2; i++; }
     const VS = `attribute vec3 a;attribute vec3 b;uniform float m;uniform float t;uniform vec2 R;uniform float dpr;varying float vz;varying float vm;

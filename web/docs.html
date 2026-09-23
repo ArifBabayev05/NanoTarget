@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NanoTarget — Documentation</title>
+<meta name="description" content="How NanoTarget decides what an AI browser agent may see inside a signed-in session: concepts, integration, policy reference, API surface, telemetry and privacy.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/docs.css">
+<script src="/theme-boot.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><span class="mark"><span></span></span>NanoTarget <small>docs</small></a>
+  <label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="search" placeholder="Search the documentation…"><kbd>/</kbd></label>
+  <nav class="top-links"><a href="/">Home</a><a href="/bank">Demos</a><a href="https://www.npmjs.com/package/nanotarget" target="_blank" rel="noopener">npm</a><a href="https://github.com/ArifBabayev05/NanoTarget" target="_blank" rel="noopener">GitHub</a></nav>
+  <div class="theme" id="theme" role="group" aria-label="Theme">
+    <button data-theme-set="light" title="Light"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    <button data-theme-set="dark" title="Dark"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    <button data-theme-set="system" title="System"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></button>
+  </div>
+  <a class="btn primary" href="/portal" id="portal-link">Portal</a>
+</header>
+
+<div class="shell">
+  <aside class="side" id="side">
+    <div class="side-group"><b>Start</b>
+      <a href="#overview">Overview</a><a href="#concepts">Concepts</a><a href="#how">How it works</a><a href="#quickstart">Quickstart</a>
+    </div>
+    <div class="side-group"><b>Build</b>
+      <a href="#policy">Policy reference</a><a href="#masks">Masks, blocks, step-up</a><a href="#api">Server API</a><a href="#sdk">Browser SDK</a><a href="#endpoints">HTTP endpoints</a>
+    </div>
+    <div class="side-group"><b>Operate</b>
+      <a href="#portal">Portal &amp; telemetry</a><a href="#manage">Management API</a><a href="#rollout">Rollout</a><a href="#privacy">Privacy &amp; data</a>
+    </div>
+    <div class="side-group"><b>More</b>
+      <a href="#limits">Limits &amp; honest caveats</a><a href="#faq">FAQ</a>
+    </div>
+  </aside>
+
+  <main class="main" id="main">
+    <article class="doc">
+
+<section id="overview">
+  <span class="eyebrow">Overview</span>
+  <h1>NanoTarget</h1>
+  <p class="lead">Your customers sign in, then hand the session to an AI assistant. NanoTarget tells your server when that has happened and lets every endpoint decide what the assistant may see: <b>allow</b>, <b>mask</b>, <b>step&nbsp;up</b> or <b>block</b> — with a passkey that gives the session back to the person.</p>
+  <div class="cards">
+    <div class="card"><b>Inside the session</b><span>Bot management works at the door, before login. NanoTarget works after it, where the agent actually operates.</span></div>
+    <div class="card"><b>Decided on your server</b><span>The decision is made in your process, next to your data. Nothing about it is delegated to the browser.</span></div>
+    <div class="card"><b>Yours to run</b><span>MIT, self-hosted. Policy is your JSON, masking is your function, storage is your database.</span></div>
+  </div>
+  <div class="note">New here? <a href="#quickstart">Quickstart</a> gets a protected endpoint working in about ten minutes; <a href="#how">How it works</a> explains the model behind it.</div>
+</section>
+
+<section id="concepts">
+  <span class="eyebrow">Start</span>
+  <h2>Concepts</h2>
+  <p>Five words carry the whole system. Everything else is detail.</p>
+  <dl class="defs">
+    <dt>Session</dt><dd>One signed-in browser, across its tabs. You map a request to it with <code>identify(req)</code> — your own user or session id — or let a first-party cookie do it.</dd>
+    <dt>Resource</dt><dd>A named thing worth protecting: <code>balance.read</code>, <code>customer.read</code>, <code>report.export</code>, <code>transfer.create</code>. Resources are yours to name; they are the unit a policy talks about.</dd>
+    <dt>Actor</dt><dd>Who the engine believes is acting in the session right now: <span class="chip ok">human-like</span>, <span class="chip warn">agent</span>, or <span class="chip">unknown</span>. Unknown is its own answer — never a synonym for human.</dd>
+    <dt>Decision</dt><dd>What the endpoint does for this actor on this resource: <code>allow</code>, <code>mask</code>, <code>step_up</code>, <code>block</code>. Every decision is recorded.</dd>
+    <dt>Policy</dt><dd>A JSON file you own that maps resources to decisions, plus an enforcement mode: <code>observe</code> records what would have happened, <code>enforce</code> acts on it.</dd>
+  </dl>
+</section>
+
+<section id="how">
+  <span class="eyebrow">Start</span>
+  <h2>How it works</h2>
+  <p>An agent operating a signed-in session is indistinguishable from the customer at the network layer: same cookies, same address, same browser. So NanoTarget does not try to read the request. It reads the <b>session</b>.</p>
+
+  <h3>Two channels</h3>
+  <div class="flow">
+    <div class="flow-step"><span class="n">A</span><div><b>The page reports what it observed</b><p>A small first-party script watches the page for signs that something other than a person is operating it, and for evidence that a person <i>is</i>. It posts observations to your server, on your origin, as metadata. It makes no decisions and holds no secrets.</p></div></div>
+    <div class="flow-step"><span class="n">B</span><div><b>The endpoint asks for a decision</b><p>When a protected endpoint is called, the middleware asks the engine what it knows about this session. The answer combines everything observed so far with whatever accompanied this particular action.</p></div></div>
+  </div>
+
+  <h3>What the engine weighs</h3>
+  <p>Evidence is grouped by how much it proves, and the strongest class present decides:</p>
+  <table class="tbl">
+    <thead><tr><th>Class</th><th>What it means</th><th>Strength</th></tr></thead>
+    <tbody>
+      <tr><td>Verified operator</td><td>The request carries a valid signature from a declared agent operator.</td><td><span class="chip ok">proof</span></td></tr>
+      <tr><td>Deterministic browser facts</td><td>Properties of the environment that a normal browsing session does not produce.</td><td><span class="chip ok">proof</span></td></tr>
+      <tr><td>Active-control indicators</td><td>Traces an agent tool leaves in the page while it is driving it.</td><td><span class="chip warn">strong</span></td></tr>
+      <tr><td>Behavioural evidence</td><td>How the session's interactions were physically produced. Judged by a model trained on labelled human and agent sessions.</td><td><span class="chip warn">strong</span></td></tr>
+      <tr><td>Environment traces</td><td>The session runs inside an AI application, or an agent tool is installed. A person may well be driving.</td><td><span class="chip">weak</span></td></tr>
+    </tbody>
+  </table>
+  <p class="fine">NanoTarget uses standard web APIs on your own origin. It does not fingerprint people, does not track across sites, and does not reverse-engineer any vendor's code. The exact measurements inside each class are the part we keep to ourselves — see <a href="#faq">the FAQ</a>.</p>
+
+  <h3>Three rules that shape every answer</h3>
+  <ol class="rules">
+    <li><b>Unknown is never human.</b> Absence of evidence selects the <code>onUnknown</code> branch of your policy — which you can make as strict as you like. An agent cannot become a person by staying quiet.</li>
+    <li><b>A person is recognised by positive evidence.</b> Either the way their actions were physically produced, or a passkey. Claims from the page are never taken at face value.</li>
+    <li><b>Attachment sticks.</b> Once an agent has been seen in a session, the session stays that way until a person proves presence with WebAuthn — going quiet does not clear it.</li>
+  </ol>
+
+  <h3>Where enforcement happens</h3>
+  <p>In your server process, before your handler runs. A blocked read never reaches serialization; a masked read is produced by <i>your</i> mask function on the server. The browser is never asked to keep a secret.</p>
+  <p>One thing does happen in the page: values already rendered before an agent appeared are redacted in place, because the server cannot recall what it already sent. That is damage control, not the security boundary. With the script removed, the server still answers exactly the same way.</p>
+</section>
+
+<section id="quickstart">
+  <span class="eyebrow">Start</span>
+  <h2>Quickstart</h2>
+  <p>Node ≥ 22.13. Works with Express 4/5, Connect, a Next.js custom server, or plain <code>node:http</code>.</p>
+  <ol class="steps">
+    <li><b>Install</b><pre class="code">npm i nanotarget</pre></li>
+    <li><b>See what an agent could reach</b><pre class="code">npx nanotarget scan .            <span class="c"># routes, sensitivity, a draft policy</span>
+npx nanotarget scan . --proposal <span class="c"># the same, in plain language</span></pre></li>
+    <li><b>Wire the middleware</b><pre class="code"><span class="k">import</span> { nanotarget } <span class="k">from</span> <span class="s">'nanotarget/express'</span>;
+
+<span class="k">const</span> nt = <span class="k">await</span> nanotarget({
+  secret: process.env.NT_SECRET,           <span class="c">// ≥ 32 bytes, stable across restarts</span>
+  policy: <span class="s">'./nanotarget.policy.json'</span>,
+  db: <span class="s">'sqlite:./nanotarget.db'</span>,
+  apiKey: process.env.NT_API_KEY,          <span class="c">// optional: report to the portal</span>
+  identify: (req) =&gt; req.session?.userId ?? <span class="k">null</span>,
+});
+app.use(nt.middleware());
+app.get(<span class="s">'/api/balance'</span>, nt.protect(<span class="s">'balance.read'</span>), (req, res) =&gt;
+  nt.send(req, res, balance, (b) =&gt; ({ ...b, amount: <span class="k">null</span> })));</pre></li>
+    <li><b>Add the page script and mark what is sensitive</b><pre class="code">&lt;script src=<span class="s">"/nanotarget/sdk.js"</span>&gt;&lt;/script&gt;
+
+<span class="c">// call protected endpoints through the SDK</span>
+<span class="k">const</span> r = <span class="k">await</span> NanoTarget.fetch(<span class="s">'/api/balance'</span>);
+
+<span class="c">// rendered values that must disappear if an agent attaches</span>
+&lt;div data-nt-sensitive=<span class="s">"full"</span>&gt;$4,939.10&lt;/div&gt;</pre></li>
+    <li><b>Verify</b><pre class="code">npx nanotarget verify http://localhost:3000 /api/balance</pre></li>
+  </ol>
+  <div class="note"><b>Let an agent do it.</b> The npm README is written as a protocol for coding agents: give it the link and say “install this”. It scans the app, proposes what to gate, asks you nine decisions and wires everything in.</div>
+</section>
+
+<section id="policy">
+  <span class="eyebrow">Build</span>
+  <h2>Policy reference</h2>
+  <p>One JSON file. Unlisted resources are unprotected — list them in your own report deliberately.</p>
+  <pre class="code">{
+  <span class="s">"version"</span>: <span class="s">"bank-policy-1"</span>,
+  <span class="s">"enforcement"</span>: <span class="s">"observe"</span>,
+  <span class="s">"rules"</span>: [
+    { <span class="s">"resource"</span>: <span class="s">"balance.read"</span>,
+      <span class="s">"title"</span>: <span class="s">"Account balance"</span>,
+      <span class="s">"onAgent"</span>:     <span class="s">"mask"</span>,
+      <span class="s">"onArtifact"</span>:  <span class="s">"mask"</span>,
+      <span class="s">"onUnknown"</span>:   <span class="s">"allow"</span>,
+      <span class="s">"onHumanLike"</span>: <span class="s">"allow"</span> },
+    { <span class="s">"resource"</span>: <span class="s">"report.export"</span>,
+      <span class="s">"onAgent"</span>: <span class="s">"block"</span>, <span class="s">"onArtifact"</span>: <span class="s">"step_up"</span>,
+      <span class="s">"onUnknown"</span>: <span class="s">"step_up"</span>, <span class="s">"onHumanLike"</span>: <span class="s">"allow"</span> }
+  ]
+}</pre>
+  <table class="tbl">
+    <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>enforcement</code></td><td><code>observe</code> records the decision and lets the request through; <code>enforce</code> acts on it.</td></tr>
+      <tr><td><code>onAgent</code></td><td>An agent is operating the session.</td></tr>
+      <tr><td><code>onArtifact</code></td><td>Environment only: an AI application or an installed tool, no proof anything is driving.</td></tr>
+      <tr><td><code>onUnknown</code></td><td>Not enough evidence in either direction. Never treated as human.</td></tr>
+      <tr><td><code>onHumanLike</code></td><td>Positive human evidence, or a passkey within the reclaim window.</td></tr>
+    </tbody>
+  </table>
+  <h3>A default worth starting from</h3>
+  <table class="tbl">
+    <thead><tr><th>Resource class</th><th>Agent</th><th>Environment</th><th>Unknown</th></tr></thead>
+    <tbody>
+      <tr><td>Balances, statements, transaction lists</td><td>mask</td><td>mask</td><td>allow</td></tr>
+      <tr><td>Personal / contact / KYC data</td><td>mask</td><td>mask</td><td>allow</td></tr>
+      <tr><td>Documents, exports, downloads</td><td>block</td><td>step_up</td><td>allow</td></tr>
+      <tr><td>Transfers, payments, orders</td><td>block</td><td>step_up</td><td>step_up</td></tr>
+      <tr><td>Deletes, permission and settings changes</td><td>block</td><td>step_up</td><td>step_up</td></tr>
+      <tr><td>Credentials, tokens, recovery data</td><td>block</td><td>block</td><td>step_up</td></tr>
+      <tr><td>Health / medical</td><td>block</td><td>mask</td><td>allow</td></tr>
+      <tr><td>Search over customer records</td><td>mask</td><td>mask</td><td>allow</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="masks">
+  <span class="eyebrow">Build</span>
+  <h2>Masks, blocks and step-up</h2>
+  <p>A mask is a second projection of the same record, built on the server: the page still renders, the value is gone. Keep the shape and the types.</p>
+  <pre class="code"><span class="k">const</span> maskMoney = (b) =&gt; ({ ...b, amount: <span class="k">null</span>, currency: b.currency, masked: <span class="k">true</span> });
+<span class="k">const</span> maskIban  = (v) =&gt; v.slice(0, 4) + <span class="s">' •••• '</span> + v.slice(-4);
+<span class="k">const</span> maskRows  = (rows, cap = 20) =&gt; rows.slice(0, cap).map(maskRow);</pre>
+  <ul class="ticks">
+    <li><b>Mask the join, not only the field.</b> A masked name beside an untouched e-mail or record id re-identifies in one step.</li>
+    <li><b>Mask derived values too.</b> Totals, chart series, CSV previews and <code>aria-label</code>s carry the number you just removed.</li>
+    <li><b>Cap volume.</b> A masked list of ten thousand rows is still a customer-base dump.</li>
+    <li><b>Never mask an irreversible action.</b> A half-executed transfer is worse than a refused one — those are <code>step_up</code> or <code>block</code>.</li>
+    <li><b>Don't leak through errors.</b> A validation message that echoes the value defeats the mask.</li>
+  </ul>
+  <h3>Downloads</h3>
+  <p>Protect the request that <i>issues</i> the link and bind the file to the decision, so a copied URL is dead:</p>
+  <pre class="code">app.post(<span class="s">'/api/statement'</span>, nt.protect(<span class="s">'report.export'</span>), (req, res) =&gt;
+  res.json({ url: <span class="s">`/files/${req.nt.token()}`</span> }));
+
+app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (req, res) =&gt; {
+  <span class="k">const</span> ok = <span class="k">await</span> nt.engine.redeemToken(req.params.token, req.nt.session.id, <span class="s">'report.export'</span>);
+  <span class="k">if</span> (!ok) <span class="k">return</span> res.sendStatus(403);
+  streamStatement(res);
+});</pre>
+  <h3>Step-up and reclaim</h3>
+  <p>A <code>step_up</code> answers <b>428</b> with a challenge; a <code>block</code> on an agent session answers <b>403</b> and, where a passkey is registered, offers the reclaim path. A successful WebAuthn user-verified assertion hands the session back to the person for a few minutes. Nothing in the page can grant that by itself.</p>
+</section>
+
+<section id="api">
+  <span class="eyebrow">Build</span>
+  <h2>Server API</h2>
+  <pre class="code"><span class="k">const</span> nt = <span class="k">await</span> nanotarget(options);</pre>
+  <table class="tbl">
+    <thead><tr><th>Option</th><th></th></tr></thead>
+    <tbody>
+      <tr><td><code>secret</code></td><td>required, ≥ 32 bytes; signs tokens and derives the tenant. Keep it stable.</td></tr>
+      <tr><td><code>policy</code></td><td>path to the JSON file, or the object.</td></tr>
+      <tr><td><code>db</code></td><td><code>sqlite:./file</code>, <code>memory</code>, or a libSQL URL for multi-instance and serverless.</td></tr>
+      <tr><td><code>identify(req)</code></td><td>your login id, or <code>null</code>. Never a constant.</td></tr>
+      <tr><td><code>apiKey</code></td><td>report decisions to the portal. Omit and nothing leaves your server.</td></tr>
+      <tr><td><code>basePath</code>, <code>cookie</code>, <code>secure</code>, <code>tenant</code>, <code>respond</code>, <code>webauthnReclaim</code></td><td>defaults are sensible: <code>/nanotarget</code>, <code>nt_sid</code>, auto, <code>default</code>, <code>true</code>, <code>true</code>.</td></tr>
+    </tbody>
+  </table>
+  <table class="tbl">
+    <thead><tr><th>Method</th><th></th></tr></thead>
+    <tbody>
+      <tr><td><code>nt.middleware()</code></td><td>Mount before your routes. Serves the page script and its API under <code>basePath</code>.</td></tr>
+      <tr><td><code>nt.protect(resource, { respond })</code></td><td>Decides, then answers 403/428 itself — or sets <code>req.nt</code> and calls <code>next()</code> when <code>respond: false</code>.</td></tr>
+      <tr><td><code>nt.send(req, res, full, mask)</code></td><td>Sends <code>full</code>, or <code>mask(full)</code> when the decision says mask.</td></tr>
+      <tr><td><code>req.nt</code></td><td><code>{ decision, masked, blocked, stepUp, actor, reasonCodes, session, token() }</code>.</td></tr>
+      <tr><td><code>nt.reloadPolicy()</code></td><td>Re-read the policy file without a restart.</td></tr>
+      <tr><td><code>nt.telemetry?.flush()</code></td><td>Deliver queued reports before exit.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="sdk">
+  <span class="eyebrow">Build</span>
+  <h2>Browser SDK</h2>
+  <p>Served from your own origin at <code>&lt;basePath&gt;/sdk.js</code>. It reports observations and redacts sealed elements; it never decides anything.</p>
+  <table class="tbl">
+    <thead><tr><th>Member</th><th></th></tr></thead>
+    <tbody>
+      <tr><td><code>NanoTarget.fetch(url, init)</code></td><td>Same signature as <code>fetch</code>. Use it for protected endpoints so the action's evidence reaches the server.</td></tr>
+      <tr><td><code>NanoTarget.sessionHeaders()</code></td><td>For axios/ky interceptors when you cannot swap <code>fetch</code>.</td></tr>
+      <tr><td><code>NanoTarget.onAssessment(fn)</code></td><td>Called when the session's state changes — update your own UI.</td></tr>
+      <tr><td><code>NanoTarget.unseal(proof)</code></td><td>Reveals sealed elements. Accepts only a server-issued reclaim proof.</td></tr>
+      <tr><td><code>data-nt-sensitive="full" | "masked"</code></td><td>Marks rendered values. <code>full</code> elements are redacted the moment an agent appears; the document event <code>nt:sealed</code> fires once.</td></tr>
+    </tbody>
+  </table>
+  <p class="fine">CSP: <code>script-src 'self'</code> and <code>connect-src 'self'</code> are enough.</p>
+</section>
+
+<section id="endpoints">
+  <span class="eyebrow">Build</span>
+  <h2>HTTP endpoints</h2>
+  <p>Mounted by <code>nt.middleware()</code> under <code>basePath</code> (default <code>/nanotarget</code>):</p>
+  <div class="endpoints">
+    <div><span>GET</span> /sdk.js <em>— the page script</em></div>
+    <div><span>POST</span> /signals <em>— observations from the page</em></div>
+    <div><span>GET</span> /connection <em>— the session's current state, for your own UI</em></div>
+    <div><span>GET</span> /session <em>— session id and flags</em></div>
+    <div><span>POST</span> /step-up <em>— answer a challenge</em></div>
+    <div><span>POST</span> /webauthn/register/options · /register · /assert/options · /assert <em>— passkeys</em></div>
+  </div>
+  <p>Protected responses carry <code>X-NT-Decision</code> and <code>X-NT-Policy</code>, and <code>nt.send</code> adds a small <code>_nt</code> summary to the body so your front end can explain itself.</p>
+</section>
+
+<section id="portal">
+  <span class="eyebrow">Operate</span>
+  <h2>Portal &amp; telemetry</h2>
+  <p>Create a key in the <a href="/portal">portal</a> and pass it as <code>apiKey</code>. The middleware then reports each decision in the background: batched, off the request path, dropped rather than blocking if the portal is unreachable, and switched off for good if the key is rejected.</p>
+  <p>The portal answers the question nobody can answer today: <b>what share of your signed-in sessions had an AI agent in them</b> — plus decisions over time, which agent products were seen, which resources they reached for, and a live log.</p>
+  <h3>What a report contains</h3>
+  <table class="tbl">
+    <thead><tr><th>Sent</th><th>Never sent</th></tr></thead>
+    <tbody>
+      <tr><td>A hash of the session id, the resource name, the decision, the actor, the session state, detected tool names, reason codes, enforcement mode, engine version</td><td>Request or response payloads, customer identities, e-mail addresses, IP addresses, URLs, page text, form values</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="manage">
+  <span class="eyebrow">Operate</span>
+  <h2>Management API</h2>
+  <p>A management key (<code>nt_admin_…</code>, created in the portal under Settings) administers an account over HTTP, so a coding agent or a CI job can set NanoTarget up without anyone opening the portal.</p>
+  <pre class="code">curl -H <span class="s">"Authorization: Bearer $NT_ADMIN"</span> https://nanotarget-mvp.vercel.app/api/v1/manage/me</pre>
+  <div class="endpoints">
+    <div><span>GET</span> /api/v1/manage/me <em>— the account, and this list</em></div>
+    <div><span>GET</span> /api/v1/manage/keys <em>— list project keys</em></div>
+    <div><span>POST</span> /api/v1/manage/keys <em>— {name, env, expiresInDays} → the raw key, once</em></div>
+    <div><span>DELETE</span> /api/v1/manage/keys/:id <em>— revoke</em></div>
+    <div><span>GET</span> /api/v1/manage/overview?range=7d <em>— usage across every key</em></div>
+    <div><span>GET</span> /api/v1/manage/stats?key=:id&amp;range=7d <em>— one key in depth</em></div>
+  </div>
+  <p class="fine">A management key can create and revoke project keys. Treat it like a password and revoke it when the job is done.</p>
+</section>
+
+<section id="rollout">
+  <span class="eyebrow">Operate</span>
+  <h2>Rollout</h2>
+  <ol class="steps">
+    <li><b>Observe.</b> Ship with <code>"enforcement": "observe"</code>. Nothing is blocked; every decision is recorded with what would have happened.</li>
+    <li><b>Read the log for a week or two.</b> The portal shows how much agent traffic you actually have and which resources it reaches for.</li>
+    <li><b>Tighten the policy</b> where the log says it matters, then flip one word to <code>enforce</code>.</li>
+    <li><b>Give people the way back.</b> Register passkeys so a blocked person can reclaim their own session instead of calling support.</li>
+  </ol>
+</section>
+
+<section id="privacy">
+  <span class="eyebrow">Operate</span>
+  <h2>Privacy &amp; data</h2>
+  <ul class="ticks">
+    <li>The page script is first-party, served from your origin, and posts only to your origin.</li>
+    <li>It reports metadata about how the session behaves — never page text, form values, key identities or the content of what is displayed.</li>
+    <li>No cross-site identifiers, no third-party requests, no device fingerprinting for tracking purposes.</li>
+    <li>Decisions and their evidence live in your database. Telemetry to the portal is opt-in per key and carries the fields listed <a href="#portal">above</a>.</li>
+    <li>Decisions are written to a hash-chained log, so an auditor can verify afterwards that the record was not edited.</li>
+  </ul>
+</section>
+
+<section id="limits">
+  <span class="eyebrow">More</span>
+  <h2>Limits &amp; honest caveats</h2>
+  <p>A security product that claims no limits is selling something. Ours:</p>
+  <ul class="ticks">
+    <li><b>Server-to-server traffic is out of scope.</b> API keys used outside a browser session carry no session evidence; they belong to your existing API security.</li>
+    <li><b>Clients without the page script</b> — mobile apps, partner integrations — arrive as <code>unknown</code>. Decide what that branch should do.</li>
+    <li><b>A person can still relay data by hand.</b> No session-layer control stops someone reading their screen aloud.</li>
+    <li><b>This is an adversarial field.</b> Agent products change; so do we. The engine is versioned, decisions record the version that made them, and the model is retrained against new evasion classes.</li>
+    <li><b>Detection is evidence, not omniscience.</b> When the engine does not know, it says <code>unknown</code> instead of guessing — and your policy decides what that deserves.</li>
+  </ul>
+</section>
+
+<section id="faq">
+  <span class="eyebrow">More</span>
+  <h2>FAQ</h2>
+  <dl class="defs">
+    <dt>Why don't you publish exactly how detection works?</dt>
+    <dd>Because the people it is designed to detect read documentation too. We publish the model — evidence classes, decision tiers, the rules that shape every answer — and the measured outcomes. The specific measurements inside each class stay in the product. Customers under NDA get the full technical description and can run their own evaluation against it.</dd>
+    <dt>Does this block legitimate agents?</dt>
+    <dd>Only where your policy says so. The point is control, not prohibition: many teams allow reads and gate exports and money movement. A verified, signed agent operator can be treated differently from an anonymous one.</dd>
+    <dt>What happens if the page script is removed or fails?</dt>
+    <dd>The session has no human evidence, so it is <code>unknown</code> — never human. Your policy's <code>onUnknown</code> branch decides. Enforcement itself is unaffected: it lives on the server.</dd>
+    <dt>Does it slow requests down?</dt>
+    <dd>The decision is a local lookup and an evaluation against stored evidence — no outbound call on the request path. Portal telemetry is queued and sent in the background.</dd>
+    <dt>Where is the data stored?</dt>
+    <dd>In your database: <code>node:sqlite</code> on disk by default, or libSQL for multi-instance and serverless deployments.</dd>
+    <dt>Can we run it without any telemetry?</dt>
+    <dd>Yes. Leave <code>apiKey</code> unset and nothing leaves your network.</dd>
+  </dl>
+  <div class="note">Questions we haven't answered here: <a href="https://github.com/ArifBabayev05/NanoTarget/issues" target="_blank" rel="noopener">open an issue</a>, or read the <a href="/docs/INTEGRATION-AGENT.md">integration protocol</a>.</div>
+</section>
+
+    </article>
+    <aside class="toc" id="toc"><b>On this page</b><div id="toc-links"></div></aside>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="/docs.js"></script>
+</body>
+</html>
