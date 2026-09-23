@@ -20,6 +20,7 @@ import { adminRoutes } from './routes/admin.ts';
 import { labRoutes, type LabOperator } from './routes/lab.ts';
 import { resourceRoutes } from './routes/resources.ts';
 import { sandboxRoutes } from './routes/sandbox.ts';
+import { portalRoutes } from './routes/portal.ts';
 import { webauthnRoutes } from './routes/webauthn.ts';
 import type { SqlClient } from './sql.ts';
 import { httpsDirectoryLoader, KNOWN_OPERATORS, type KeyLoader, type OperatorKey } from './web-bot-auth.ts';
@@ -89,6 +90,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
 
   const CSP = "default-src 'self'; img-src 'self' data: chrome-extension:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; connect-src 'self' chrome-extension:; frame-ancestors 'none'";
   const secure = (req: Req) => serverless || url(req).protocol === 'https:';
+  const portal = portalRoutes(engine, { secure });
 
   /** Serve an HTML file with the session id and flags embedded. */
   async function page(res: Res, file: string, meta: Record<string, string>, headers: Record<string, string> = {}) {
@@ -168,6 +170,16 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     // the lab pages load the SDK without a session; its passive pushes land here instead of 404
     ['POST', '/api/v1/sandbox/noop', async (_req, res) => json(res, 200, { ok: true })],
     ['GET', '/training', labPage('training.html')],
+    // customer portal + middleware telemetry
+    ['GET', '/portal', async (_req, res) => page(res, 'portal.html', { 'nt-serverless': serverless ? '1' : '0' })],
+    ['POST', '/api/v1/portal/signup', portal.signup],
+    ['POST', '/api/v1/portal/login', portal.login],
+    ['POST', '/api/v1/portal/logout', portal.logout],
+    ['GET', '/api/v1/portal/me', portal.me],
+    ['POST', '/api/v1/portal/keys', portal.createKey],
+    ['POST', '/api/v1/portal/keys/revoke', portal.revokeKey],
+    ['GET', '/api/v1/portal/stats', portal.stats],
+    ['POST', '/api/v1/ingest', portal.ingest],
     ['GET', '/api/v1/apps', appsApi],
     ['GET', '/api/v1/version', async (_req, res) => json(res, 200, { signal: SIGNAL_VERSION, kinematics: KINEMATICS_VERSION, model: model ? { version: model.version, trainedAt: model.trainedAt, humanAbove: model.humanAbove, syntheticBelow: model.syntheticBelow, report: model.report } : null })],
     ['POST', '/api/v1/rooms', lab.createRoom],
