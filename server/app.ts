@@ -179,6 +179,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['POST', '/api/v1/portal/keys', portal.createKey],
     ['POST', '/api/v1/portal/keys/revoke', portal.revokeKey],
     ['GET', '/api/v1/portal/stats', portal.stats],
+    ['GET', '/api/v1/portal/overview', portal.overview],
     ['POST', '/api/v1/ingest', portal.ingest],
     ['GET', '/api/v1/apps', appsApi],
     ['GET', '/api/v1/version', async (_req, res) => json(res, 200, { signal: SIGNAL_VERSION, kinematics: KINEMATICS_VERSION, model: model ? { version: model.version, trainedAt: model.trainedAt, humanAbove: model.humanAbove, syntheticBelow: model.syntheticBelow, report: model.report } : null })],
