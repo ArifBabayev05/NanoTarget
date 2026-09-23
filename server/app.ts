@@ -142,6 +142,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
   // The lab (training + sandbox + dataset endpoints) is the operator's, not the public's. With NT_LAB_KEY set,
   // it answers 404 unless the request carries the key (?key=… once, then a cookie); unset = open, for local work.
   const LAB_KEY = process.env.NT_LAB_KEY ?? '';
+  const PUBLIC_DOCS = new Set(['INTEGRATION.md', 'INTEGRATION-AGENT.md']);
   const labOpen = (req: Req, res: Res): boolean => {
     if (!LAB_KEY) return true;
     if (url(req).searchParams.get('key') === LAB_KEY) {
@@ -171,6 +172,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['POST', '/api/v1/sandbox/noop', async (_req, res) => json(res, 200, { ok: true })],
     ['GET', '/training', labPage('training.html')],
     // customer portal + middleware telemetry
+    ['GET', '/docs', async (_req, res) => page(res, 'docs.html', {})],
     ['GET', '/portal', async (_req, res) => page(res, 'portal.html', { 'nt-serverless': serverless ? '1' : '0' })],
     ['POST', '/api/v1/portal/signup', portal.signup],
     ['POST', '/api/v1/portal/login', portal.login],
@@ -223,7 +225,13 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
       if (u.pathname === '/api/v1/manage' || u.pathname.startsWith('/api/v1/manage/')) { await portal.manage(req, res); return; }
       if (await resources.handle(req, res)) return;
       if (method === 'GET' && u.pathname.startsWith('/sdk/') && (await serveStatic(res, SDK, u.pathname.slice(5)))) return;
-      if (method === 'GET' && u.pathname.startsWith('/docs/') && (await serveStatic(res, DOCS, u.pathname.slice(6)))) return;
+      // Only the integration guides are public. The research log, the evaluation and the internal
+      // runbooks describe how detection actually works; they stay behind the operator key.
+      if (method === 'GET' && u.pathname.startsWith('/docs/')) {
+        const file = u.pathname.slice(6);
+        if (!PUBLIC_DOCS.has(file) && !labOpen(req, res)) { json(res, 404, { error: 'not_found' }); return; }
+        if (await serveStatic(res, DOCS, file)) return;
+      }
       if (method === 'GET' && u.pathname !== '/' && (await serveStatic(res, WEB, u.pathname.slice(1)))) return;
       json(res, 404, { error: 'not_found' });
     } catch (err) {
