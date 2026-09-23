@@ -510,7 +510,7 @@ export class Store {
       this.sql.execute('SELECT resource, decision, COUNT(*) AS n FROM telemetry WHERE key_id = ? AND at >= ? GROUP BY resource, decision ORDER BY n DESC LIMIT 60', [keyId, since]),
       this.sql.execute("SELECT tools, COUNT(DISTINCT session) AS n FROM telemetry WHERE key_id = ? AND at >= ? AND tools != '[]' GROUP BY tools", [keyId, since]),
       this.sql.execute(`SELECT COUNT(DISTINCT session) AS total, COUNT(DISTINCT CASE WHEN ${agentCase} THEN session END) AS agent FROM telemetry WHERE key_id = ? AND at >= ?`, [keyId, since]),
-      this.sql.execute(`SELECT (at / ?) * ? AS t, COUNT(*) AS n, SUM(CASE WHEN ${agentCase} THEN 1 ELSE 0 END) AS agent, SUM(CASE WHEN decision IN ('mask','block','step_up') THEN 1 ELSE 0 END) AS gated FROM telemetry WHERE key_id = ? AND at >= ? GROUP BY t ORDER BY t`, [bucketMs, bucketMs, keyId, since]),
+      this.sql.execute(`SELECT CAST(at / ? AS INTEGER) * ? AS t, COUNT(*) AS n, SUM(CASE WHEN ${agentCase} THEN 1 ELSE 0 END) AS agent, SUM(CASE WHEN decision IN ('mask','block','step_up') THEN 1 ELSE 0 END) AS gated FROM telemetry WHERE key_id = ? AND at >= ? GROUP BY t ORDER BY t`, [bucketMs, bucketMs, keyId, since]),
       this.sql.execute('SELECT at, session, resource, decision, actor, state, tools, reasons, enforcement FROM telemetry WHERE key_id = ? ORDER BY id DESC LIMIT 60', [keyId]),
     ]);
     const toolCounts: Record<string, number> = {};
