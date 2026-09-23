@@ -9,7 +9,20 @@
     if (!r.ok) throw Object.assign(new Error(d.message || d.error || String(r.status)), { status: r.status });
     return d;
   };
+  // ---------------------------------------------------------------- theme
+  const applyTheme = (t) => { document.documentElement.dataset.theme = t === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : t; $$('#theme button').forEach((b) => b.classList.toggle('on', b.dataset.themeSet === t)); };
+  let theme = 'system'; try { theme = localStorage.getItem('nt-theme') || 'system'; } catch {}
+  applyTheme(theme);
+  $$('#theme button').forEach((b) => b.addEventListener('click', () => { theme = b.dataset.themeSet; try { localStorage.setItem('nt-theme', theme); } catch {} applyTheme(theme); if (currentView() === 'activity') loadStats(); }));
+  matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (theme === 'system') { applyTheme('system'); if (currentView() === 'activity') loadStats(); } });
+  const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
   let toastT; const toast = (m) => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1800); };
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-copy]'); if (!b) return;
+    const el = $(b.dataset.copy); if (!el) return;
+    try { await navigator.clipboard.writeText(el.textContent); b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1400); } catch { toast('Select the text and copy'); }
+  });
   const ago = (t) => { if (!t) return 'never'; const s = Math.max(0, (Date.now() - t) / 1000); if (s < 60) return 'just now'; if (s < 3600) return `${Math.round(s / 60)} min ago`; if (s < 86400) return `${Math.round(s / 3600)} h ago`; const d = Math.round(s / 86400); return d === 1 ? 'yesterday' : `${d} days ago`; };
   const day = (t) => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
   const PALETTE = ['#7cf0c0', '#8ab4ff', '#ffb86b', '#ff7b7b', '#d7a6ff', '#f2f2f3'];
@@ -44,7 +57,7 @@
     $('#search-wrap').hidden = view !== 'keys' && view !== 'activity';
     clearTimeout(timer);
     if (view === 'overview') loadOverview();
-    if (view === 'keys') renderKeyTable();
+    if (view === 'keys') { renderKeyTable(); if (!overview) loadOverview().then(renderKeyTable).catch(() => {}); }
     if (view === 'activity') { renderKeyChips(); loadStats(); }
     if (view === 'integrate') renderIntegration();
     if (view === 'settings') renderSettings();
@@ -68,6 +81,7 @@
   }
   async function loadOverview() {
     try { overview = await api(`/api/v1/portal/overview?range=${ovRange}`); } catch (e) { toast(e.message); return; }
+    if (currentView() !== 'overview') return;   // keys view only needs the totals
     const { series, totals, range: rg, now } = overview;
     const buckets = []; for (let t = Math.floor(rg.since / rg.bucketMs) * rg.bucketMs; t <= now; t += rg.bucketMs) buckets.push({ t, n: 0, agent: 0, gated: 0 });
     for (const s of series) { const b = buckets.find((x) => x.t === s.t); if (b) { b.n += s.n; b.agent += s.agent; b.gated += s.gated; } }
@@ -81,25 +95,45 @@
   }
 
   // ------------------------------------------------------------------ keys
+  let pastedKeyId = null;
   function renderKeyTable() {
-    const q = ($('#key-search').value || '').toLowerCase();
+    const q = ($('#key-search').value || '').trim().toLowerCase();
     const totals = overview?.totals || [];
-    const rows = (me.keys || []).filter((k) => !k.revoked).filter((k) => !q || k.name.toLowerCase().includes(q) || k.prefix.toLowerCase().includes(q));
+    const rows = (me.keys || []).filter((k) => !k.revoked)
+      .filter((k) => (pastedKeyId ? k.id === pastedKeyId : !q || k.name.toLowerCase().includes(q) || k.prefix.toLowerCase().includes(q)));
+    const now = Date.now();
     $('#key-rows').innerHTML = rows.length ? rows.map((k) => {
       const t = totals.find((x) => x.key === k.id) || { n: 0, sessions: 0, agentSessions: 0, gated: 0 };
       const pct = t.sessions ? Math.round(t.agentSessions / t.sessions * 100) : 0;
+      const expired = k.expires && k.expires < now;
+      const status = expired ? '<span class="mode warn">expired</span>' : k.events ? '<span class="mode observe">reporting</span>' : '<span class="mode">no data yet</span>';
       return `<tr data-id="${esc(k.id)}">
         <td><span class="kname">${esc(k.name)}</span><span class="kpre">${esc(k.prefix)}…</span></td>
-        <td><span class="mode ${k.events ? 'observe' : ''}">${k.events ? 'reporting' : 'no data yet'}</span></td>
-        <td class="muted">${day(k.created)}</td>
+        <td><span class="badge env">${esc(k.env || 'production')}</span></td>
+        <td>${status}</td>
+        <td class="muted">${k.expires ? (expired ? 'expired ' + ago(k.expires) : day(k.expires)) : 'never'}</td>
         <td class="muted">${ago(k.lastSeen)}</td>
         <td>${k.events.toLocaleString()}</td>
         <td><div class="prog"><div class="lbl"><span class="muted">${t.agentSessions} of ${t.sessions} sessions</span><b>${pct}%</b></div><div class="track"><i style="width:${pct}%"></i></div></div></td>
         <td style="text-align:right"><button class="dots" data-menu="${esc(k.id)}" aria-label="Key actions">⋮</button></td></tr>`;
-    }).join('') : `<tr><td colspan="7" class="empty-cell">${q ? 'No keys match.' : 'No keys yet — create one to start receiving decisions.'}</td></tr>`;
-    $('#key-count').textContent = `${rows.length} key${rows.length === 1 ? '' : 's'}`;
+    }).join('') : `<tr><td colspan="8" class="empty-cell">${q ? 'No keys match.' : 'No keys yet — create one to start receiving decisions.'}</td></tr>`;
+    $('#key-count').textContent = `${rows.length} key${rows.length === 1 ? '' : 's'}${pastedKeyId ? ' · matched the key you pasted' : ''}`;
   }
-  $('#key-search').addEventListener('input', renderKeyTable);
+  // typing a name filters; pasting a whole key asks the server which key it is (the raw key is hashed there)
+  let lookupT;
+  $('#key-search').addEventListener('input', () => {
+    const v = $('#key-search').value.trim();
+    pastedKeyId = null;
+    clearTimeout(lookupT);
+    if (/^nt_(live|admin)_[a-f0-9]{40}$/.test(v)) {
+      lookupT = setTimeout(async () => {
+        try { const d = await api('/api/v1/portal/keys/lookup', { method: 'POST', body: JSON.stringify({ key: v }) }); pastedKeyId = d.id; toast(d.id ? `That key is "${keyName(d.id)}"` : 'That key does not belong to this account'); }
+        catch (e) { toast(e.message); }
+        renderKeyTable();
+      }, 200);
+    }
+    renderKeyTable();
+  });
   // row menu
   const menu = $('#row-menu'); let menuKey = null;
   document.addEventListener('click', (e) => {
@@ -111,7 +145,12 @@
     const act = e.target.closest('[data-act]')?.dataset.act; if (!act) return; menu.hidden = true;
     const k = (me.keys || []).find((x) => x.id === menuKey); if (!k) return;
     if (act === 'activity') { keyId = k.id; location.hash = 'activity'; }
+    if (act === 'setup') { setupKeyId = k.id; location.hash = 'integrate'; }
     if (act === 'copy') { try { await navigator.clipboard.writeText(k.prefix); toast('Prefix copied'); } catch {} }
+    if (act === 'rename') {
+      const name = prompt('New name for this key', k.name); if (!name) return;
+      try { await api('/api/v1/portal/keys/rename', { method: 'POST', body: JSON.stringify({ id: k.id, name }) }); me = await api('/api/v1/portal/me'); renderKeyTable(); renderWorkspace(); toast('Renamed'); } catch (e) { toast(e.message); }
+    }
     if (act === 'revoke') {
       if (!confirm(`Revoke "${k.name}"? Servers using it stop reporting immediately.`)) return;
       await api('/api/v1/portal/keys/revoke', { method: 'POST', body: JSON.stringify({ id: k.id }) }); toast('Key revoked');
@@ -124,14 +163,16 @@
   $('#modal-done').onclick = async () => { closeModal(); me = await api('/api/v1/portal/me'); renderWorkspace(); show(currentView()); };
   $('#modal').addEventListener('click', (e) => { if (e.target === $('#modal')) closeModal(); });
   $('#key-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#key-create').click(); });
+  let freshKey = null;                                   // the raw key stays in memory only while this page is open
   $('#key-create').onclick = async () => {
     const b = $('#key-create'); b.disabled = true;
     try {
-      const d = await api('/api/v1/portal/keys', { method: 'POST', body: JSON.stringify({ name: $('#key-name').value || 'Default' }) });
-      keyId = d.id; $('#key-raw').textContent = d.key; $('#modal-title').textContent = d.name; $('#modal-new').hidden = true; $('#modal-show').hidden = false;
-      $('#key-copy').onclick = async () => { try { await navigator.clipboard.writeText(d.key); toast('Key copied'); } catch { toast('Select and copy the key'); } };
+      const d = await api('/api/v1/portal/keys', { method: 'POST', body: JSON.stringify({ name: $('#key-name').value || 'Default', env: $('#key-env').value, expiresInDays: Number($('#key-exp').value) }) });
+      keyId = d.id; setupKeyId = d.id; freshKey = { id: d.id, raw: d.key };
+      $('#key-raw').textContent = d.key; $('#modal-title').textContent = d.name; $('#modal-new').hidden = true; $('#modal-show').hidden = false;
     } catch (err) { toast(err.message); } finally { b.disabled = false; }
   };
+  $('#key-setup').onclick = async () => { closeModal(); me = await api('/api/v1/portal/me'); renderWorkspace(); location.hash = 'integrate'; if (currentView() === 'integrate') renderIntegration(); };
 
   // ------------------------------------------------------------------ activity (per key)
   function renderKeyChips() {
@@ -158,15 +199,16 @@
     const buckets = []; for (let t = Math.floor(since / bucketMs) * bucketMs; t <= now; t += bucketMs) buckets.push({ t, n: 0, agent: 0, gated: 0 });
     for (const s of series) { const b = buckets.find((x) => x.t === s.t); if (b) Object.assign(b, s); }
     const max = Math.max(1, ...buckets.map((b) => b.n)); const padL = 30, padB = 22, padT = 8; const w = (W - padL - 8) / buckets.length;
-    ctx.font = '11px ' + getComputedStyle(document.body).fontFamily; ctx.fillStyle = '#6b6b74'; ctx.textAlign = 'right';
-    for (let i = 0; i <= 3; i++) { const y = padT + (H - padT - padB) * (1 - i / 3); ctx.fillText(String(Math.round(max * i / 3)), padL - 6, y + 4); ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - 8, y); ctx.stroke(); }
+    const cFg3 = cssVar('--fg3') || '#6b6b74', cBar = cssVar('--bar') || 'rgba(161,161,170,.28)', cAgent = cssVar('--accent2') || '#ffb86b', cGated = cssVar('--accent') || '#7cf0c0', cGrid = cssVar('--track') || 'rgba(255,255,255,.06)';
+    ctx.font = '11px ' + getComputedStyle(document.body).fontFamily; ctx.fillStyle = cFg3; ctx.textAlign = 'right';
+    for (let i = 0; i <= 3; i++) { const y = padT + (H - padT - padB) * (1 - i / 3); ctx.fillText(String(Math.round(max * i / 3)), padL - 6, y + 4); ctx.strokeStyle = cGrid; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - 8, y); ctx.stroke(); }
     ctx.textAlign = 'center';
     buckets.forEach((b, i) => {
       const x = padL + i * w + 2, bw = Math.max(2, w - 4), hN = (H - padT - padB) * b.n / max, hA = (H - padT - padB) * b.agent / max, hG = (H - padT - padB) * b.gated / max, base = H - padB;
-      ctx.fillStyle = 'rgba(161,161,170,.28)'; ctx.fillRect(x, base - hN, bw, hN);
-      ctx.fillStyle = 'rgba(255,184,107,.7)'; ctx.fillRect(x, base - hA, bw, hA);
-      ctx.fillStyle = 'rgba(124,240,192,.9)'; ctx.fillRect(x, base - hG, Math.max(2, bw * .35), hG);
-      if (buckets.length <= 31 && (buckets.length <= 12 || i % Math.ceil(buckets.length / 8) === 0)) { ctx.fillStyle = '#6b6b74'; ctx.fillText(fmtDay(b.t), x + bw / 2, H - 6); }
+      ctx.fillStyle = cBar; ctx.fillRect(x, base - hN, bw, hN);
+      ctx.fillStyle = cAgent; ctx.globalAlpha = .75; ctx.fillRect(x, base - hA, bw, hA); ctx.globalAlpha = 1;
+      ctx.fillStyle = cGated; ctx.fillRect(x, base - hG, Math.max(2, bw * .35), hG);
+      if (buckets.length <= 31 && (buckets.length <= 12 || i % Math.ceil(buckets.length / 8) === 0)) { ctx.fillStyle = cFg3; ctx.fillText(fmtDay(b.t), x + bw / 2, H - 6); }
     });
   }
   let lastRecent = [];
@@ -203,8 +245,83 @@
   addEventListener('resize', () => { if (currentView() === 'activity' && !$('#stats').hidden) loadStats(); });
 
   // ------------------------------------------------------------------ integration + settings
-  function renderIntegration() { $('#int-code').innerHTML = codeSnippet(liveKeys()[0]?.prefix || ''); }
-  function renderSettings() { $('#set-email').textContent = me.account.email; $('#set-since').textContent = day(me.account.created); $('#set-keys').textContent = `${liveKeys().length} active · ${(me.keys || []).length - liveKeys().length} revoked`; }
+  // ------------------------------------------------------------------ setup wizard
+  let setupKeyId = null, fw = 'express', waitTimer = 0;
+  const FRAMEWORKS = {
+    express: (key) => `<span class="c">// server.js</span>\n<span class="k">import</span> { nanotarget } <span class="k">from</span> <span class="s">'nanotarget/express'</span>;\n\n<span class="k">const</span> nt = <span class="k">await</span> nanotarget({\n  secret: process.env.NT_SECRET,\n  policy: <span class="s">'./nanotarget.policy.json'</span>,\n  apiKey: process.env.NT_API_KEY,\n  identify: (req) =&gt; req.session?.userId ?? <span class="k">null</span>,\n});\napp.use(nt.middleware());\napp.get(<span class="s">'/api/balance'</span>, nt.protect(<span class="s">'balance.read'</span>), (req, res) =&gt;\n  nt.send(req, res, balance, (b) =&gt; ({ ...b, amount: <span class="k">null</span> })));`,
+    next: (key) => `<span class="c">// server.mjs — Next.js custom server</span>\n<span class="k">import</span> next <span class="k">from</span> <span class="s">'next'</span>;\n<span class="k">import</span> express <span class="k">from</span> <span class="s">'express'</span>;\n<span class="k">import</span> { nanotarget } <span class="k">from</span> <span class="s">'nanotarget/express'</span>;\n\n<span class="k">const</span> nt = <span class="k">await</span> nanotarget({ secret: process.env.NT_SECRET, policy: <span class="s">'./nanotarget.policy.json'</span>, apiKey: process.env.NT_API_KEY });\n<span class="k">const</span> app = express();\napp.use(nt.middleware());                       <span class="c">// before next()</span>\napp.get(<span class="s">'/api/balance'</span>, nt.protect(<span class="s">'balance.read'</span>), handler);\napp.all(<span class="s">'*'</span>, (req, res) =&gt; nextHandle(req, res));`,
+    fastify: (key) => `<span class="c">// server.js — Fastify uses the raw request/response</span>\n<span class="k">const</span> nt = <span class="k">await</span> nanotarget({ secret: process.env.NT_SECRET, policy: <span class="s">'./nanotarget.policy.json'</span>, apiKey: process.env.NT_API_KEY });\n\nfastify.addHook(<span class="s">'onRequest'</span>, (req, reply, done) =&gt; nt.middleware()(req.raw, reply.raw, done));\nfastify.get(<span class="s">'/api/balance'</span>, { onRequest: (req, reply, done) =&gt; nt.protect(<span class="s">'balance.read'</span>)(req.raw, reply.raw, done) },\n  (req, reply) =&gt; nt.send(req.raw, reply.raw, balance, mask));`,
+    docker: (key) => `<span class="c"># docker-compose.yml</span>\nservices:\n  api:\n    environment:\n      NT_SECRET: <span class="s">\"\${NT_SECRET}\"</span>\n      NT_API_KEY: <span class="s">\"${esc(key)}\"</span>\n\n<span class="c"># or plain docker</span>\ndocker run -e NT_API_KEY=${esc(key)} -e NT_SECRET=$NT_SECRET my-api`,
+  };
+  const agentPrompt = (key, admin) => `https://www.npmjs.com/package/nanotarget — install this into my app.\n\nFollow the README protocol: scan the app as if you were an AI browser agent holding a customer's\nlogged-in session, show me the exposure map and what you propose to gate, ask me the nine decisions,\nthen implement the server wiring, the page tags, the policy file and every mask function, verify with\n\`npx nanotarget verify\`, and report what you left open.\n\nReport telemetry to my NanoTarget portal: set apiKey: process.env.NT_API_KEY${key ? ` (${key})` : ''}.\n${admin ? `\nYou can administer my account yourself with the management API:\n  curl -H "Authorization: Bearer ${admin}" ${location.origin}/api/v1/manage/me\nGET /api/v1/manage/keys · POST /api/v1/manage/keys {name, expiresInDays, env} · DELETE /api/v1/manage/keys/:id\nGET /api/v1/manage/overview?range=7d · GET /api/v1/manage/stats?key=:id&range=7d` : ''}`;
+  function renderIntegration() {
+    const keys = liveKeys();
+    if (!keys.length) { $('#setup-key').innerHTML = '<option>no keys yet</option>'; }
+    else {
+      if (!setupKeyId || !keys.some((k) => k.id === setupKeyId)) setupKeyId = keys[0].id;
+      $('#setup-key').innerHTML = keys.map((k) => `<option value="${esc(k.id)}" ${k.id === setupKeyId ? 'selected' : ''}>${esc(k.name)} · ${esc(k.prefix)}…</option>`).join('');
+    }
+    const k = keys.find((x) => x.id === setupKeyId);
+    const shown = freshKey && freshKey.id === setupKeyId ? freshKey.raw : `${k ? k.prefix : 'nt_live_'}…`;
+    $('#cmd-env').textContent = `NT_API_KEY=${shown}\nNT_SECRET=$(npx nanotarget secret)`;
+    $('#cmd-code').innerHTML = (FRAMEWORKS[fw] || FRAMEWORKS.express)(shown);
+    $('#int-prompt').textContent = agentPrompt(freshKey && freshKey.id === setupKeyId ? freshKey.raw : (k ? `${k.prefix}…` : ''), null);
+    $$('#fw-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.fw === fw));
+    // step 4 watches for the first decision from this key
+    clearTimeout(waitTimer);
+    const check = async () => {
+      if (currentView() !== 'integrate') return;
+      try { me = await api('/api/v1/portal/me'); } catch { return; }
+      const cur = (me.keys || []).find((x) => x.id === setupKeyId);
+      const w = $('#wait');
+      if (cur && cur.events) {
+        w.className = 'waiting ok'; $('#wait-text').innerHTML = `${cur.events.toLocaleString()} decision${cur.events === 1 ? '' : 's'} received — <a href="#activity" style="text-decoration:underline">open Activity</a>`;
+        $$('.setup .step').forEach((st) => st.classList.add('done'));
+      } else {
+        w.className = 'waiting'; $('#wait-text').textContent = 'Waiting for the first decision from this key…';
+        waitTimer = setTimeout(check, 5000);
+      }
+    };
+    check();
+  }
+  $('#setup-key').addEventListener('change', (e) => { setupKeyId = e.target.value; renderIntegration(); });
+  $$('#fw-tabs button').forEach((b) => b.addEventListener('click', () => { fw = b.dataset.fw; renderIntegration(); }));
+
+  // ------------------------------------------------------------------ settings + management keys
+  let adminKeys = [], freshAdmin = null;
+  async function renderSettings() {
+    $('#set-email').textContent = me.account.email; $('#set-since').textContent = day(me.account.created);
+    $('#set-keys').textContent = `${liveKeys().length} active · ${(me.keys || []).length - liveKeys().length} revoked`;
+    try { adminKeys = (await api('/api/v1/portal/admin-keys')).keys.filter((k) => !k.revoked); } catch { adminKeys = []; }
+    $('#admin-rows').innerHTML = adminKeys.length ? adminKeys.map((k) => `<div class="admin-row"><div><b>${esc(k.name)}</b><div class="meta">${esc(k.prefix)}… · created ${day(k.created)} · ${k.calls.toLocaleString()} call${k.calls === 1 ? '' : 's'} · last used ${ago(k.lastSeen)}</div></div><button class="btn ghost" data-admin-revoke="${esc(k.id)}">Revoke</button></div>`).join('')
+      : '<p class="fine" style="margin:0">No management keys yet. Create one to let an agent or a CI job manage this account.</p>';
+    $$('[data-admin-revoke]').forEach((b) => b.addEventListener('click', async () => {
+      if (!confirm('Revoke this management key? Anything using it stops working immediately.')) return;
+      await api('/api/v1/portal/admin-keys/revoke', { method: 'POST', body: JSON.stringify({ id: b.dataset.adminRevoke }) });
+      toast('Management key revoked'); renderSettings();
+    }));
+    $('#endpoints').innerHTML = [
+      ['GET', '/api/v1/manage/me', 'whose account this key administers'],
+      ['GET', '/api/v1/manage/keys', 'list project keys'],
+      ['POST', '/api/v1/manage/keys', '{name, expiresInDays, env} → the raw key, once'],
+      ['DELETE', '/api/v1/manage/keys/:id', 'revoke one'],
+      ['GET', '/api/v1/manage/overview?range=7d', 'usage across every key'],
+      ['GET', '/api/v1/manage/stats?key=:id', 'one key in depth'],
+    ].map(([m, p, d]) => `<div><span>${m}</span> ${esc(p)} <span style="color:var(--fg3)">— ${esc(d)}</span></div>`).join('');
+  }
+  $('#admin-add').onclick = () => { $('#admin-modal').hidden = false; $('#admin-new').hidden = false; $('#admin-show').hidden = true; $('#admin-name').value = ''; setTimeout(() => $('#admin-name').focus(), 50); };
+  $('#admin-cancel').onclick = () => { $('#admin-modal').hidden = true; };
+  $('#admin-done').onclick = () => { $('#admin-modal').hidden = true; renderSettings(); };
+  $('#admin-modal').addEventListener('click', (e) => { if (e.target === $('#admin-modal')) $('#admin-modal').hidden = true; });
+  $('#admin-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#admin-create').click(); });
+  $('#admin-create').onclick = async () => {
+    const b = $('#admin-create'); b.disabled = true;
+    try {
+      const d = await api('/api/v1/portal/admin-keys', { method: 'POST', body: JSON.stringify({ name: $('#admin-name').value || 'Management key' }) });
+      freshAdmin = d.key; $('#admin-raw').textContent = d.key; $('#admin-title').textContent = d.name; $('#admin-new').hidden = true; $('#admin-show').hidden = false;
+      $('#admin-prompt-copy').onclick = async () => { try { await navigator.clipboard.writeText(agentPrompt(liveKeys()[0]?.prefix ? `${liveKeys()[0].prefix}…` : '', freshAdmin)); toast('Agent prompt copied'); } catch { toast('Could not copy'); } };
+    } catch (err) { toast(err.message); } finally { b.disabled = false; }
+  };
   function renderWorkspace() {
     const email = me.account.email; $('#who').textContent = email; $('#av').textContent = email[0].toUpperCase();
     $('#ws-name').textContent = email.split('@')[1] ? `${email.split('@')[1].split('.')[0]} workspace` : 'Workspace'; $('#ws-sub').textContent = `${liveKeys().length} key${liveKeys().length === 1 ? '' : 's'} · ${email}`;

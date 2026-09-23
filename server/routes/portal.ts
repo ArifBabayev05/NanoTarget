@@ -39,6 +39,13 @@ export function newApiKey(): { raw: string; prefix: string; hash: string } {
   const raw = `nt_live_${randomBytes(20).toString('hex')}`;
   return { raw, prefix: raw.slice(0, 15), hash: hashKey(raw) };
 }
+/** `nt_admin_` + 40 hex chars: administers the account over HTTP, so an agent or a CI job can do everything the portal can. */
+export function newAdminKey(): { raw: string; prefix: string; hash: string } {
+  const raw = `nt_admin_${randomBytes(20).toString('hex')}`;
+  return { raw, prefix: raw.slice(0, 16), hash: hashKey(raw) };
+}
+const EXPIRY_DAYS = new Set([0, 7, 30, 90, 365]);
+const ENVS = new Set(['production', 'staging', 'development']);
 
 export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => boolean }) {
   const store = engine.store;
@@ -96,12 +103,69 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     const account = await accountOf(req);
     if (!account) return json(res, 401, { error: 'unauthenticated' });
     const b = (await readJson(req, 4000).catch(() => null)) as Record<string, unknown> | null | undefined;
+    const made = await makeKey(account, b);
+    if ('error' in made) return json(res, 400, made);
+    json(res, 201, made);
+  };
+
+  /** shared by the portal and the management API */
+  async function makeKey(account: string, b: Record<string, unknown> | null | undefined) {
     const name = typeof b?.name === 'string' && NAME.test(b.name.trim()) ? b.name.trim() : 'Default';
-    if ((await store.listApiKeys(account)).filter((k) => !k.revoked).length >= 20) return json(res, 400, { error: 'too_many', message: 'Revoke a key before creating another (limit 20).' });
+    const days = typeof b?.expiresInDays === 'number' && EXPIRY_DAYS.has(b.expiresInDays) ? b.expiresInDays : 0;
+    const env = typeof b?.env === 'string' && ENVS.has(b.env) ? b.env : 'production';
+    if ((await store.listApiKeys(account)).filter((k) => !k.revoked).length >= 20) return { error: 'too_many', message: 'Revoke a key before creating another (limit 20).' };
     const k = newApiKey();
-    const id = await store.createApiKey(account, name, k.prefix, k.hash);
-    // the raw key is shown exactly once; only its hash is stored
+    const expires = days ? Date.now() + days * 86400e3 : null;
+    const id = await store.createApiKey(account, { name, prefix: k.prefix, hash: k.hash, expires, env });
+    // the raw key is returned exactly once; only its hash is stored
+    return { id, name, prefix: k.prefix, env, expires, key: k.raw };
+  }
+
+  const renameKey = async (req: Req, res: Res) => {
+    if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    const b = (await readJson(req, 4000).catch(() => null)) as Record<string, unknown> | null | undefined;
+    const id = typeof b?.id === 'string' ? b.id : '';
+    const name = typeof b?.name === 'string' && NAME.test(b.name.trim()) ? b.name.trim() : '';
+    if (!name) return json(res, 400, { error: 'bad_name', message: 'Give the key a name.' });
+    json(res, 200, { ok: await store.renameApiKey(id, account, name) });
+  };
+
+  /** "paste a key" search: which of my keys is this string? The raw key is hashed here and never stored. */
+  const lookupKey = async (req: Req, res: Res) => {
+    if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    const b = (await readJson(req, 4000).catch(() => null)) as Record<string, unknown> | null | undefined;
+    const raw = typeof b?.key === 'string' ? b.key.trim() : '';
+    if (!/^nt_(live|admin)_[a-f0-9]{40}$/.test(raw)) return json(res, 400, { error: 'bad_key', message: 'That is not a NanoTarget key.' });
+    json(res, 200, { id: await store.apiKeyIdByHash(hashKey(raw), account) });
+  };
+
+  // --- management keys (the portal side) ---
+  const listAdminKeys = async (req: Req, res: Res) => {
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    json(res, 200, { keys: await store.listAdminKeys(account) });
+  };
+  const createAdminKey = async (req: Req, res: Res) => {
+    if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    const b = (await readJson(req, 4000).catch(() => null)) as Record<string, unknown> | null | undefined;
+    const name = typeof b?.name === 'string' && NAME.test(b.name.trim()) ? b.name.trim() : 'Management key';
+    if ((await store.listAdminKeys(account)).filter((k) => !k.revoked).length >= 5) return json(res, 400, { error: 'too_many', message: 'Revoke a management key before creating another (limit 5).' });
+    const k = newAdminKey();
+    const id = await store.createAdminKey(account, name, k.prefix, k.hash);
     json(res, 201, { id, name, prefix: k.prefix, key: k.raw });
+  };
+  const revokeAdminKey = async (req: Req, res: Res) => {
+    if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    const b = (await readJson(req, 2000).catch(() => null)) as Record<string, unknown> | null | undefined;
+    json(res, 200, { ok: await store.revokeAdminKey(typeof b?.id === 'string' ? b.id : '', account) });
   };
 
   const revokeKey = async (req: Req, res: Res) => {
@@ -140,6 +204,7 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     const key = await store.apiKeyByHash(hashKey(raw));
     if (!key || key.revoked) return json(res, 401, { error: 'bad_key' });
     const now = Date.now();
+    if (key.expires && key.expires < now) return json(res, 401, { error: 'expired', message: 'This key expired; create a new one in the portal.' });
     const w = ingestWindow.get(key.id);
     if (w && now - w.at < 60_000) { if (w.n >= 120) return json(res, 429, { error: 'rate_limited' }); w.n++; } else ingestWindow.set(key.id, { n: 1, at: now });
     const b = (await readJson(req, 200_000).catch(() => null)) as Record<string, unknown> | null | undefined;
@@ -154,8 +219,62 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     json(res, 202, { accepted: events.length, dropped: list.length - events.length });
   };
 
-  return { signup, login, logout, me, createKey, revokeKey, stats, overview, ingest };
+  /**
+   * Management API — everything the portal can do, over HTTP, with `Authorization: Bearer nt_admin_…`.
+   * This is what lets a coding agent set NanoTarget up end to end without a human opening the portal.
+   */
+  const manage = async (req: Req, res: Res) => {
+    const auth = (req.headers.authorization ?? '').toString();
+    const raw = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+    if (!/^nt_admin_[a-f0-9]{40}$/.test(raw)) return json(res, 401, { error: 'bad_key', message: 'Send Authorization: Bearer nt_admin_… (create one in the portal under Management keys).' });
+    const admin = await store.adminKeyByHash(hashKey(raw));
+    if (!admin || admin.revoked) return json(res, 401, { error: 'bad_key' });
+    void store.touchAdminKey(admin.id).catch(() => {});
+    const account = admin.account;
+    const u = url(req);
+    const path = u.pathname.replace(/^\/api\/v1\/manage\/?/, '').replace(/\/$/, '');
+    const method = req.method ?? 'GET';
+    const body = method === 'GET' ? null : ((await readJson(req, 8000).catch(() => null)) as Record<string, unknown> | null | undefined);
+
+    if (path === '' || path === 'me') {
+      const acc = await store.accountById(account);
+      return json(res, 200, { account: acc ? { email: acc.email, created: acc.created } : null, endpoints: MANAGE_ENDPOINTS });
+    }
+    if (path === 'keys' && method === 'GET') return json(res, 200, { keys: await store.listApiKeys(account) });
+    if (path === 'keys' && method === 'POST') {
+      const made = await makeKey(account, body);
+      return 'error' in made ? json(res, 400, made) : json(res, 201, made);
+    }
+    if (path.startsWith('keys/') && method === 'DELETE') {
+      const id = path.slice(5);
+      return json(res, 200, { ok: await store.revokeApiKey(id, account) });
+    }
+    if (path === 'overview' && method === 'GET') {
+      const range = RANGES[u.searchParams.get('range') ?? '7d'] ?? RANGES['7d']!;
+      const now = Date.now();
+      return json(res, 200, { range: { since: now - range.since, bucketMs: range.bucket }, now, keys: await store.listApiKeys(account), ...(await store.telemetryOverview(account, now - range.since, range.bucket)) });
+    }
+    if (path === 'stats' && method === 'GET') {
+      const key = u.searchParams.get('key') ?? '';
+      const range = RANGES[u.searchParams.get('range') ?? '7d'] ?? RANGES['7d']!;
+      if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found', message: 'No key with that id in this account. List them with GET /api/v1/manage/keys.' });
+      const now = Date.now();
+      return json(res, 200, { key, range: { since: now - range.since, bucketMs: range.bucket }, now, ...(await store.telemetryStats(key, now - range.since, range.bucket)) });
+    }
+    return json(res, 404, { error: 'unknown_endpoint', endpoints: MANAGE_ENDPOINTS });
+  };
+
+  return { signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
 }
+
+export const MANAGE_ENDPOINTS = [
+  'GET    /api/v1/manage/me                     — whose account this key administers',
+  'GET    /api/v1/manage/keys                   — list project keys',
+  'POST   /api/v1/manage/keys                   — create one {name, expiresInDays?: 0|7|30|90|365, env?: production|staging|development} → returns the raw key once',
+  'DELETE /api/v1/manage/keys/:id               — revoke one',
+  'GET    /api/v1/manage/overview?range=7d      — usage across every key',
+  'GET    /api/v1/manage/stats?key=:id&range=7d — one key: sessions, agents, resources, recent decisions',
+];
 
 const DECISIONS = new Set(['allow', 'mask', 'block', 'step_up']);
 const ACTORS = new Set(['human_like', 'agent_likely', 'unknown']);

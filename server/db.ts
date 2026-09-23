@@ -8,7 +8,7 @@
 import type { Assessment } from './assess.ts';
 import type { Decision, Policy } from './policy.ts';
 import type { ClientSnapshot, ServerSignal } from './signals.ts';
-import { sqliteClient, type SqlArg, type SqlClient } from './sql.ts';
+import { sqliteClient, type Row, type SqlArg, type SqlClient } from './sql.ts';
 
 export const ROOM_TTL_MS = 7 * 86400000;
 export const MAX_SESSIONS_PER_ROOM = 400;
@@ -113,7 +113,21 @@ CREATE TABLE IF NOT EXISTS api_keys (
   created INTEGER NOT NULL,
   revoked INTEGER,
   last_seen INTEGER,
-  events INTEGER NOT NULL DEFAULT 0
+  events INTEGER NOT NULL DEFAULT 0,
+  expires INTEGER,
+  env TEXT NOT NULL DEFAULT 'production'
+);
+-- management keys: an agent or a CI job administers the account with one of these
+CREATE TABLE IF NOT EXISTS admin_keys (
+  id TEXT PRIMARY KEY,
+  account TEXT NOT NULL,
+  name TEXT NOT NULL,
+  prefix TEXT NOT NULL,
+  hash TEXT NOT NULL UNIQUE,
+  created INTEGER NOT NULL,
+  revoked INTEGER,
+  last_seen INTEGER,
+  calls INTEGER NOT NULL DEFAULT 0
 );
 -- what the middleware reports: one row per decision, metadata only (no payloads, no identities)
 CREATE TABLE IF NOT EXISTS telemetry (
@@ -189,7 +203,12 @@ const MIGRATIONS = [
   "ALTER TABLE sessions ADD COLUMN scenario TEXT NOT NULL DEFAULT ''",
   'ALTER TABLE sessions ADD COLUMN human_verified_at INTEGER',
   "ALTER TABLE rooms ADD COLUMN app TEXT NOT NULL DEFAULT 'bank'",
+  'ALTER TABLE api_keys ADD COLUMN expires INTEGER',
+  "ALTER TABLE api_keys ADD COLUMN env TEXT NOT NULL DEFAULT 'production'",
 ];
+
+export type ApiKeyRow = { id: string; name: string; prefix: string; created: number; revoked: number | null; lastSeen: number | null; events: number; expires: number | null; env: string };
+const apiKeyRow = (x: Row): ApiKeyRow => ({ id: String(x.id), name: String(x.name), prefix: String(x.prefix), created: Number(x.created), revoked: x.revoked == null ? null : Number(x.revoked), lastSeen: x.last_seen == null ? null : Number(x.last_seen), events: Number(x.events), expires: x.expires == null ? null : Number(x.expires), env: String(x.env ?? 'production') });
 
 export type TelemetryEvent = { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; version: string };
 export type TelemetryStats = {
@@ -217,7 +236,7 @@ export class Store {
     const c = client ?? (await sqliteClient(':memory:'));
     // One round trip decides whether the schema exists; cold starts on a ready database then skip
     // the CREATE/ALTER statements (each of which is a network round trip on libSQL).
-    const ready = (await c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('rooms','challenges','samples','training_sessions','telemetry')")).rows.length === 5;
+    const ready = (await c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('rooms','challenges','samples','training_sessions','telemetry','admin_keys')")).rows.length === 6;
     if (!ready || opts.migrate) {
       await c.executeMultiple(SCHEMA);
       for (const m of MIGRATIONS) { try { await c.execute(m); } catch { /* column exists */ } }
@@ -476,18 +495,54 @@ export class Store {
   }
   async deletePortalSession(id: string) { await this.sql.execute('DELETE FROM portal_sessions WHERE id = ?', [id]); }
 
-  async createApiKey(account: string, name: string, prefix: string, hash: string, now = Date.now()): Promise<string> {
+  async createApiKey(account: string, key: { name: string; prefix: string; hash: string; expires?: number | null; env?: string }, now = Date.now()): Promise<string> {
     const id = crypto.randomUUID();
-    await this.sql.execute('INSERT INTO api_keys (id, account, name, prefix, hash, created) VALUES (?, ?, ?, ?, ?, ?)', [id, account, name, prefix, hash, now]);
+    await this.sql.execute('INSERT INTO api_keys (id, account, name, prefix, hash, created, expires, env) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [id, account, key.name, key.prefix, key.hash, now, key.expires ?? null, key.env ?? 'production']);
     return id;
   }
-  async listApiKeys(account: string): Promise<{ id: string; name: string; prefix: string; created: number; revoked: number | null; lastSeen: number | null; events: number }[]> {
-    const r = await this.sql.execute('SELECT id, name, prefix, created, revoked, last_seen, events FROM api_keys WHERE account = ? ORDER BY created', [account]);
-    return r.rows.map((x) => ({ id: String(x.id), name: String(x.name), prefix: String(x.prefix), created: Number(x.created), revoked: x.revoked == null ? null : Number(x.revoked), lastSeen: x.last_seen == null ? null : Number(x.last_seen), events: Number(x.events) }));
+  async listApiKeys(account: string): Promise<ApiKeyRow[]> {
+    const r = await this.sql.execute('SELECT id, name, prefix, created, revoked, last_seen, events, expires, env FROM api_keys WHERE account = ? ORDER BY created', [account]);
+    return r.rows.map(apiKeyRow);
   }
-  async apiKeyByHash(hash: string): Promise<{ id: string; account: string; revoked: number | null } | null> {
-    const r = await this.sql.execute('SELECT id, account, revoked FROM api_keys WHERE hash = ?', [hash]);
+  async apiKeyById(id: string, account: string): Promise<ApiKeyRow | null> {
+    const r = await this.sql.execute('SELECT id, name, prefix, created, revoked, last_seen, events, expires, env FROM api_keys WHERE id = ? AND account = ?', [id, account]);
+    return r.rows[0] ? apiKeyRow(r.rows[0]) : null;
+  }
+  /** find the key a raw string belongs to — the portal's "paste a key" search; the hash never leaves here */
+  async apiKeyIdByHash(hash: string, account: string): Promise<string | null> {
+    const r = await this.sql.execute('SELECT id FROM api_keys WHERE hash = ? AND account = ?', [hash, account]);
+    return r.rows[0] ? String(r.rows[0].id) : null;
+  }
+  async renameApiKey(id: string, account: string, name: string): Promise<boolean> {
+    const r = await this.sql.execute('UPDATE api_keys SET name = ? WHERE id = ? AND account = ?', [name, id, account]);
+    return r.rowsAffected > 0;
+  }
+  async apiKeyByHash(hash: string): Promise<{ id: string; account: string; revoked: number | null; expires: number | null } | null> {
+    const r = await this.sql.execute('SELECT id, account, revoked, expires FROM api_keys WHERE hash = ?', [hash]);
+    const x = r.rows[0];
+    return x ? { id: String(x.id), account: String(x.account), revoked: x.revoked == null ? null : Number(x.revoked), expires: x.expires == null ? null : Number(x.expires) } : null;
+  }
+
+  // --- management keys ------------------------------------------------------
+  async createAdminKey(account: string, name: string, prefix: string, hash: string, now = Date.now()): Promise<string> {
+    const id = crypto.randomUUID();
+    await this.sql.execute('INSERT INTO admin_keys (id, account, name, prefix, hash, created) VALUES (?, ?, ?, ?, ?, ?)', [id, account, name, prefix, hash, now]);
+    return id;
+  }
+  async listAdminKeys(account: string): Promise<{ id: string; name: string; prefix: string; created: number; revoked: number | null; lastSeen: number | null; calls: number }[]> {
+    const r = await this.sql.execute('SELECT id, name, prefix, created, revoked, last_seen, calls FROM admin_keys WHERE account = ? ORDER BY created', [account]);
+    return r.rows.map((x) => ({ id: String(x.id), name: String(x.name), prefix: String(x.prefix), created: Number(x.created), revoked: x.revoked == null ? null : Number(x.revoked), lastSeen: x.last_seen == null ? null : Number(x.last_seen), calls: Number(x.calls) }));
+  }
+  async adminKeyByHash(hash: string): Promise<{ id: string; account: string; revoked: number | null } | null> {
+    const r = await this.sql.execute('SELECT id, account, revoked FROM admin_keys WHERE hash = ?', [hash]);
     const x = r.rows[0]; return x ? { id: String(x.id), account: String(x.account), revoked: x.revoked == null ? null : Number(x.revoked) } : null;
+  }
+  async touchAdminKey(id: string, now = Date.now()) {
+    await this.sql.execute('UPDATE admin_keys SET last_seen = ?, calls = calls + 1 WHERE id = ?', [now, id]);
+  }
+  async revokeAdminKey(id: string, account: string, now = Date.now()): Promise<boolean> {
+    const r = await this.sql.execute('UPDATE admin_keys SET revoked = ? WHERE id = ? AND account = ? AND revoked IS NULL', [now, id, account]);
+    return r.rowsAffected > 0;
   }
   async apiKeyOwned(id: string, account: string): Promise<boolean> {
     const r = await this.sql.execute('SELECT 1 FROM api_keys WHERE id = ? AND account = ?', [id, account]);

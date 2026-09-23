@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.2.2 — 2026-09-23
+- **Management API** for agents and CI: `nt_admin_…` keys administer an account over HTTP — list/create/revoke project keys, read overview and per-key stats; `GET /api/v1/manage/me` describes itself. Project keys gained an environment tag and an optional expiry.
 - `apiKey` option (or `NT_API_KEY`): the middleware reports each decision to the NanoTarget portal — batched, off the request path, metadata only — and the portal shows the share of sessions with an AI agent, decisions over time, agents seen, resources reached, and a live log.
 - Isolated-world reading detection: a side panel taking viewport width plus main-thread work with no input is an attach indicator (`PANEL_PAGE_READ`); each alone is environment evidence.
 

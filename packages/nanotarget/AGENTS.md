@@ -279,4 +279,24 @@ Create an account at https://nanotarget-mvp.vercel.app/portal, create an API key
 
 The portal shows, per key: the share of sessions with an AI agent, decisions over time, which agents were seen, which resources they reached for, and a live log of recent decisions. Start in `observe` mode and you get the picture before anything is enforced.
 
+### Management API — for coding agents and CI
+
+A **management key** (`nt_admin_…`, created in the portal under Settings) administers the account over HTTP, so an agent can set NanoTarget up end to end without a human opening the portal:
+
+```bash
+export NT_ADMIN=nt_admin_…
+BASE=https://nanotarget-mvp.vercel.app
+
+curl -H "Authorization: Bearer $NT_ADMIN" $BASE/api/v1/manage/me            # whose account this is + endpoint list
+curl -H "Authorization: Bearer $NT_ADMIN" $BASE/api/v1/manage/keys          # list project keys
+curl -H "Authorization: Bearer $NT_ADMIN" -H 'Content-Type: application/json' \
+     -d '{"name":"bank-web","env":"production","expiresInDays":90}' \
+     $BASE/api/v1/manage/keys                                               # create one → the raw key, once
+curl -X DELETE -H "Authorization: Bearer $NT_ADMIN" $BASE/api/v1/manage/keys/<id>
+curl -H "Authorization: Bearer $NT_ADMIN" "$BASE/api/v1/manage/overview?range=7d"
+curl -H "Authorization: Bearer $NT_ADMIN" "$BASE/api/v1/manage/stats?key=<id>&range=7d"
+```
+
+`POST /keys` answers with `{ id, name, env, expires, key }` — put `key` into the app's environment as `NT_API_KEY` and it starts reporting. `GET /manage/me` lists every endpoint, so an agent can discover the API from one call. A management key can create and revoke project keys: treat it like a password, and revoke it in the portal when the job is done.
+
 Live demo: https://nanotarget-mvp.vercel.app · Source and docs: https://github.com/ArifBabayev05/NanoTarget (MIT) · `docs/INTEGRATION.md`, `docs/EVAL.md`.
