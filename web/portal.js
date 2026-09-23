@@ -100,7 +100,7 @@
     let d; try { d = await api(`/api/v1/portal/stats?key=${encodeURIComponent(keyId)}&range=${range}`); } catch (e) { toast(e.message); return; }
     const total = Object.values(d.decisions).reduce((a, b) => a + b, 0);
     const k = (me.keys || []).find((z) => z.id === keyId) || {};
-    if (!total && !k.events) { snippet(k.prefix); $('#empty').hidden = false; $('#stats').hidden = true; }
+    if (!total && !k.events) { snippet(k.prefix); $('#empty h2').textContent = 'Waiting for the first decision'; $('#empty p').textContent = 'Put this key into your server and make one request to a protected endpoint. The panel updates on its own.'; $('#empty').hidden = false; $('#stats').hidden = true; }
     else {
       $('#empty').hidden = true; $('#stats').hidden = false;
       const pct = d.sessions.total ? Math.round(d.sessions.agent / d.sessions.total * 100) : 0;

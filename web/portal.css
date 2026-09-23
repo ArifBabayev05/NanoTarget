@@ -51,7 +51,7 @@ label{display:grid;gap:6px;font-size:13px;color:var(--fg2)}
 .empty p{color:var(--fg2);margin:0 0 16px}
 .code{margin:0 auto;max-width:720px;text-align:left;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:16px 18px;font:12.5px/1.65 var(--mono);color:var(--fg);overflow-x:auto;white-space:pre}
 .code .c{color:var(--fg3)}.code .k{color:var(--blue)}.code .s{color:var(--accent)}
-.code.key{font-size:14px;text-align:center;letter-spacing:.02em;user-select:all}
+.code.keyraw{font-size:14px;text-align:center;letter-spacing:.02em;user-select:all}
 .hero-stat{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;margin-bottom:16px}
 .big{border:1px solid rgba(124,240,192,.3);border-radius:16px;padding:28px;background:linear-gradient(160deg,rgba(124,240,192,.08),transparent 60%),var(--bg2)}
 .big b{display:block;font-size:clamp(48px,7vw,84px);line-height:1;letter-spacing:-.05em;font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums}
