@@ -94,7 +94,7 @@ label{display:grid;gap:6px;font-size:13px;color:var(--fg2)}
 .panel-foot{padding:14px 18px;border-top:1px solid var(--line);color:var(--fg3);font-size:13px}
 .tbl{width:100%;border-collapse:collapse}
 .tbl th{text-align:left;font-weight:500;color:var(--fg2);font-size:13px;padding:14px 18px;border-bottom:1px solid var(--line)}
-.tbl td{padding:16px 18px;border-bottom:1px solid var(--line);vertical-align:middle;font-size:14px}
+.tbl td{padding:16px 18px;border-bottom:1px solid var(--line);vertical-align:middle;font-size:14px;white-space:nowrap}
 .tbl tr:last-child td{border-bottom:0}
 .tbl tbody tr{transition:background .15s}.tbl tbody tr:hover{background:var(--bg3)}
 .kname{font-weight:600;display:block}
