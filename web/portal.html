@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NanoTarget — Portal</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/portal.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><span class="mark"><span></span></span>NanoTarget <small>portal</small></a>
+  <nav class="top-right" id="top-right" hidden><span class="who" id="who"></span><button class="btn ghost" id="logout">Sign out</button></nav>
+</header>
+
+<!-- auth -->
+<main class="auth" id="auth">
+  <section class="auth-card">
+    <h1 id="auth-title">Create your account</h1>
+    <p class="lead" id="auth-lead">One account, as many API keys as you have apps. Each key is a project; its panel shows every decision your middleware made and how many of your sessions had an AI agent in them.</p>
+    <form id="auth-form" autocomplete="on">
+      <label>E-mail<input type="email" id="email" required autocomplete="email" placeholder="you@company.com"></label>
+      <label>Password<input type="password" id="password" required minlength="8" autocomplete="current-password" placeholder="at least 8 characters"></label>
+      <button class="btn primary" id="auth-submit" type="submit">Create account</button>
+      <p class="err" id="auth-err"></p>
+    </form>
+    <p class="switch"><span id="switch-text">Already have an account?</span> <a href="#" id="switch">Sign in</a></p>
+  </section>
+  <aside class="auth-side">
+    <div class="tile"><b>1</b><span>Create a key in the portal</span></div>
+    <div class="tile"><b>2</b><span><code>npm i nanotarget</code> · pass the key as <code>apiKey</code></span></div>
+    <div class="tile"><b>3</b><span>Every decision shows up here — sessions, agents, resources, verdicts</span></div>
+    <p class="fine">Reports carry metadata only: hashed session id, resource, decision, actor, connection state, detected tool, reason codes. No payloads, no identities, no IPs.</p>
+  </aside>
+</main>
+
+<!-- dashboard -->
+<main class="dash" id="dash" hidden>
+  <div class="dash-head">
+    <div class="keys" id="keys"></div>
+    <div class="range" id="range"><button data-r="24h">24h</button><button data-r="7d" class="on">7d</button><button data-r="30d">30d</button></div>
+  </div>
+
+  <section class="empty" id="empty" hidden>
+    <h2>Waiting for the first decision</h2>
+    <p>Put this key into your server and make one request to a protected endpoint. The panel updates on its own.</p>
+    <pre class="code" id="snippet"></pre>
+    <p class="fine">Or test from the terminal: <code id="curl-hint"></code></p>
+  </section>
+
+  <section class="stats" id="stats" hidden>
+    <div class="hero-stat">
+      <div class="big"><b id="pct">0%</b><span>of your sessions had an AI agent in them</span></div>
+      <div class="hero-side">
+        <div><b id="sessions">0</b><span>sessions</span></div>
+        <div><b id="agent-sessions">0</b><span>with an agent</span></div>
+        <div><b id="decisions">0</b><span>decisions</span></div>
+        <div><b id="gated">0</b><span>masked / blocked / stepped up</span></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="card-head"><h3>Decisions over time</h3><span class="legend"><i class="l-all"></i>all <i class="l-agent"></i>agent present <i class="l-gated"></i>gated</span></div>
+      <canvas id="chart" height="220"></canvas>
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="card-head"><h3>Decisions</h3></div><div class="bars" id="bars-decisions"></div></div>
+      <div class="card"><div class="card-head"><h3>Who was acting</h3></div><div class="bars" id="bars-actors"></div></div>
+      <div class="card"><div class="card-head"><h3>Agents seen</h3><span class="sub">distinct sessions</span></div><div class="bars" id="bars-tools"></div></div>
+      <div class="card"><div class="card-head"><h3>Resources</h3><span class="sub">what agents reached for</span></div><div class="res" id="resources"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Recent decisions</h3><span class="sub" id="live">live · refreshes every 10 s</span></div>
+      <div class="log" id="log"></div>
+    </div>
+  </section>
+</main>
+
+<div class="modal-bg" id="modal" hidden>
+  <div class="modal">
+    <h3 id="modal-title">New API key</h3>
+    <div id="modal-new">
+      <label>Name<input id="key-name" placeholder="production · bank-web" maxlength="80"></label>
+      <div class="row"><button class="btn primary" id="key-create">Create key</button><button class="btn ghost" id="modal-close">Cancel</button></div>
+    </div>
+    <div id="modal-show" hidden>
+      <p class="lead">Copy it now — it is shown once. We only keep a hash.</p>
+      <pre class="code key" id="key-raw"></pre>
+      <div class="row"><button class="btn primary" id="key-copy">Copy key</button><button class="btn ghost" id="modal-done">Done</button></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="/portal.js"></script>
+</body>
+</html>

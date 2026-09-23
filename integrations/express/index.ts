@@ -10,7 +10,7 @@
  * arrives on `req.nt` and nothing here touches its authentication. Storage is local (sqlite) or libSQL, so the
  * package runs on-prem; telemetry never has to leave the company's network.
  */
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -56,6 +56,15 @@ export type NanoTargetOptions = {
   respond?: boolean;
   /** show the WebAuthn "I am human" reclaim path on agent blocks (default true) */
   webauthnReclaim?: boolean;
+  /**
+   * Report decisions to your NanoTarget portal (https://nanotarget-mvp.vercel.app/portal) so you can see how
+   * many of your sessions had an AI agent in them. Metadata only — hashed session id, resource, decision,
+   * actor, connection state, detected tools, reason codes. Never payloads, identities or IPs.
+   * Default: process.env.NT_API_KEY. Without a key nothing leaves your server.
+   */
+  apiKey?: string;
+  /** where reports go (default https://nanotarget-mvp.vercel.app/api/v1/ingest, or NT_TELEMETRY_URL) */
+  telemetryUrl?: string;
 };
 
 export type ProtectResult = {
@@ -98,6 +107,40 @@ function derivedUuid(secret: Buffer, kind: string, name: string): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
+type TelemetryEvent = { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; version: string };
+
+/** Buffers decision events and posts them to the portal in the background. Drops rather than blocks. */
+function createReporter(apiKey: string, endpoint: string) {
+  let queue: TelemetryEvent[] = [];
+  let timer: NodeJS.Timeout | null = null;
+  let sending = false;
+  let failures = 0;
+  const MAX = 500, BATCH = 25, EVERY_MS = 3000;
+  async function flush(): Promise<void> {
+    if (sending || !queue.length) return;
+    if (failures && Date.now() < backoffUntil) return;
+    sending = true;
+    const batch = queue.splice(0, 200);
+    try {
+      const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ events: batch }), signal: AbortSignal.timeout(5000) });
+      if (r.status === 401) { failures = 999; console.warn('nanotarget: telemetry API key rejected — check apiKey / NT_API_KEY'); queue = []; }
+      else if (!r.ok) throw new Error(String(r.status));
+      else failures = 0;
+    } catch {
+      failures++; backoffUntil = Date.now() + Math.min(60_000, 2000 * 2 ** Math.min(failures, 5));
+      queue = [...batch, ...queue].slice(-MAX);   // keep the newest
+    } finally { sending = false; }
+  }
+  let backoffUntil = 0;
+  function push(e: TelemetryEvent) {
+    if (failures >= 999) return;
+    queue.push(e); if (queue.length > MAX) queue = queue.slice(-MAX);
+    if (queue.length >= BATCH) void flush();
+    if (!timer) { timer = setInterval(() => { void flush(); }, EVERY_MS); timer.unref?.(); }
+  }
+  return { push, flush, get pending() { return queue.length; }, close() { if (timer) clearInterval(timer); timer = null; return flush(); } };
+}
+
 export async function nanotarget(opts: NanoTargetOptions) {
   const secret = Buffer.isBuffer(opts.secret) ? opts.secret : Buffer.from(opts.secret, 'utf8');
   if (secret.length < 32) throw new Error('nanotarget: secret must be at least 32 bytes');
@@ -105,6 +148,9 @@ export async function nanotarget(opts: NanoTargetOptions) {
   const cookieName = opts.cookie ?? 'nt_sid';
   const tenant = opts.tenant ?? 'default';
   const respond = opts.respond ?? true;
+  const apiKey = opts.apiKey ?? process.env.NT_API_KEY ?? '';
+  const reporter = apiKey ? createReporter(apiKey, opts.telemetryUrl ?? process.env.NT_TELEMETRY_URL ?? 'https://nanotarget-mvp.vercel.app/api/v1/ingest') : null;
+  const sessionHash = (id: string) => createHash('sha256').update(apiKey).update('\0').update(id).digest('hex').slice(0, 16);
 
   const store = await Store.open(await openClient(opts.db ?? 'sqlite:./nanotarget.db'));
   const model = await loadModel();
@@ -206,11 +252,23 @@ export async function nanotarget(opts: NanoTargetOptions) {
         };
         res.setHeader('X-NT-Decision', d.id);
         res.setHeader('X-NT-Policy', d.policyVersion);
+        if (reporter) report(session, resource, d, result);
         if (answer && d.decision === 'block') return json(res, 403, { error: 'blocked', resource, decision: publicDecision(d), stepUp: result.stepUp });
         if (answer && d.decision === 'step_up') return json(res, 428, { error: 'step_up_required', resource, decision: publicDecision(d), stepUp: result.stepUp });
         next();
       } catch (e) { next(e); }
     };
+  }
+
+  /** One event per decision, off the request path: what happened, to which resource, who was acting, which tool. */
+  function report(session: SessionRow, resource: string, d: DecisionRow, result: DecideResult) {
+    if (!reporter) return;
+    engine.connectionFor(session).then((c) => {
+      reporter.push({
+        at: Date.now(), session: sessionHash(session.id), resource, decision: d.decision, actor: d.actor, state: c.state,
+        tools: c.tools.slice(0, 8), reasons: d.reasonCodes.slice(0, 8), enforcement: policy.enforcement, version: result.assessment.version,
+      });
+    }).catch(() => {});
   }
 
   /** Respond with `full`, or with `mask(full)` when the decision says mask. Adds the decision summary under `_nt`. */
@@ -220,7 +278,9 @@ export async function nanotarget(opts: NanoTargetOptions) {
     json(res, 200, { ...(body as object), _nt: nt ? { decision: nt.decision, actor: nt.actor, score: nt.score, reasonCodes: nt.reasonCodes } : null });
   }
 
-  return { middleware, protect, send, sessionFor, reloadPolicy, get policy() { return policy; }, engine, store, room, basePath, close: () => store.close() };
+  /** the background reporter (null without an apiKey): `await nt.telemetry?.flush()` before exit if you want the last events delivered */
+  const telemetry = reporter ? { flush: () => reporter.flush(), get pending() { return reporter.pending; } } : null;
+  return { middleware, protect, send, sessionFor, reloadPolicy, get policy() { return policy; }, engine, store, room, basePath, telemetry, close: async () => { await reporter?.close(); store.close(); } };
 }
 
 export type NanoTargetInstance = Awaited<ReturnType<typeof nanotarget>>;

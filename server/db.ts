@@ -101,6 +101,36 @@ CREATE TABLE IF NOT EXISTS policies (
   PRIMARY KEY (room, version)
 );
 CREATE TABLE IF NOT EXISTS nonces (key TEXT PRIMARY KEY, expires INTEGER NOT NULL);
+-- customer portal: an account owns API keys; each key is a project the middleware reports into
+CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, pass TEXT NOT NULL, created INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS portal_sessions (id TEXT PRIMARY KEY, account TEXT NOT NULL, expires INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS api_keys (
+  id TEXT PRIMARY KEY,
+  account TEXT NOT NULL,
+  name TEXT NOT NULL,
+  prefix TEXT NOT NULL,
+  hash TEXT NOT NULL UNIQUE,
+  created INTEGER NOT NULL,
+  revoked INTEGER,
+  last_seen INTEGER,
+  events INTEGER NOT NULL DEFAULT 0
+);
+-- what the middleware reports: one row per decision, metadata only (no payloads, no identities)
+CREATE TABLE IF NOT EXISTS telemetry (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key_id TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  session TEXT NOT NULL,
+  resource TEXT NOT NULL,
+  decision TEXT NOT NULL,
+  actor TEXT NOT NULL,
+  state TEXT NOT NULL,
+  tools TEXT NOT NULL,
+  reasons TEXT NOT NULL,
+  enforcement TEXT NOT NULL,
+  version TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS telemetry_key_at ON telemetry (key_id, at);
 CREATE TABLE IF NOT EXISTS stepups (
   id TEXT PRIMARY KEY,
   session TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -161,6 +191,18 @@ const MIGRATIONS = [
   "ALTER TABLE rooms ADD COLUMN app TEXT NOT NULL DEFAULT 'bank'",
 ];
 
+export type TelemetryEvent = { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; version: string };
+export type TelemetryStats = {
+  decisions: Record<string, number>;
+  actors: Record<string, number>;
+  states: Record<string, number>;
+  resources: { resource: string; decision: string; n: number }[];
+  tools: { tool: string; sessions: number }[];
+  sessions: { total: number; agent: number };
+  series: { t: number; n: number; agent: number; gated: number }[];
+  recent: { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string }[];
+};
+
 export class Store {
   readonly sql: SqlClient;
   private constructor(sql: SqlClient) { this.sql = sql; }
@@ -170,7 +212,7 @@ export class Store {
     const c = client ?? (await sqliteClient(':memory:'));
     // One round trip decides whether the schema exists; cold starts on a ready database then skip
     // the CREATE/ALTER statements (each of which is a network round trip on libSQL).
-    const ready = (await c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('rooms','challenges','samples','training_sessions')")).rows.length === 4;
+    const ready = (await c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('rooms','challenges','samples','training_sessions','telemetry')")).rows.length === 5;
     if (!ready || opts.migrate) {
       await c.executeMultiple(SCHEMA);
       for (const m of MIGRATIONS) { try { await c.execute(m); } catch { /* column exists */ } }
@@ -399,6 +441,91 @@ export class Store {
   async listTrainingSessions(limit = 500): Promise<{ id: number; client: string; label: string; source: string; ua: string; early: unknown; steps: unknown; summary: unknown; created: number }[]> {
     const r = await this.sql.execute('SELECT * FROM training_sessions ORDER BY id DESC LIMIT ?', [limit]);
     return r.rows.map((x) => ({ id: Number(x.id), client: String(x.client), label: String(x.label), source: String(x.source), ua: String(x.ua), early: JSON.parse(String(x.early)), steps: JSON.parse(String(x.steps)), summary: JSON.parse(String(x.summary)), created: Number(x.created) }));
+  }
+
+  // --- customer portal -----------------------------------------------------
+  async createAccount(email: string, passHash: string, now = Date.now()): Promise<string | null> {
+    const id = crypto.randomUUID();
+    try { await this.sql.execute('INSERT INTO accounts (id, email, pass, created) VALUES (?, ?, ?, ?)', [id, email, passHash, now]); } catch { return null; }
+    return id;
+  }
+  async accountByEmail(email: string): Promise<{ id: string; email: string; pass: string; created: number } | null> {
+    const r = await this.sql.execute('SELECT id, email, pass, created FROM accounts WHERE email = ?', [email]);
+    const x = r.rows[0]; return x ? { id: String(x.id), email: String(x.email), pass: String(x.pass), created: Number(x.created) } : null;
+  }
+  async accountById(id: string): Promise<{ id: string; email: string; created: number } | null> {
+    const r = await this.sql.execute('SELECT id, email, created FROM accounts WHERE id = ?', [id]);
+    const x = r.rows[0]; return x ? { id: String(x.id), email: String(x.email), created: Number(x.created) } : null;
+  }
+  async createPortalSession(account: string, ttlMs: number, now = Date.now()): Promise<string> {
+    const id = crypto.randomUUID();
+    await this.sql.batch([
+      { sql: 'DELETE FROM portal_sessions WHERE expires < ?', args: [now] },
+      { sql: 'INSERT INTO portal_sessions (id, account, expires) VALUES (?, ?, ?)', args: [id, account, now + ttlMs] },
+    ]);
+    return id;
+  }
+  async portalSession(id: string, now = Date.now()): Promise<string | null> {
+    const r = await this.sql.execute('SELECT account FROM portal_sessions WHERE id = ? AND expires > ?', [id, now]);
+    return r.rows[0] ? String(r.rows[0].account) : null;
+  }
+  async deletePortalSession(id: string) { await this.sql.execute('DELETE FROM portal_sessions WHERE id = ?', [id]); }
+
+  async createApiKey(account: string, name: string, prefix: string, hash: string, now = Date.now()): Promise<string> {
+    const id = crypto.randomUUID();
+    await this.sql.execute('INSERT INTO api_keys (id, account, name, prefix, hash, created) VALUES (?, ?, ?, ?, ?, ?)', [id, account, name, prefix, hash, now]);
+    return id;
+  }
+  async listApiKeys(account: string): Promise<{ id: string; name: string; prefix: string; created: number; revoked: number | null; lastSeen: number | null; events: number }[]> {
+    const r = await this.sql.execute('SELECT id, name, prefix, created, revoked, last_seen, events FROM api_keys WHERE account = ? ORDER BY created', [account]);
+    return r.rows.map((x) => ({ id: String(x.id), name: String(x.name), prefix: String(x.prefix), created: Number(x.created), revoked: x.revoked == null ? null : Number(x.revoked), lastSeen: x.last_seen == null ? null : Number(x.last_seen), events: Number(x.events) }));
+  }
+  async apiKeyByHash(hash: string): Promise<{ id: string; account: string; revoked: number | null } | null> {
+    const r = await this.sql.execute('SELECT id, account, revoked FROM api_keys WHERE hash = ?', [hash]);
+    const x = r.rows[0]; return x ? { id: String(x.id), account: String(x.account), revoked: x.revoked == null ? null : Number(x.revoked) } : null;
+  }
+  async apiKeyOwned(id: string, account: string): Promise<boolean> {
+    const r = await this.sql.execute('SELECT 1 FROM api_keys WHERE id = ? AND account = ?', [id, account]);
+    return r.rows.length > 0;
+  }
+  async revokeApiKey(id: string, account: string, now = Date.now()): Promise<boolean> {
+    const r = await this.sql.execute('UPDATE api_keys SET revoked = ? WHERE id = ? AND account = ? AND revoked IS NULL', [now, id, account]);
+    return r.rowsAffected > 0;
+  }
+
+  async insertTelemetry(keyId: string, events: TelemetryEvent[], now = Date.now()) {
+    if (!events.length) return;
+    await this.sql.batch([
+      ...events.map((e) => ({ sql: 'INSERT INTO telemetry (key_id, at, session, resource, decision, actor, state, tools, reasons, enforcement, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', args: [keyId, e.at, e.session, e.resource, e.decision, e.actor, e.state, JSON.stringify(e.tools), JSON.stringify(e.reasons), e.enforcement, e.version] as SqlArg[] })),
+      { sql: 'UPDATE api_keys SET last_seen = ?, events = events + ? WHERE id = ?', args: [now, events.length, keyId] },
+    ]);
+  }
+  /** everything the portal shows for one key since `since` */
+  async telemetryStats(keyId: string, since: number, bucketMs: number): Promise<TelemetryStats> {
+    const agentCase = "(state IN ('agent_attached','signed_agent') OR actor = 'agent_likely')";
+    const [dec, act, st, res, tools, sess, series, recent] = await Promise.all([
+      this.sql.execute('SELECT decision, COUNT(*) AS n FROM telemetry WHERE key_id = ? AND at >= ? GROUP BY decision', [keyId, since]),
+      this.sql.execute('SELECT actor, COUNT(*) AS n FROM telemetry WHERE key_id = ? AND at >= ? GROUP BY actor', [keyId, since]),
+      this.sql.execute('SELECT state, COUNT(*) AS n FROM telemetry WHERE key_id = ? AND at >= ? GROUP BY state', [keyId, since]),
+      this.sql.execute('SELECT resource, decision, COUNT(*) AS n FROM telemetry WHERE key_id = ? AND at >= ? GROUP BY resource, decision ORDER BY n DESC LIMIT 60', [keyId, since]),
+      this.sql.execute("SELECT tools, COUNT(DISTINCT session) AS n FROM telemetry WHERE key_id = ? AND at >= ? AND tools != '[]' GROUP BY tools", [keyId, since]),
+      this.sql.execute(`SELECT COUNT(DISTINCT session) AS total, COUNT(DISTINCT CASE WHEN ${agentCase} THEN session END) AS agent FROM telemetry WHERE key_id = ? AND at >= ?`, [keyId, since]),
+      this.sql.execute(`SELECT (at / ?) * ? AS t, COUNT(*) AS n, SUM(CASE WHEN ${agentCase} THEN 1 ELSE 0 END) AS agent, SUM(CASE WHEN decision IN ('mask','block','step_up') THEN 1 ELSE 0 END) AS gated FROM telemetry WHERE key_id = ? AND at >= ? GROUP BY t ORDER BY t`, [bucketMs, bucketMs, keyId, since]),
+      this.sql.execute('SELECT at, session, resource, decision, actor, state, tools, reasons, enforcement FROM telemetry WHERE key_id = ? ORDER BY id DESC LIMIT 60', [keyId]),
+    ]);
+    const toolCounts: Record<string, number> = {};
+    for (const x of tools.rows) { let arr: unknown = []; try { arr = JSON.parse(String(x.tools)); } catch { /* ignore */ } if (Array.isArray(arr)) for (const t of arr) toolCounts[String(t)] = (toolCounts[String(t)] ?? 0) + Number(x.n); }
+    const s0 = sess.rows[0] ?? {};
+    return {
+      decisions: Object.fromEntries(dec.rows.map((x) => [String(x.decision), Number(x.n)])),
+      actors: Object.fromEntries(act.rows.map((x) => [String(x.actor), Number(x.n)])),
+      states: Object.fromEntries(st.rows.map((x) => [String(x.state), Number(x.n)])),
+      resources: res.rows.map((x) => ({ resource: String(x.resource), decision: String(x.decision), n: Number(x.n) })),
+      tools: Object.entries(toolCounts).sort((a, b) => b[1] - a[1]).map(([tool, sessions]) => ({ tool, sessions })),
+      sessions: { total: Number(s0.total ?? 0), agent: Number(s0.agent ?? 0) },
+      series: series.rows.map((x) => ({ t: Number(x.t), n: Number(x.n), agent: Number(x.agent), gated: Number(x.gated) })),
+      recent: recent.rows.map((x) => ({ at: Number(x.at), session: String(x.session), resource: String(x.resource), decision: String(x.decision), actor: String(x.actor), state: String(x.state), tools: JSON.parse(String(x.tools)) as string[], reasons: JSON.parse(String(x.reasons)) as string[], enforcement: String(x.enforcement) })),
+    };
   }
 
   async consumeNonce(key: string, ttlMs: number, now = Date.now()): Promise<boolean> {

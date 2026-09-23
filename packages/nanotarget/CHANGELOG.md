@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 — 2026-09-23
+- `apiKey` option (or `NT_API_KEY`): the middleware reports each decision to the NanoTarget portal — batched, off the request path, metadata only — and the portal shows the share of sessions with an AI agent, decisions over time, agents seen, resources reached, and a live log.
+- Isolated-world reading detection: a side panel taking viewport width plus main-thread work with no input is an attach indicator (`PANEL_PAGE_READ`); each alone is environment evidence.
+
 ## 0.2.1 — 2026-09-22
 - **Judgement calls**: thirteen code patterns that should move the recommendation away from the default matrix (uncapped lists, aggregates embedding protected values, GraphQL field groups, recovery-data writes, non-idempotent money moves, file links, admin branches, regulated classes, SPA interceptors, SSR loaders, SDK-less clients, non-Node backends), each with the reason to give the user; plus the two habits — trace the number not the route, recommend then ask.
 - **Block and step-up design** in README/AGENTS.md, the half the mask cookbook did not cover: sibling leaks (an uncapped search next to a blocked export makes the block decorative), retry idempotency after a 428, per-resource short-lived grants, the passkey way back, audit observability, and token-bound downloads — with code for each.
