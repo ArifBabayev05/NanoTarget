@@ -12,8 +12,10 @@
 </head>
 <body>
 <header class="top">
-  <a class="brand" href="/"><span class="mark"><span></span></span>NanoTarget <small>portal</small></a>
-  <nav class="top-right" id="top-right" hidden><span class="who" id="who"></span><button class="btn ghost" id="logout">Sign out</button></nav>
+  <a class="brand" href="/"><span class="mark"><span></span></span>NanoTarget</a>
+  <label class="search" id="search-wrap" hidden><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="search" placeholder="Search keys, resources, decisions…"><kbd>⌘K</kbd></label>
+  <nav class="top-links"><a href="/">Home</a><a href="/bank">Demos</a><a href="/docs/INTEGRATION-AGENT.md">Docs</a><a href="https://github.com/ArifBabayev05/NanoTarget" target="_blank" rel="noopener">GitHub</a></nav>
+  <div class="me" id="me-chip" hidden><span class="av" id="av">A</span><span id="who"></span></div>
 </header>
 
 <!-- auth -->
@@ -37,46 +39,100 @@
   </aside>
 </main>
 
-<!-- dashboard -->
-<main class="dash" id="dash" hidden>
-  <div class="dash-head">
-    <div class="keys" id="keys"></div>
-    <div class="range" id="range"><button data-r="24h">24h</button><button data-r="7d" class="on">7d</button><button data-r="30d">30d</button></div>
-  </div>
+<!-- workspace -->
+<div class="shell" id="shell" hidden>
+  <aside class="side">
+    <div class="ws"><span class="ws-name" id="ws-name">Workspace</span><span class="ws-sub" id="ws-sub"></span></div>
+    <nav class="side-nav">
+      <a href="#overview" data-view="overview"><i>▦</i>Overview</a>
+      <a href="#keys" data-view="keys"><i>⚿</i>API Keys</a>
+      <a href="#activity" data-view="activity"><i>≣</i>Activity</a>
+      <a href="#integrate" data-view="integrate"><i>⇄</i>Integration</a>
+      <a href="#settings" data-view="settings"><i>⚙</i>Settings</a>
+    </nav>
+    <div class="side-label">Account</div>
+    <nav class="side-nav">
+      <a href="#settings" data-view="settings"><i>◉</i>Profile</a>
+      <a href="#" id="logout"><i>⏻</i>Sign out</a>
+    </nav>
+  </aside>
 
-  <section class="empty" id="empty" hidden>
-    <h2>Waiting for the first decision</h2>
-    <p>Put this key into your server and make one request to a protected endpoint. The panel updates on its own.</p>
-    <pre class="code" id="snippet"></pre>
-    <p class="fine">Or test from the terminal: <code id="curl-hint"></code></p>
-  </section>
-
-  <section class="stats" id="stats" hidden>
-    <div class="hero-stat">
-      <div class="big"><b id="pct">0%</b><span>of your sessions had an AI agent in them</span></div>
-      <div class="hero-side">
-        <div><b id="sessions">0</b><span>sessions</span></div>
-        <div><b id="agent-sessions">0</b><span>with an agent</span></div>
-        <div><b id="decisions">0</b><span>decisions</span></div>
-        <div><b id="gated">0</b><span>masked / blocked / stepped up</span></div>
+  <main class="main">
+    <!-- overview -->
+    <section class="view" id="view-overview">
+      <div class="page-head"><div><h1>Overview</h1><p>What your middleware reported, across every key in this workspace.</p></div><div class="range" id="range-ov"><button data-r="24h">24h</button><button data-r="7d" class="on">7d</button><button data-r="30d">30d</button></div></div>
+      <div class="banner" id="banner"><div><b>Start in observe mode.</b> Nothing is blocked, every decision is recorded — and this page tells you how many of your sessions already have an AI agent in them.</div><button class="x" id="banner-x" aria-label="Dismiss">✕</button></div>
+      <div class="sec-title"><h2>This Week’s Usage</h2><a href="#activity">View Activity ›</a></div>
+      <div class="usage" id="usage">
+        <article class="ucard"><div class="uhead"><span>Decisions</span><b id="u-decisions">0</b></div><div class="ubars" id="ub-decisions"></div><ul class="ulegend" id="ul-decisions"></ul></article>
+        <article class="ucard"><div class="uhead"><span>Sessions with an AI agent</span><b id="u-agent">0%</b></div><div class="ubars" id="ub-agent"></div><ul class="ulegend" id="ul-agent"></ul></article>
+        <article class="ucard"><div class="uhead"><span>Masked · blocked · stepped up</span><b id="u-gated">0</b></div><div class="ubars" id="ub-gated"></div><ul class="ulegend" id="ul-gated"></ul></article>
       </div>
-    </div>
-    <div class="chart-card">
-      <div class="card-head"><h3>Decisions over time</h3><span class="legend"><i class="l-all"></i>all <i class="l-agent"></i>agent present <i class="l-gated"></i>gated</span></div>
-      <canvas id="chart" height="220"></canvas>
-    </div>
-    <div class="grid2">
-      <div class="card"><div class="card-head"><h3>Decisions</h3></div><div class="bars" id="bars-decisions"></div></div>
-      <div class="card"><div class="card-head"><h3>Who was acting</h3></div><div class="bars" id="bars-actors"></div></div>
-      <div class="card"><div class="card-head"><h3>Agents seen</h3><span class="sub">distinct sessions</span></div><div class="bars" id="bars-tools"></div></div>
-      <div class="card"><div class="card-head"><h3>Resources</h3><span class="sub">what agents reached for</span></div><div class="res" id="resources"></div></div>
-    </div>
-    <div class="card">
-      <div class="card-head"><h3>Recent decisions</h3><span class="sub" id="live">live · refreshes every 10 s</span></div>
-      <div class="log" id="log"></div>
-    </div>
-  </section>
-</main>
+      <div class="quick">
+        <a class="qcard" href="#keys"><i>⚿</i><div><b>API Keys</b><span>Create and manage the keys your servers report with.</span></div><em>›</em></a>
+        <a class="qcard" href="#activity"><i>≣</i><div><b>Activity</b><span>Every decision, live: resource, verdict, actor, agent.</span></div><em>›</em></a>
+        <a class="qcard" href="#integrate"><i>⇄</i><div><b>Integration</b><span>Three lines on the server, one tag on the page.</span></div><em>›</em></a>
+      </div>
+    </section>
+
+    <!-- keys -->
+    <section class="view" id="view-keys" hidden>
+      <div class="page-head"><div><h1>API Keys</h1><p>Create and manage your API keys. One key per project; the raw key is shown once.</p></div><button class="btn primary" id="key-add">+ New Key</button></div>
+      <div class="panel">
+        <div class="panel-tools"><label class="search inline"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="key-search" placeholder="Search by name or prefix…"></label></div>
+        <table class="tbl" id="key-table"><thead><tr><th>Key</th><th>Mode</th><th>Created</th><th>Last used</th><th>Decisions</th><th>Agent share</th><th></th></tr></thead><tbody id="key-rows"></tbody></table>
+        <div class="panel-foot" id="key-count">0 keys</div>
+      </div>
+    </section>
+
+    <!-- activity -->
+    <section class="view" id="view-activity" hidden>
+      <div class="page-head"><div><h1>Activity</h1><p>Per key: the share of sessions with an agent, decisions over time, agents seen, resources reached, and the live log.</p></div><div class="head-tools"><div class="keys" id="keys"></div><div class="range" id="range"><button data-r="24h">24h</button><button data-r="7d" class="on">7d</button><button data-r="30d">30d</button></div></div></div>
+      <section class="empty" id="empty" hidden>
+        <h2>Waiting for the first decision</h2>
+        <p>Put this key into your server and make one request to a protected endpoint. The panel updates on its own.</p>
+        <pre class="code" id="snippet"></pre>
+        <p class="fine">Or test from the terminal: <code id="curl-hint"></code></p>
+      </section>
+      <section class="stats" id="stats" hidden>
+        <div class="hero-stat">
+          <div class="big"><b id="pct">0%</b><span>of your sessions had an AI agent in them</span></div>
+          <div class="hero-side">
+            <div><b id="sessions">0</b><span>sessions</span></div>
+            <div><b id="agent-sessions">0</b><span>with an agent</span></div>
+            <div><b id="decisions">0</b><span>decisions</span></div>
+            <div><b id="gated">0</b><span>masked / blocked / stepped up</span></div>
+          </div>
+        </div>
+        <div class="card chart-card"><div class="card-head"><h3>Decisions over time</h3><span class="legend"><i class="l-all"></i>all <i class="l-agent"></i>agent present <i class="l-gated"></i>gated</span></div><canvas id="chart" height="220"></canvas></div>
+        <div class="grid2">
+          <div class="card"><div class="card-head"><h3>Decisions</h3></div><div class="bars" id="bars-decisions"></div></div>
+          <div class="card"><div class="card-head"><h3>Who was acting</h3></div><div class="bars" id="bars-actors"></div></div>
+          <div class="card"><div class="card-head"><h3>Agents seen</h3><span class="sub">distinct sessions</span></div><div class="bars" id="bars-tools"></div></div>
+          <div class="card"><div class="card-head"><h3>Resources</h3><span class="sub">what agents reached for</span></div><div class="res" id="resources"></div></div>
+        </div>
+        <div class="card"><div class="card-head"><h3>Recent decisions</h3><span class="sub" id="live">live · refreshes every 10 s</span></div><div class="log" id="log"></div></div>
+      </section>
+    </section>
+
+    <!-- integrate -->
+    <section class="view" id="view-integrate" hidden>
+      <div class="page-head"><div><h1>Integration</h1><p>Hand the npm link to your coding agent, or do it yourself in an afternoon.</p></div></div>
+      <div class="card"><div class="card-head"><h3>server.js</h3><span class="sub">Express · Connect · Next.js custom server · node:http</span></div><pre class="code" id="int-code"></pre></div>
+      <div class="card"><div class="card-head"><h3>For your coding agent</h3><span class="sub">paste this into Claude Code, Codex or Cursor</span></div><pre class="code" id="int-prompt">https://www.npmjs.com/package/nanotarget — install this into my app.
+Follow the README protocol: scan the app, show me what an AI browser agent could reach
+and how to gate it, ask me the nine decisions, implement server + page + policy + masks,
+verify with `npx nanotarget verify`, then report. Use apiKey from process.env.NT_API_KEY.</pre></div>
+    </section>
+
+    <!-- settings -->
+    <section class="view" id="view-settings" hidden>
+      <div class="page-head"><div><h1>Settings</h1><p>Your account.</p></div></div>
+      <div class="card"><div class="kv"><span>E-mail</span><b id="set-email"></b><span>Member since</span><b id="set-since"></b><span>Keys</span><b id="set-keys"></b></div></div>
+      <div class="card"><div class="card-head"><h3>What we store</h3></div><p class="fine" style="margin:0">Your e-mail and a scrypt hash of your password. For each key: its name, prefix and SHA-256 hash. For each decision your middleware reports: a hash of the session id, resource name, decision, actor, connection state, detected tool names and reason codes. Nothing else.</p></div>
+    </section>
+  </main>
+</div>
 
 <div class="modal-bg" id="modal" hidden>
   <div class="modal">
@@ -92,6 +148,7 @@
     </div>
   </div>
 </div>
+<div class="menu" id="row-menu" hidden><button data-act="activity">View activity</button><button data-act="copy">Copy prefix</button><button data-act="revoke" class="danger">Revoke key</button></div>
 <div class="toast" id="toast"></div>
 <script src="/portal.js"></script>
 </body>

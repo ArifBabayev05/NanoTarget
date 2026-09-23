@@ -76,6 +76,12 @@ test('signup → key → ingest → stats', async () => {
   for (const b of st.series) assert.equal(b.t % st.range.bucketMs, 0, 'series points sit on bucket boundaries');
   assert.equal(st.series.length, 1, 'four events within a minute share one bucket');
 
+  // the overview aggregates every key of the account per bucket
+  r = await fetch(`${base}/api/v1/portal/overview?range=24h`, { headers: hdr() });
+  assert.equal(r.status, 200); const ov = await r.json();
+  assert.equal(ov.totals.length, 1); assert.equal(ov.totals[0].key, keyId); assert.equal(ov.totals[0].n, 4); assert.equal(ov.totals[0].agentSessions, 1); assert.equal(ov.totals[0].gated, 2);
+  assert.ok(ov.series.every((b: { t: number }) => b.t % ov.range.bucketMs === 0));
+
   // another account cannot read this key; a revoked key stops ingesting
   const jar2: string[] = [];
   r = await fetch(`${base}/api/v1/portal/signup`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base }, body: JSON.stringify({ email: 'other@corp.example', password: 'longenough2' }) });

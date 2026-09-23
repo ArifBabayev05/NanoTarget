@@ -203,6 +203,11 @@ export type TelemetryStats = {
   recent: { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string }[];
 };
 
+export type TelemetryOverview = {
+  series: { key: string; t: number; n: number; agent: number; gated: number }[];
+  totals: { key: string; n: number; sessions: number; agentSessions: number; gated: number; last: number }[];
+};
+
 export class Store {
   readonly sql: SqlClient;
   private constructor(sql: SqlClient) { this.sql = sql; }
@@ -525,6 +530,19 @@ export class Store {
       sessions: { total: Number(s0.total ?? 0), agent: Number(s0.agent ?? 0) },
       series: series.rows.map((x) => ({ t: Number(x.t), n: Number(x.n), agent: Number(x.agent), gated: Number(x.gated) })),
       recent: recent.rows.map((x) => ({ at: Number(x.at), session: String(x.session), resource: String(x.resource), decision: String(x.decision), actor: String(x.actor), state: String(x.state), tools: JSON.parse(String(x.tools)) as string[], reasons: JSON.parse(String(x.reasons)) as string[], enforcement: String(x.enforcement) })),
+    };
+  }
+
+  /** the overview: every key of an account, per bucket and in total, in two queries */
+  async telemetryOverview(account: string, since: number, bucketMs: number): Promise<TelemetryOverview> {
+    const agentCase = "(t.state IN ('agent_attached','signed_agent') OR t.actor = 'agent_likely')";
+    const [series, totals] = await Promise.all([
+      this.sql.execute(`SELECT t.key_id AS key_id, CAST(t.at / ? AS INTEGER) * ? AS b, COUNT(*) AS n, SUM(CASE WHEN ${agentCase} THEN 1 ELSE 0 END) AS agent, SUM(CASE WHEN t.decision IN ('mask','block','step_up') THEN 1 ELSE 0 END) AS gated FROM telemetry t JOIN api_keys k ON k.id = t.key_id WHERE k.account = ? AND t.at >= ? GROUP BY t.key_id, b ORDER BY b`, [bucketMs, bucketMs, account, since]),
+      this.sql.execute(`SELECT t.key_id AS key_id, COUNT(*) AS n, COUNT(DISTINCT t.session) AS sessions, COUNT(DISTINCT CASE WHEN ${agentCase} THEN t.session END) AS agent_sessions, SUM(CASE WHEN t.decision IN ('mask','block','step_up') THEN 1 ELSE 0 END) AS gated, MAX(t.at) AS last FROM telemetry t JOIN api_keys k ON k.id = t.key_id WHERE k.account = ? AND t.at >= ? GROUP BY t.key_id`, [account, since]),
+    ]);
+    return {
+      series: series.rows.map((x) => ({ key: String(x.key_id), t: Number(x.b), n: Number(x.n), agent: Number(x.agent), gated: Number(x.gated) })),
+      totals: totals.rows.map((x) => ({ key: String(x.key_id), n: Number(x.n), sessions: Number(x.sessions), agentSessions: Number(x.agent_sessions), gated: Number(x.gated), last: Number(x.last) })),
     };
   }
 

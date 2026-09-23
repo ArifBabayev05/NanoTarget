@@ -124,6 +124,14 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     json(res, 200, { key, range: { since: now - range.since, bucketMs: range.bucket }, now, ...(await store.telemetryStats(key, now - range.since, range.bucket)) });
   };
 
+  const overview = async (req: Req, res: Res) => {
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    const range = RANGES[url(req).searchParams.get('range') ?? '7d'] ?? RANGES['7d']!;
+    const now = Date.now();
+    json(res, 200, { range: { since: now - range.since, bucketMs: range.bucket }, now, keys: await store.listApiKeys(account), ...(await store.telemetryOverview(account, now - range.since, range.bucket)) });
+  };
+
   /** POST /api/v1/ingest — Authorization: Bearer nt_live_…; body { events: [...] } */
   const ingest = async (req: Req, res: Res) => {
     const auth = (req.headers.authorization ?? '').toString();
@@ -146,7 +154,7 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     json(res, 202, { accepted: events.length, dropped: list.length - events.length });
   };
 
-  return { signup, login, logout, me, createKey, revokeKey, stats, ingest };
+  return { signup, login, logout, me, createKey, revokeKey, stats, overview, ingest };
 }
 
 const DECISIONS = new Set(['allow', 'mask', 'block', 'step_up']);
