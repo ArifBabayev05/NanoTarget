@@ -2,13 +2,13 @@
 /**
  * Build the two publishable packages:
  *
- *   packages/engine      @onehuman/engine   BUSL-1.1    the engine: detection, policy, audit, proofs (server/public.ts)
+ *   packages/engine      onehuman-engine   BUSL-1.1    the engine: detection, policy, audit, proofs (server/public.ts)
  *     dist/engine.js       one ESM bundle (node:* and @libsql/* external)
  *     dist/kinematics-model.json
  *     dist/types/**        .d.ts of the engine's public surface
  *
  *   packages/onehuman  onehuman           Apache-2.0  what customers link into their code
- *     dist/express.js      the Express/Connect middleware — imports @onehuman/engine, contains none of it
+ *     dist/express.js      the Express/Connect middleware — imports onehuman-engine, contains none of it
  *     dist/cli.js          scan · verify · verify-proof · secret — no engine code at all
  *     dist/types/**        .d.ts of the middleware, engine types referenced by package name
  *     sdk/onehuman.js    the browser SDK, served by the middleware
@@ -31,8 +31,8 @@ for (const d of [`${OPEN}/dist`, `${OPEN}/sdk`, `${ENGINE}/dist`]) { rmSync(d, {
 
 const openPkg = JSON.parse(readFileSync(`${OPEN}/package.json`, 'utf8'));
 const enginePkg = JSON.parse(readFileSync(`${ENGINE}/package.json`, 'utf8'));
-if (openPkg.version !== enginePkg.version) throw new Error(`versions differ: onehuman ${openPkg.version} vs @onehuman/engine ${enginePkg.version} — release them together`);
-if (openPkg.dependencies?.['@onehuman/engine'] !== enginePkg.version) throw new Error(`onehuman must depend on @onehuman/engine@${enginePkg.version} exactly`);
+if (openPkg.version !== enginePkg.version) throw new Error(`versions differ: onehuman ${openPkg.version} vs onehuman-engine ${enginePkg.version} — release them together`);
+if (openPkg.dependencies?.['onehuman-engine'] !== enginePkg.version) throw new Error(`onehuman must depend on onehuman-engine@${enginePkg.version} exactly`);
 
 // ---------------------------------------------------------------- the engine (BUSL-1.1)
 await build({
@@ -40,7 +40,7 @@ await build({
   outfile: `${ENGINE}/dist/engine.js`,
   bundle: true, platform: 'node', format: 'esm', target: 'node22', sourcemap: true, legalComments: 'none',
   external: ['@libsql/client', '@libsql/client/*', 'node:*'],
-  banner: { js: `// @onehuman/engine ${enginePkg.version} — BUSL-1.1 (see LICENSE) — https://onehuman-mvp.vercel.app` },
+  banner: { js: `// onehuman-engine ${enginePkg.version} — BUSL-1.1 (see LICENSE) — https://onehuman-mvp.vercel.app` },
 });
 if (existsSync('server/kinematics-model.json')) cpSync('server/kinematics-model.json', `${ENGINE}/dist/kinematics-model.json`);
 execSync('npx tsc -p tsconfig.engine.json', { stdio: 'inherit' });
@@ -53,7 +53,7 @@ const licenceLine = {
     b.onResolve({ filter: /.*/ }, (args) => {
       if (!args.path.startsWith('.') || !args.resolveDir) return undefined;
       const target = resolve(args.resolveDir, args.path);
-      if (target === PUBLIC) return { path: '@onehuman/engine', external: true };
+      if (target === PUBLIC) return { path: 'onehuman-engine', external: true };
       if (target.startsWith(SERVER)) throw new Error(`licence line: ${args.importer} imports ${args.path} — the open package may reach the engine only through server/public.ts`);
       return undefined;
     });
@@ -65,7 +65,7 @@ await build({
   entryPoints: ['integrations/express/index.ts'],
   outfile: `${OPEN}/dist/express.js`,
   sourcemap: true,
-  external: ['@onehuman/engine', '@libsql/client', '@libsql/client/*', 'express', 'node:*'],
+  external: ['onehuman-engine', '@libsql/client', '@libsql/client/*', 'express', 'node:*'],
   define: { __ONEHUMAN_VERSION__: JSON.stringify(openPkg.version) },
   banner: { js: `// onehuman ${openPkg.version} — Apache-2.0 — https://onehuman-mvp.vercel.app` },
 });
@@ -90,7 +90,7 @@ const types = `${OPEN}/dist/types`;
 const walk = (d) => readdirSync(d).flatMap((n) => { const p = join(d, n); return statSync(p).isDirectory() ? walk(p) : [p]; });
 for (const f of walk(types).filter((p) => p.endsWith('.d.ts'))) {
   const s = readFileSync(f, 'utf8');
-  const t = s.replace(/(["'])(?:\.\.\/)+server\/public(?:\.(?:js|ts))?\1/g, '"@onehuman/engine"');
+  const t = s.replace(/(["'])(?:\.\.\/)+server\/public(?:\.(?:js|ts))?\1/g, '"onehuman-engine"');
   if (t !== s) writeFileSync(f, t);
 }
 rmSync(`${types}/server`, { recursive: true, force: true });

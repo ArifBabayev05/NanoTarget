@@ -1,4 +1,4 @@
-# @onehuman/engine
+# onehuman-engine
 
 The engine behind [`onehuman`](https://www.npmjs.com/package/onehuman): AI-agent detection inside signed-in sessions, the per-resource policy (allow · mask · step up · block), the hash-chained audit log and signed decision proofs.
 
