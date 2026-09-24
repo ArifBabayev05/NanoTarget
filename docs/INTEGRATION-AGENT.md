@@ -148,4 +148,4 @@ Routes under `basePath`: `GET /sdk.js`, `POST /signals`, `GET /connection`, `GET
 
 Options: `secret` (required, ≥32 B) · `policy` (path or object, required) · `db` (`sqlite:./file` | `memory` | `libsql://…`) · `identify(req)` · `basePath` (`/nanotarget`) · `cookie` (`nt_sid`) · `secure` · `tenant` · `respond` (`true`) · `webauthnReclaim` (`true`).
 
-Live demo: https://nanotarget-mvp.vercel.app · Source and docs: https://github.com/ArifBabayev05/NanoTarget (MIT) · `docs/INTEGRATION.md`, `docs/EVAL.md`.
+Live demo: https://nanotarget-mvp.vercel.app · Source and docs: https://github.com/ArifBabayev05/NanoTarget (SDK and middleware Apache-2.0; engine BUSL-1.1 — production use granted) · `docs/INTEGRATION.md`, `docs/EVAL.md`.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Sandbox: a labelled dataset of pointer trajectories (human vs agent) for tuning the
  * kinematics judge. No session or room is involved; the page posts one sample per click.

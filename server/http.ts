@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /** Minimal helpers over node:http. */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';

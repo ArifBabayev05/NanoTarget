@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /** The middleware reports its decisions to the portal with an API key; the portal shows them per key. */
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';

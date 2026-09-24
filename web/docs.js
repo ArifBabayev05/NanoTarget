@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /* Docs: one page at a time, grouped under tabs — theme, routing, search, on-this-page, copy. */
 (() => {
   const $ = (s, r = document) => r.querySelector(s);

@@ -2,6 +2,12 @@
 
 Thanks for taking the time. NanoTarget is small enough to understand in an afternoon; this page tells you where things are and what a good change looks like.
 
+## Before your first pull request: the CLA and the licence
+
+NanoTarget is licensed in two parts (see [`LICENSE`](LICENSE)): the browser SDK, the middleware, the CLI and the proof verifier under **Apache 2.0**; the engine and everything else under the **Business Source License 1.1**. To keep that possible, every contributor agrees to the [Contributor License Agreement](CLA.md) once. You keep your copyright; you allow the project to distribute your contribution under the licences it uses. Sign it by adding one line to your first pull request's description — the template has it.
+
+Every new source file starts with its licence: `// SPDX-License-Identifier: Apache-2.0` under `sdk/` and `integrations/`, `// SPDX-License-Identifier: BUSL-1.1` everywhere else. The open code may reach the engine only through `server/public.ts`; the build and a test enforce this.
+
 ## Setup
 
 ```bash

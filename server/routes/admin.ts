@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /** Dashboard routes: policy read/write per room. No auth in the lab — the room link is the scope. */
 import type { NanoTarget } from '../engine.ts';
 import { json, readJson, sameOrigin, url, UUID, type Req, type Res } from '../http.ts';

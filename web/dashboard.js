@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 (() => {
   const $ = (s) => document.querySelector(s);
   const room = new URL(location.href).searchParams.get('room');

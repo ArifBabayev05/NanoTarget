@@ -1,21 +1,28 @@
-MIT License
+NanoTarget is licensed in two parts. Copyright (c) 2026 Arif Babayev.
 
-Copyright (c) 2026 Arif Babayev
+1. Apache License 2.0 — full text in LICENSE-APACHE, attribution in NOTICE.
+   What customers link into their own code:
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+     sdk/                  the browser SDK
+     integrations/         the Express/Connect middleware, the CLI, the proof verifier
+     examples/             integration examples
+     packages/nanotarget/  the published `nanotarget` npm package
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+2. Business Source License 1.1 — full text and parameters in LICENSE-BSL.
+   Everything else in this repository: the engine (server/), the portal and web
+   console (web/), the build, training and evaluation tooling (scripts/), tests
+   and documentation, and the published `@nanotarget/engine` npm package.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+   The Additional Use Grant permits production use, including protecting your own
+   applications and the services you provide to your customers. It does not permit
+   offering NanoTarget to third parties as a competing hosted or embedded product.
+   Four years after each version is published it converts to Apache 2.0
+   (or, at your option, GPL 2.0 or later).
+
+Versions of NanoTarget published before 0.4.0 were released under the MIT
+License and remain available under it.
+
+Each source file names its licence in an SPDX header. Where a file has none,
+the directory rule above applies.
+
+"NanoTarget" and its logo are not licensed under either licence.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * NanoTarget for Express / Connect / plain Node http.
  *
@@ -16,17 +17,14 @@ import { readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Assessment } from '../../server/assess.ts';
-import { Store, type DecisionRow, type SessionRow } from '../../server/db.ts';
-import { NanoTarget, publicDecision, type DecideResult } from '../../server/engine.ts';
-import { attachModel } from '../../server/kinematics.ts';
-import { loadModel, predict } from '../../server/kinematics-model.ts';
-import { cookies, json, url } from '../../server/http.ts';
-import { parsePolicy, type Policy } from '../../server/policy.ts';
-import { labRoutes } from '../../server/routes/lab.ts';
-import { webauthnRoutes } from '../../server/routes/webauthn.ts';
-import { libsqlClient, sqliteClient, type SqlClient } from '../../server/sql.ts';
-import { proofBundle, verifyProof, type ProofJwk } from '../../server/proof.ts';
+// The engine is a separate package (@nanotarget/engine, BUSL-1.1); this adapter talks to it only through its
+// public surface. In this repository that is ../../server/public.ts; the build rewrites it to the package.
+import {
+  NanoTarget, Store, attachModel, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
+  sqliteClient, url, webauthnRoutes,
+  type Assessment, type DecideResult, type DecisionRow, type Policy, type SessionRow, type SqlClient,
+} from '../../server/public.ts';
+import { proofBundle, verifyProof, type ProofJwk } from '../proof/verify.ts';
 
 export type Req = IncomingMessage & { nt?: ProtectResult };
 export type Res = ServerResponse;

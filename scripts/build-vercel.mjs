@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 // Bundle the serverless entry into plain ESM so Vercel's Node runtime needs no TypeScript step.
 // We only use libSQL over HTTP, so the CommonJS WebSocket transport (ws) is stubbed out:
 // bundling it caused `Dynamic require of "events"` at runtime.

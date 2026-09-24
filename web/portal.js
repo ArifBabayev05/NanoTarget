@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /* NanoTarget portal: workspace with Overview, API Keys, Activity, Integration, Settings. */
 (() => {
   const $ = (s, r = document) => r.querySelector(s);

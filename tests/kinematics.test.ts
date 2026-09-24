@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { clickFeatures, judgeClick, type TrajPoint } from '../server/kinematics.ts';

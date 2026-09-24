@@ -35,7 +35,7 @@
     "@libsql/client": "^0.18.0",
     "esbuild": "^0.28.2"
   },
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ArifBabayev05/NanoTarget.git"

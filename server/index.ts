@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { mkdirSync } from 'node:fs';
 import { createApp } from './app.ts';
 import { clientFromEnv } from './sql.ts';

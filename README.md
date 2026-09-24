@@ -9,7 +9,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/nanotarget"><img alt="npm" src="https://img.shields.io/npm/v/nanotarget?color=3ddc84&label=npm"></a>
   <a href="https://github.com/ArifBabayev05/NanoTarget/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ArifBabayev05/NanoTarget/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
+  <a href="LICENSE"><img alt="Apache-2.0 SDK, BUSL-1.1 engine" src="https://img.shields.io/badge/license-Apache--2.0%20SDK%20%C2%B7%20BUSL--1.1%20engine-blue"></a>
   <a href="https://nanotarget-mvp.vercel.app"><img alt="demo" src="https://img.shields.io/badge/live-demo-0f8a4b"></a>
 </p>
 
@@ -103,4 +103,11 @@ Issues and pull requests are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md
 
 ## License
 
-[MIT](LICENSE) © 2026 Arif Babayev
+NanoTarget is licensed in two parts. © 2026 Arif Babayev.
+
+| Part | Licence | What it means for you |
+| --- | --- | --- |
+| Browser SDK, Express middleware, CLI, proof verifier — the `nanotarget` package | [Apache 2.0](LICENSE-APACHE) | Use, modify and ship it anywhere, including closed-source products. Patent grant included. |
+| Engine, portal, tooling — the `@nanotarget/engine` package and the rest of this repository | [Business Source License 1.1](LICENSE-BSL) | **Production use is granted**, including protecting your own apps and the services you give your customers. Not granted: offering NanoTarget itself to others as a competing hosted or embedded product. Each version becomes Apache 2.0 four years after release. |
+
+Versions before 0.4.0 were published under MIT and stay available under it. Contributions need the one-line [CLA](CLA.md). Alternative licensing: see [SECURITY.md](SECURITY.md) for the contact.

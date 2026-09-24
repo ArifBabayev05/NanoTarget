@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /** Decision proofs: what is signed, that it verifies, and every way a forgery fails. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

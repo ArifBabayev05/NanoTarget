@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /* Trust page: the same three-way theme switch the docs use. */
 (() => {
   const $$ = (s) => [...document.querySelectorAll(s)];

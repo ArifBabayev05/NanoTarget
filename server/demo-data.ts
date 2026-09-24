@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Synthetic demo account. Lives only on the server and is generated per
  * session, so nothing sensitive is in the static bundle. All values are fake.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * `nanotarget scan` — static discovery of what an AI agent could reach in this codebase.
  *

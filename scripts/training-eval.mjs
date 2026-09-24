@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Training-environment evaluation: how the real assessment treated every recorded run, per task.
  *   node scripts/training-eval.mjs                # Turso (.env.local)

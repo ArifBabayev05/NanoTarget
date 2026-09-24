@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /* NanoTarget landing */
 (async () => {
   const $ = (s, r = document) => r.querySelector(s);

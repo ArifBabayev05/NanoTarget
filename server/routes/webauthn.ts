@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * WebAuthn routes. In the lab, credentials are scoped to the room (the room is
  * the "user"). In production they belong to the authenticated account.

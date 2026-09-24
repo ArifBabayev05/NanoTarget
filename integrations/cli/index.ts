@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * nanotarget CLI
  *   npx nanotarget scan [dir]                      discover routes, sensitivity, identity; write nanotarget.policy.draft.json
@@ -12,7 +13,7 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderProposal, renderReport, scan } from './scan.ts';
-import { thumbprint, verifyProof } from '../../server/proof.ts';
+import { thumbprint, verifyProof } from '../proof/verify.ts';
 
 const [cmd, ...rest] = process.argv.slice(2);
 const flag = (name: string) => { const i = rest.indexOf(name); return i >= 0 ? rest[i + 1] : undefined; };

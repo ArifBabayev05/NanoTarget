@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * WebAuthn step-up: proof of a present, verified person.
  *

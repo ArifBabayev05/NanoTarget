@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Vercel serverless entry. One function serves every route; `vercel.json`
  * rewrites all paths here. Storage is Turso (libSQL over HTTP) so all

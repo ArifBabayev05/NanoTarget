@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * The NanoTarget engine: everything a company's backend needs to make and
  * record a decision for one protected resource.

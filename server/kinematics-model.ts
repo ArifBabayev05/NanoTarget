@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Learned per-click model: L2-regularised logistic regression over standardised kinematic features.
  * Weights are trained offline by scripts/kinematics-train.mjs (session-grouped cross-validation, threshold

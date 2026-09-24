@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * NanoTarget browser SDK (v4: pointer trajectories, seal-on-attach). Include in <head>, before app code:
  *

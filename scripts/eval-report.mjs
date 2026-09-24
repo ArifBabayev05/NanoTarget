@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * One-command evaluation report → docs/EVAL.md
  *   node scripts/eval-report.mjs

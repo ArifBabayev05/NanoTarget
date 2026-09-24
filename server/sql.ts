@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Tiny SQL client abstraction so the same SQLite-dialect store runs on
  *   - node:sqlite (local file or in-memory; dev, tests, self-hosted)

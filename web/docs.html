@@ -39,7 +39,7 @@
   <div class="cards">
     <div class="card"><b>Inside the session</b><span>Bot management works at the door, before login. NanoTarget works after it, where the agent actually operates.</span></div>
     <div class="card"><b>Decided on your server</b><span>The decision is made in your process, next to your data. Nothing about it is delegated to the browser.</span></div>
-    <div class="card"><b>Yours to run</b><span>MIT, self-hosted. Policy is your JSON, masking is your function, storage is your database.</span></div>
+    <div class="card"><b>Yours to run</b><span>Runs on your server. Open SDK, readable engine. Policy is your JSON, masking is your function, storage is your database.</span></div>
   </div>
   <div class="note">New here? <a href="#quickstart">Quickstart</a> gets a protected endpoint working in about ten minutes; <a href="#how">How it works</a> explains the model behind it.</div>
 </section>
@@ -360,6 +360,8 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
     <dd>The decision is a local lookup and an evaluation against stored evidence — no outbound call on the request path. Portal telemetry is queued and sent in the background.</dd>
     <dt>Where is the data stored?</dt>
     <dd>In your database: <code>node:sqlite</code> on disk by default, or libSQL for multi-instance and serverless deployments.</dd>
+    <dt>What is the licence, and can we use it in production?</dt>
+    <dd>Yes. The browser SDK, the middleware, the CLI and the proof verifier (the <code>nanotarget</code> package) are Apache 2.0. The engine (<code>@nanotarget/engine</code>) is Business Source License 1.1 with a production-use grant: run it in production, at any scale, to protect your own applications and the services you provide to your customers. The one use not granted is offering NanoTarget itself to third parties as a competing hosted or embedded product. Each version becomes Apache 2.0 four years after release.</dd>
     <dt>Can we run it without any telemetry?</dt>
     <dd>Yes. Leave <code>apiKey</code> unset and nothing leaves your network.</dd>
   </dl>

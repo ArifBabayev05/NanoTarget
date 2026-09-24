@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Local adversarial harness — drives a REAL Chrome through evasion strategies against a running
  * NanoTarget app, and reports whether each one is detected and whether a sensitive resource leaks.

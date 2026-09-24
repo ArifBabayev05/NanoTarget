@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Session timeline report — what a person or agent did on the live site and what the system decided.
  *

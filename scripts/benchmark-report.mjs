@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Print the benchmark of one room as a markdown table, per (label, scenario).
  *   node scripts/benchmark-report.mjs <room-uuid> [base-url]

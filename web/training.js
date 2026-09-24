@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /* Təlim mühiti: 13 tapşırıq, hər klik xam trayektoriya + kontekst ilə yazılır; sonda real qərar mühərriki addım-addım işlədilir. */
 (() => {
   const $ = (s) => document.querySelector(s);

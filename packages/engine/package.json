@@ -1,0 +1,38 @@
+{
+  "name": "@nanotarget/engine",
+  "version": "0.3.1",
+  "description": "The NanoTarget engine: AI-agent detection, per-resource policy, hash-chained audit and signed decision proofs. Installed by the nanotarget package; you rarely need it directly.",
+  "license": "BUSL-1.1",
+  "type": "module",
+  "main": "./dist/engine.js",
+  "types": "./dist/types/server/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/server/public.d.ts",
+      "default": "./dist/engine.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "optionalDependencies": {
+    "@libsql/client": "^0.18.0"
+  },
+  "homepage": "https://nanotarget-mvp.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ArifBabayev05/NanoTarget.git"
+  },
+  "keywords": [
+    "nanotarget",
+    "ai-agent",
+    "agent-detection",
+    "session-security"
+  ]
+}

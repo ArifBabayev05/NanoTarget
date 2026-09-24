@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Acme Bank — the smallest possible NanoTarget integration (Express 5).
 //   node examples/express-bank/server.mjs   →  http://localhost:3000
 import express from 'express';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /** Portal + ingest end to end: sign up, create a key, report decisions with it, read them back. */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';

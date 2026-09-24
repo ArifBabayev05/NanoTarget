@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /* Product-style demo apps (bank / CRM / insurance). User-facing only: no scores,
    no reason codes. Every sensitive card is fetched through NanoTarget.fetch and the
    server decides what comes back. */

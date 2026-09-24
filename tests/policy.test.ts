@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_POLICY, evaluate, parsePolicy } from '../server/policy.ts';
