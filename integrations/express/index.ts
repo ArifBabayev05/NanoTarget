@@ -26,6 +26,7 @@ import { parsePolicy, type Policy } from '../../server/policy.ts';
 import { labRoutes } from '../../server/routes/lab.ts';
 import { webauthnRoutes } from '../../server/routes/webauthn.ts';
 import { libsqlClient, sqliteClient, type SqlClient } from '../../server/sql.ts';
+import { proofBundle, verifyProof, type ProofJwk } from '../../server/proof.ts';
 
 export type Req = IncomingMessage & { nt?: ProtectResult };
 export type Res = ServerResponse;
@@ -82,6 +83,11 @@ export type ProtectResult = {
   assessment: Assessment;
   /** single-use token bound to this decision (for download URLs) */
   token(): string;
+  /**
+   * Signed proof of this decision (compact JWS, EdDSA). Server-side only — nothing is added to the
+   * response the end user receives. Keep it with your own records if you want; the engine stores it too.
+   */
+  proof: string | null;
 };
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -107,10 +113,10 @@ function derivedUuid(secret: Buffer, kind: string, name: string): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
-type TelemetryEvent = { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; version: string };
+type TelemetryEvent = { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; version: string; proof?: string };
 
 /** Buffers decision events and posts them to the portal in the background. Drops rather than blocks. */
-function createReporter(apiKey: string, endpoint: string) {
+function createReporter(apiKey: string, endpoint: string, keys: ProofJwk[]) {
   let queue: TelemetryEvent[] = [];
   let timer: NodeJS.Timeout | null = null;
   let sending = false;
@@ -120,9 +126,9 @@ function createReporter(apiKey: string, endpoint: string) {
     if (sending || !queue.length) return;
     if (failures && Date.now() < backoffUntil) return;
     sending = true;
-    const batch = queue.splice(0, 200);
+    const batch = queue.splice(0, 100);   // a signed event is ~1 KB; 100 stays well under the ingest limit
     try {
-      const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ events: batch }), signal: AbortSignal.timeout(5000) });
+      const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ events: batch, keys }), signal: AbortSignal.timeout(5000) });
       if (r.status === 401) { failures = 999; console.warn('nanotarget: telemetry API key rejected — check apiKey / NT_API_KEY'); queue = []; }
       else if (!r.ok) throw new Error(String(r.status));
       else failures = 0;
@@ -149,13 +155,13 @@ export async function nanotarget(opts: NanoTargetOptions) {
   const tenant = opts.tenant ?? 'default';
   const respond = opts.respond ?? true;
   const apiKey = opts.apiKey ?? process.env.NT_API_KEY ?? '';
-  const reporter = apiKey ? createReporter(apiKey, opts.telemetryUrl ?? process.env.NT_TELEMETRY_URL ?? 'https://nanotarget-mvp.vercel.app/api/v1/ingest') : null;
   const sessionHash = (id: string) => createHash('sha256').update(apiKey).update('\0').update(id).digest('hex').slice(0, 16);
 
   const store = await Store.open(await openClient(opts.db ?? 'sqlite:./nanotarget.db'));
   const model = await loadModel();
   attachModel(model ? { predict: (f) => predict(model, f), humanAbove: model.humanAbove, syntheticBelow: model.syntheticBelow } : null);
   const engine = new NanoTarget({ store, secret, sessionCookie: cookieName });
+  const reporter = apiKey ? createReporter(apiKey, opts.telemetryUrl ?? process.env.NT_TELEMETRY_URL ?? 'https://nanotarget-mvp.vercel.app/api/v1/ingest', engine.proofKeys().keys) : null;
   engine.webauthnReclaimEnabled = opts.webauthnReclaim ?? true;
   const room = derivedUuid(secret, 'room', tenant);
   await store.ensureRoom(room, `tenant:${tenant}`);
@@ -226,6 +232,13 @@ export async function nanotarget(opts: NanoTargetOptions) {
           res.end(sdkCache);
           return;
         }
+        // the public key that verifies this deployment's decision proofs — an auditor fetches it from here
+        if (sub === '/proof-keys' && req.method === 'GET') {
+          const body = JSON.stringify(engine.proofKeys());
+          res.writeHead(200, { 'Content-Type': 'application/jwk-set+json', 'Cache-Control': 'public, max-age=3600', 'Content-Length': Buffer.byteLength(body) });
+          res.end(body);
+          return;
+        }
         const handler = api[`${req.method} ${sub}`];
         if (!handler) return next();
         // the engine's routes resolve the session from the request cookie; with identify() (or on a very first
@@ -248,7 +261,7 @@ export async function nanotarget(opts: NanoTargetOptions) {
         req.nt = {
           decision: d.decision, masked: d.decision === 'mask', blocked: d.decision === 'block', stepUp: result.stepUp,
           actor: d.actor, score: d.score, reasonCodes: d.reasonCodes, session, full: d, assessment: result.assessment,
-          token: () => engine.issueToken(d),
+          token: () => engine.issueToken(d), proof: result.proof,
         };
         res.setHeader('X-NT-Decision', d.id);
         res.setHeader('X-NT-Policy', d.policyVersion);
@@ -267,6 +280,7 @@ export async function nanotarget(opts: NanoTargetOptions) {
       reporter.push({
         at: Date.now(), session: sessionHash(session.id), resource, decision: d.decision, actor: d.actor, state: c.state,
         tools: c.tools.slice(0, 8), reasons: d.reasonCodes.slice(0, 8), enforcement: policy.enforcement, version: result.assessment.version,
+        ...(result.proof ? { proof: result.proof } : {}),
       });
     }).catch(() => {});
   }
@@ -280,7 +294,22 @@ export async function nanotarget(opts: NanoTargetOptions) {
 
   /** the background reporter (null without an apiKey): `await nt.telemetry?.flush()` before exit if you want the last events delivered */
   const telemetry = reporter ? { flush: () => reporter.flush(), get pending() { return reporter.pending; } } : null;
-  return { middleware, protect, send, sessionFor, reloadPolicy, get policy() { return policy; }, engine, store, room, basePath, telemetry, close: async () => { await reporter?.close(); store.close(); } };
+  // --- proofs: what a business hands an auditor --------------------------------------------------
+  /** the JWK Set that verifies this deployment's proofs (also served at `${basePath}/proof-keys`) */
+  const proofKeys = () => engine.proofKeys();
+  /** the signed proof of one decision, by its id (`req.nt.full.id`, or the `X-NT-Decision` header you log) */
+  const proofFor = (decisionId: string) => store.decisionProof(decisionId);
+  /** every signed decision for one session, as a self-contained file an auditor can check offline */
+  async function proofBundleFor(sessionId: string) {
+    const rows = await store.sessionProofs(sessionId);
+    return proofBundle(rows.map((r) => r.proof), engine.proofKeys().keys, { session: sessionId, decisions: rows.length });
+  }
+  /** check a proof against this deployment's key — or pass `keys` to check one from another deployment */
+  const checkProof = (jws: string, keys = engine.proofKeys().keys) => verifyProof(jws, keys);
+
+  return { middleware, protect, send, sessionFor, reloadPolicy, get policy() { return policy; }, engine, store, room, basePath, telemetry,
+    proofKeys, proofFor, proofBundle: proofBundleFor, verifyProof: checkProof,
+    close: async () => { await reporter?.close(); store.close(); } };
 }
 
 export type NanoTargetInstance = Awaited<ReturnType<typeof nanotarget>>;

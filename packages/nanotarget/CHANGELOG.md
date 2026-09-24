@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+- **Decision proofs.** Every decision is signed server-side (Ed25519, compact JWS, key derived from `secret`) and stored with its audit row; the proof covers the decision, its reasons and its place in the hash chain, never the raw session id. `req.nt.proof`, `nt.proofBundle(sessionId)`, `nt.proofFor(id)`, `nt.verifyProof(jws)`, `nt.proofKeys()`; public key at `<basePath>/proof-keys`. Nothing changes for end users.
+- Telemetry carries the proof; the portal verifies each one at ingest (and that it belongs to its event), marks it ✓ in Activity, and exports an auditor bundle. `npx nanotarget verify-proof <bundle> [--keys <url>]` checks one offline.
+- Portal: key rotation, revoked-key history and deletion, password change, paged log with CSV export.
+- A single click unlocks a session only with the learned model's agreement, not on rule points alone.
+
 ## 0.2.2 — 2026-09-23
 - **Management API** for agents and CI: `nt_admin_…` keys administer an account over HTTP — list/create/revoke project keys, read overview and per-key stats; `GET /api/v1/manage/me` describes itself. Project keys gained an environment tag and an optional expiry.
 - `apiKey` option (or `NT_API_KEY`): the middleware reports each decision to the NanoTarget portal — batched, off the request path, metadata only — and the portal shows the share of sessions with an AI agent, decisions over time, agents seen, resources reached, and a live log.

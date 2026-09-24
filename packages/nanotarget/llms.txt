@@ -10,6 +10,8 @@
 - For blocked or stepped-up resources answer the five questions in "Block and step-up design": sibling leak, idempotency on retry, grant scope (per resource, minutes), recovery via passkey reclaim, observability in the audit log.
 - Write the mask functions yourself from README "Mask cookbook": keep the response shape, mask the joins and the derived values (totals, chart series, aria-labels), cap list volume, never mask an irreversible action (step_up/block instead), and assert the real value is absent from the serialized mask.
 
+- Decision proofs: every decision is signed server-side (Ed25519 JWS, `req.nt.proof`); `nt.proofBundle(sessionId)` is the auditor file; public key at `<basePath>/proof-keys`; `npx nanotarget verify-proof <file> --keys <url>` checks it offline. End users see nothing.
+
 - Portal + telemetry: pass `apiKey` (or `NT_API_KEY`) to report decisions; with a management key (`nt_admin_…`) an agent can do the whole setup over HTTP — `GET /api/v1/manage/me` lists the endpoints (keys list/create/revoke, overview, stats).
 
 ## Files

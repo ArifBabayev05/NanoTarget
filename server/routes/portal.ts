@@ -10,6 +10,7 @@ import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypt
 import type { NanoTarget } from '../engine.ts';
 import { cookies, json, readJson, sameOrigin, url, type Req, type Res } from '../http.ts';
 import type { TelemetryEvent } from '../db.ts';
+import { proofBundle, thumbprint, verifyProof, type ProofJwk } from '../proof.ts';
 
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
 const SHORT = /^[a-zA-Z0-9_.:\-\/ ]{1,80}$/;
@@ -230,6 +231,46 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     json(res, 200, { key, events: rows, more: rows.length === pageSize(u) });
   };
 
+  /**
+   * GET /api/v1/portal/proofs?key=&range=30d[&session=] — the file a business hands an auditor: every signed
+   * decision in range (or for one session) plus the keys that verify them. Only proofs that checked out at
+   * ingest are included; the auditor re-checks them anyway.
+   */
+  const proofs = async (req: Req, res: Res) => {
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    const u = url(req);
+    const key = u.searchParams.get('key') ?? '';
+    if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
+    const bundle = await bundleFor(key, u);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="nanotarget-proofs-${bundle.range}${bundle.session ? '-' + bundle.session : ''}.json"`, 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify(bundle, null, 2));
+  };
+  async function bundleFor(key: string, u: URL) {
+    const rangeName = RANGES[u.searchParams.get('range') ?? '30d'] ? (u.searchParams.get('range') ?? '30d') : '30d';
+    const range = RANGES[rangeName]!;
+    const sessionRaw = u.searchParams.get('session');
+    const session = sessionRaw && /^[a-f0-9]{8,32}$/.test(sessionRaw) ? sessionRaw : null;
+    const rows = (await store.telemetryProofs(key, Date.now() - range.since, session)).filter((r) => r.ok);
+    const keys = (await store.proofKeysFor(key)).map(({ kty, crv, x, kid }) => ({ kty, crv, x, kid, use: 'sig' as const, alg: 'EdDSA' as const }));
+    return proofBundle(rows.map((r) => r.proof), keys, { range: rangeName, session, decisions: rows.length });
+  }
+
+  /** POST /api/v1/proof/verify — stateless check of a bundle (or { proofs, keys }). No account, nothing stored. */
+  const verifyBundle = async (req: Req, res: Res) => {
+    const b = (await readJson(req, 2_000_000).catch(() => null)) as Record<string, unknown> | null | undefined;
+    const list = Array.isArray(b?.proofs) ? (b!.proofs as unknown[]).slice(0, 5000) : null;
+    const keys = parseProofKeys(b?.keys);
+    if (!list || !keys.length) return json(res, 400, { error: 'bad_body', message: 'Send a proof bundle: { keys: [...], proofs: [...] }.' });
+    let valid = 0;
+    const results = list.map((p) => {
+      const c = verifyProof(typeof p === 'string' ? p : '', keys);
+      if (c.valid) valid++;
+      return c.valid ? { valid: true, decision: c.payload.jti, resource: c.payload.resource, verdict: c.payload.decision, actor: c.payload.actor, delivered: c.payload.delivered, at: new Date(c.payload.iat * 1000).toISOString(), kid: c.kid } : { valid: false, reason: c.reason };
+    });
+    json(res, 200, { checked: list.length, valid, invalid: list.length - valid, results });
+  };
+
   const pageSize = (u: URL) => Math.min(500, Math.max(1, Number(u.searchParams.get('limit')) || 100));
   const eventPage = (key: string, u: URL) => {
     const range = RANGES[u.searchParams.get('range') ?? '7d'] ?? RANGES['7d']!;
@@ -267,16 +308,29 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     if (key.expires && key.expires < now) return json(res, 401, { error: 'expired', message: 'This key expired; create a new one in the portal.' });
     const w = ingestWindow.get(key.id);
     if (w && now - w.at < 60_000) { if (w.n >= 120) return json(res, 429, { error: 'rate_limited' }); w.n++; } else ingestWindow.set(key.id, { n: 1, at: now });
-    const b = (await readJson(req, 200_000).catch(() => null)) as Record<string, unknown> | null | undefined;
+    const b = (await readJson(req, 400_000).catch(() => null)) as Record<string, unknown> | null | undefined;
     const list = Array.isArray(b?.events) ? (b!.events as unknown[]).slice(0, 200) : null;
     if (!list) return json(res, 400, { error: 'bad_body', message: 'Send { events: [...] }.' });
+    const reported = parseProofKeys(b?.keys);
+    if (reported.length) await store.rememberProofKeys(key.id, reported);
+    const keys = [...reported, ...(await store.proofKeysFor(key.id))];
     const events: TelemetryEvent[] = [];
+    let signed = 0;
     for (const e of list) {
       const ev = parseEvent(e, now);
-      if (ev) events.push(ev);
+      if (!ev) continue;
+      if (ev.proof) {
+        // a valid signature is not enough: the proof must be about *this* event, or a deployment could
+        // attach one real proof to many made-up events
+        const check = verifyProof(ev.proof, keys);
+        ev.proofKid = check.valid ? check.kid : null;
+        ev.proofOk = check.valid && check.payload.resource === ev.resource && check.payload.decision === ev.decision && check.payload.actor === ev.actor;
+        if (ev.proofOk) signed++;
+      }
+      events.push(ev);
     }
     await store.insertTelemetry(key.id, events, now);
-    json(res, 202, { accepted: events.length, dropped: list.length - events.length });
+    json(res, 202, { accepted: events.length, dropped: list.length - events.length, signed });
   };
 
   /**
@@ -325,6 +379,11 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
       const now = Date.now();
       return json(res, 200, { key, range: { since: now - range.since, bucketMs: range.bucket }, now, ...(await store.telemetryStats(key, now - range.since, range.bucket)) });
     }
+    if (path === 'proofs' && method === 'GET') {
+      const key = u.searchParams.get('key') ?? '';
+      if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
+      return json(res, 200, await bundleFor(key, u));
+    }
     if (path === 'events' && method === 'GET') {
       const key = u.searchParams.get('key') ?? '';
       if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
@@ -334,7 +393,7 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     return json(res, 404, { error: 'unknown_endpoint', endpoints: MANAGE_ENDPOINTS });
   };
 
-  return { signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
+  return { signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, proofs, verifyBundle, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
 }
 
 export const MANAGE_ENDPOINTS = [
@@ -346,6 +405,7 @@ export const MANAGE_ENDPOINTS = [
   'GET    /api/v1/manage/overview?range=7d      — usage across every key',
   'GET    /api/v1/manage/stats?key=:id&range=7d — one key: sessions, agents, resources, recent decisions',
   'GET    /api/v1/manage/events?key=:id&range=7d&before=:id&limit=100 — the decision log, paged',
+  'GET    /api/v1/manage/proofs?key=:id&range=30d[&session=:hash] — signed decision proofs + verifying keys (auditor bundle)',
 ];
 
 const DECISIONS = new Set(['allow', 'mask', 'block', 'step_up']);
@@ -367,5 +427,19 @@ export function parseEvent(x: unknown, now: number): TelemetryEvent | null {
   const tools = Array.isArray(o.tools) ? o.tools.filter((t): t is string => typeof t === 'string' && /^[a-z0-9_.\-]{1,40}$/i.test(t)).slice(0, 8) : [];
   const reasons = Array.isArray(o.reasons) ? o.reasons.filter((t): t is string => typeof t === 'string' && TOKEN.test(t)).slice(0, 8) : [];
   if (!session || !resource || !decision) return null;
-  return { at, session, resource, decision, actor, state, tools, reasons, enforcement, version };
+  const proof = typeof o.proof === 'string' && o.proof.length <= 6000 && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(o.proof) ? o.proof : null;
+  return { at, session, resource, decision, actor, state, tools, reasons, enforcement, version, proof };
+}
+
+/** Public keys a deployment reports with its events. The id is recomputed from the key, never trusted. */
+export function parseProofKeys(x: unknown): ProofJwk[] {
+  if (!Array.isArray(x)) return [];
+  const out: ProofJwk[] = [];
+  for (const k of x.slice(0, 4)) {
+    if (!k || typeof k !== 'object') continue;
+    const o = k as Record<string, unknown>;
+    if (o.kty !== 'OKP' || o.crv !== 'Ed25519' || typeof o.x !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(o.x) || 'd' in o) continue;
+    out.push({ kty: 'OKP', crv: 'Ed25519', x: o.x, kid: thumbprint(o.x), use: 'sig', alg: 'EdDSA' });
+  }
+  return out;
 }

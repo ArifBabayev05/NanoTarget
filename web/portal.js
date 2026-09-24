@@ -276,7 +276,11 @@
     });
   }
   let lastRecent = [], older = [], live = true;
-  const logRow = (e) => `<div class="e"><span class="t">${fmtT(e.at)}</span><span class="s">${esc(e.session.slice(0, 8))}</span><span class="r" title="${esc(e.resource)}">${esc(e.resource)}</span><span class="chip ${esc(e.decision)}">${esc(e.decision)}</span><span class="st"><span class="chip ${esc(e.actor)}">${esc(ACTOR_WORD[e.actor] || e.actor)}</span>${e.tools.length ? ` <span class="chip">${esc(e.tools[0])}</span>` : ''}</span><span class="reasons" title="${esc(e.reasons.join(', '))}">${esc(STATE_WORD[e.state] || e.state)} · ${esc(e.reasons.slice(0, 3).join(' · '))}</span></div>`;
+  // A decision the portal verified at ingest carries a seal; clicking it downloads that session's proofs.
+  const seal = (e) => e.signed === true
+    ? `<button class="seal ok" data-proof-session="${esc(e.session)}" title="Signed and verified — download this session's proofs">✓</button>`
+    : e.signed === false ? '<span class="seal bad" title="A proof came with this decision but did not verify">!</span>' : '<span class="seal none" title="Unsigned (reported by an older middleware)">·</span>';
+  const logRow = (e) => `<div class="e"><span class="t">${seal(e)}${fmtT(e.at)}</span><span class="s">${esc(e.session.slice(0, 8))}</span><span class="r" title="${esc(e.resource)}">${esc(e.resource)}</span><span class="chip ${esc(e.decision)}">${esc(e.decision)}</span><span class="st"><span class="chip ${esc(e.actor)}">${esc(ACTOR_WORD[e.actor] || e.actor)}</span>${e.tools.length ? ` <span class="chip">${esc(e.tools[0])}</span>` : ''}</span><span class="reasons" title="${esc(e.reasons.join(', '))}">${esc(STATE_WORD[e.state] || e.state)} · ${esc(e.reasons.slice(0, 3).join(' · '))}</span></div>`;
   function filterLog(q) {
     const s = (q || '').toLowerCase();
     // the newest page comes from stats; anything the reader asked for beyond it is appended below
@@ -303,6 +307,26 @@
       if (!d.events.length) toast('That is the whole range');
     } catch (e) { toast(e.message); } finally { b.disabled = false; b.textContent = 'Load older'; }
   };
+  // Proof bundles are built server-side from the proofs that verified at ingest; the file is self-contained.
+  async function downloadProofs(session) {
+    if (!keyId) return;
+    const q = `key=${encodeURIComponent(keyId)}&range=${session ? '30d' : range}${session ? `&session=${encodeURIComponent(session)}` : ''}`;
+    try {
+      const r = await fetch(`/api/v1/portal/proofs?${q}`, { credentials: 'same-origin' });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || String(r.status));
+      const blob = await r.blob();
+      const n = JSON.parse(await blob.text()).decisions ?? 0;
+      if (!n) { toast(session ? 'No signed decisions for this session' : 'No signed decisions in this range yet'); return; }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `nanotarget-proofs-${keyName(keyId).replace(/[^a-z0-9]+/gi, '-').toLowerCase()}${session ? '-' + session.slice(0, 8) : '-' + range}.json`;
+      a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      toast(`${n.toLocaleString()} signed decision${n === 1 ? '' : 's'} exported`);
+    } catch (e) { toast(e.message); }
+  }
+  $('#export-proofs').onclick = () => downloadProofs(null);
+  $('#log').addEventListener('click', (e) => { const b = e.target.closest('[data-proof-session]'); if (b) downloadProofs(b.dataset.proofSession); });
+
   // the export walks the range server-side, so it is the log the reader sees, not just the visible page
   $('#export-csv').onclick = async () => {
     if (!keyId) return;
@@ -423,6 +447,7 @@
       ['GET', '/api/v1/manage/overview?range=7d', 'usage across every key'],
       ['GET', '/api/v1/manage/stats?key=:id', 'one key in depth'],
       ['GET', '/api/v1/manage/events?key=:id', 'the decision log, paged'],
+      ['GET', '/api/v1/manage/proofs?key=:id', 'signed decision proofs — the auditor file'],
     ].map(([m, p, d]) => `<div><span>${m}</span> ${esc(p)} <span style="color:var(--fg3)">— ${esc(d)}</span></div>`).join('');
   }
   $('#admin-add').onclick = () => { $('#admin-modal').hidden = false; $('#admin-new').hidden = false; $('#admin-show').hidden = true; $('#admin-name').value = ''; setTimeout(() => $('#admin-name').focus(), 50); };

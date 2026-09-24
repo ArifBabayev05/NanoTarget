@@ -47,3 +47,46 @@ test('without an apiKey nothing is reported and no reporter exists', async () =>
   assert.equal(quiet.telemetry, null);
   await quiet.close();
 });
+
+test('every decision is signed server-side, reaches the portal verified, and exports as an auditor bundle', async () => {
+  // the end user sees nothing new: no proof header, no proof in the body
+  const r = await fetch(`${base}/api/balance`);
+  const body = await r.json();
+  assert.equal(r.headers.get('x-nt-proof'), null, 'no proof is sent to the browser');
+  assert.equal(JSON.stringify(body).includes('eyJ'), false, 'no JWS in the response body');
+
+  // the public key is published next to the SDK, for an auditor
+  const jwks = await (await fetch(`${base}/nanotarget/proof-keys`)).json();
+  assert.equal(jwks.keys.length, 1);
+  assert.equal(jwks.keys[0].crv, 'Ed25519');
+  assert.equal('d' in jwks.keys[0], false, 'never the private part');
+
+  await new Promise((res) => setTimeout(res, 150));
+  await nt.telemetry!.flush();
+  const st = await (await fetch(`${pbase}/api/v1/portal/stats?key=${key.id}&range=24h`, { headers: { Cookie: cookie } })).json();
+  assert.equal(st.recent[0].signed, true, 'the portal checked the signature at ingest');
+
+  // the business downloads the bundle; the portal's stateless verifier (or any JOSE library) accepts it
+  const bundle = await (await fetch(`${pbase}/api/v1/portal/proofs?key=${key.id}&range=24h`, { headers: { Cookie: cookie } })).json();
+  assert.equal(bundle.format, 'nanotarget-proof-bundle/1');
+  assert.ok(bundle.proofs.length >= 3);
+  assert.equal(bundle.keys[0].x, jwks.keys[0].x, 'the bundle carries the same key the deployment publishes');
+  const v = await (await fetch(`${pbase}/api/v1/proof/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bundle) })).json();
+  assert.equal(v.invalid, 0);
+  assert.equal(v.results[0].resource, 'balance.read');
+  assert.equal(v.results[0].delivered, true);
+
+  // one changed byte in one proof, and the verifier says so
+  const [h, p, s] = bundle.proofs[0].split('.');
+  const forged = JSON.parse(Buffer.from(p, 'base64url').toString()); forged.decision = 'block';
+  const bad = { ...bundle, proofs: [`${h}.${Buffer.from(JSON.stringify(forged)).toString('base64url')}.${s}`] };
+  const v2 = await (await fetch(`${pbase}/api/v1/proof/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bad) })).json();
+  assert.equal(v2.valid, 0);
+  assert.equal(v2.results[0].reason, 'bad_signature');
+
+  // the middleware exposes the same bundle for its own records
+  const firstSession = (await nt.store.listSessions(nt.room))[0]!;
+  const local = await nt.proofBundle(firstSession.id);
+  assert.ok(local.proofs.length >= 1);
+  assert.equal(nt.verifyProof(local.proofs[0]!).valid, true);
+});

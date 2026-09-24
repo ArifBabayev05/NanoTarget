@@ -220,9 +220,11 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
       <tr><td><code>nt.middleware()</code></td><td>Mount before your routes. Serves the page script and its API under <code>basePath</code>.</td></tr>
       <tr><td><code>nt.protect(resource, { respond })</code></td><td>Decides, then answers 403/428 itself — or sets <code>req.nt</code> and calls <code>next()</code> when <code>respond: false</code>.</td></tr>
       <tr><td><code>nt.send(req, res, full, mask)</code></td><td>Sends <code>full</code>, or <code>mask(full)</code> when the decision says mask.</td></tr>
-      <tr><td><code>req.nt</code></td><td><code>{ decision, masked, blocked, stepUp, actor, reasonCodes, session, token() }</code>.</td></tr>
+      <tr><td><code>req.nt</code></td><td><code>{ decision, masked, blocked, stepUp, actor, reasonCodes, session, token(), proof }</code>. <code>proof</code> is the signed record of this decision — server-side only.</td></tr>
       <tr><td><code>nt.reloadPolicy()</code></td><td>Re-read the policy file without a restart.</td></tr>
       <tr><td><code>nt.telemetry?.flush()</code></td><td>Deliver queued reports before exit.</td></tr>
+      <tr><td><code>nt.proofBundle(sessionId)</code></td><td>Every signed decision for one session, with the key that verifies them — the file you hand an auditor.</td></tr>
+      <tr><td><code>nt.proofFor(decisionId)</code> · <code>nt.verifyProof(jws)</code> · <code>nt.proofKeys()</code></td><td>One proof by decision id; check a proof; the public key set.</td></tr>
     </tbody>
   </table>
 </section>
@@ -255,6 +257,7 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
     <div><span>GET</span> /session <em>— session id and flags</em></div>
     <div><span>POST</span> /step-up <em>— answer a challenge</em></div>
     <div><span>POST</span> /webauthn/register/options · /register · /assert/options · /assert <em>— passkeys</em></div>
+    <div><span>GET</span> /proof-keys <em>— the public key that verifies your decision proofs (JWK Set)</em></div>
   </div>
   <p>Protected responses carry <code>X-NT-Decision</code> and <code>X-NT-Policy</code>, and <code>nt.send</code> adds a small <code>_nt</code> summary to the body so your front end can explain itself.</p>
 </section>
@@ -268,9 +271,14 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
   <table class="tbl">
     <thead><tr><th>Sent</th><th>Never sent</th></tr></thead>
     <tbody>
-      <tr><td>A hash of the session id, the resource name, the decision, the actor, the session state, detected tool names, reason codes, enforcement mode, engine version</td><td>Request or response payloads, customer identities, e-mail addresses, IP addresses, URLs, page text, form values</td></tr>
+      <tr><td>A hash of the session id, the resource name, the decision, the actor, the session state, detected tool names, reason codes, enforcement mode, engine version, and the signed proof of the decision (the same fields, signed)</td><td>Request or response payloads, customer identities, e-mail addresses, IP addresses, URLs, page text, form values</td></tr>
     </tbody>
   </table>
+  <h3>Decision proofs</h3>
+  <p>Every decision is <b>signed on your server</b> the moment it is made, with a key derived from your <code>secret</code>. The proof states what was decided and why — resource, decision, actor, reason codes, policy and engine versions, whether data was delivered — and the decision's place in the tamper-evident audit chain. It carries a digest of the session, never the session id, and nothing the person typed or saw.</p>
+  <p>Your customers see nothing: no header, no field, no extra request. The proof travels with the telemetry report, the portal checks the signature on arrival, and each verified decision shows a <b>✓</b> in Activity. <b>Export proofs</b> downloads every signed decision in range — or click a ✓ for one session — as a single file an auditor can check without trusting us, you, or the database:</p>
+  <pre class="code">npx nanotarget verify-proof proofs.json --keys https://your-app.example/nanotarget/proof-keys</pre>
+  <p class="fine">Proofs are standard compact JWS (EdDSA / Ed25519), so any JOSE library verifies them too. Pass <code>--keys</code> from your own site for an independent check; the keys inside a bundle prove it is consistent, your site proves where it came from.</p>
   <h3>Key lifecycle</h3>
   <p>A key can be <b>rotated</b> — the same key keeps its name, environment and history while a new secret is issued and the old one stops working at once — or <b>revoked</b>, which stops its servers reporting but leaves everything it already reported in place. A revoked key can then be deleted, and its decisions go with it. The decision log exports to CSV for whatever range is on screen.</p>
 </section>
@@ -289,6 +297,7 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
     <div><span>GET</span> /api/v1/manage/overview?range=7d <em>— usage across every key</em></div>
     <div><span>GET</span> /api/v1/manage/stats?key=:id&amp;range=7d <em>— one key in depth</em></div>
     <div><span>GET</span> /api/v1/manage/events?key=:id&amp;range=7d&amp;before=:id <em>— the decision log, paged</em></div>
+    <div><span>GET</span> /api/v1/manage/proofs?key=:id&amp;range=30d <em>— signed decision proofs and the keys that verify them</em></div>
   </div>
   <p class="fine">A management key can create and revoke project keys. Treat it like a password and revoke it when the job is done.</p>
 </section>

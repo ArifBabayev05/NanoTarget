@@ -6,6 +6,7 @@ import type { NanoTarget } from '../engine.ts';
 import { publicDecision } from '../engine.ts';
 import { json, readJson, sameOrigin, url, UUID, type Req, type Res } from '../http.ts';
 import { parseSnapshot } from '../signals.ts';
+import { verifyProof } from '../proof.ts';
 import { verifyChain } from '../audit.ts';
 import { signRequest, type OperatorKey } from '../web-bot-auth.ts';
 import type { SessionRow } from '../db.ts';
@@ -106,8 +107,17 @@ export function labRoutes(engine: NanoTarget, labOperator: LabOperator) {
   const audit = async (req: Req, res: Res) => {
     const room = url(req).searchParams.get('room') ?? '';
     if (!UUID.test(room) || !(await store.roomExists(room))) return json(res, 404, { error: 'room_not_found' });
-    const rows = (await store.listDecisions(room, 300)).map((d) => ({ ...publicDecision(d), seq: d.seq, session: d.session, dataDelivered: d.dataDelivered, prevHash: d.prevHash, hash: d.hash, reasons: d.assessment.reasons }));
-    json(res, 200, { chain: await verifyChain(store, room), decisions: rows });
+    const keys = engine.proofKeys().keys;
+    const rows = [];
+    let signed = 0, valid = 0;
+    for (const d of await store.listDecisions(room, 300)) {
+      const proof = await store.decisionProof(d.id);
+      const check = proof ? verifyProof(proof, keys) : null;
+      if (proof) signed++;
+      if (check?.valid) valid++;
+      rows.push({ ...publicDecision(d), seq: d.seq, session: d.session, dataDelivered: d.dataDelivered, prevHash: d.prevHash, hash: d.hash, reasons: d.assessment.reasons, proof, proofValid: check ? check.valid : null });
+    }
+    json(res, 200, { chain: await verifyChain(store, room), proofs: { signed, valid, keys }, decisions: rows });
   };
 
   /** Server-Sent Events: attach and decision events for one room, as they happen. */

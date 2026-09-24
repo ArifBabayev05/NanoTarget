@@ -11,6 +11,7 @@
 import { randomBytes } from 'node:crypto';
 import { assess, type Assessment } from './assess.ts';
 import { appendDecision } from './audit.ts';
+import { proverFromSecret, type Prover } from './proof.ts';
 import { classifyConnection, type Connection } from './connection.ts';
 import { bus } from './bus.ts';
 import type { DecisionRow, SessionRow, Store } from './db.ts';
@@ -45,6 +46,8 @@ export type DecideInput = {
 
 export type DecideResult = {
   decision: DecisionRow;
+  /** signed proof of this decision (compact JWS, see proof.ts); kept server-side, never sent to the browser */
+  proof: string | null;
   assessment: Assessment;
   server: ServerSignal;
   /** `webauthn`: a passkey is registered, the client should prefer the WebAuthn path; `reclaim`: the session is blocked as agent and only WebAuthn can reopen it */
@@ -70,6 +73,8 @@ export class NanoTarget {
   readonly sessionCookie: string;
   /** requests carrying this token in X-NT-Lab-Simulated are lab simulations and are excluded from benchmarks */
   readonly simulationToken: string;
+  /** signs every decision; the key is derived from `secret`, so it is the same on every instance */
+  readonly prover: Prover;
   /** when true, an agent-blocked resource advertises the WebAuthn reclaim path */
   webauthnReclaimEnabled = true;
 
@@ -80,7 +85,11 @@ export class NanoTarget {
     this.keyLoader = opts.keyLoader;
     this.sessionCookie = opts.sessionCookie ?? 'nt_sid';
     this.simulationToken = randomBytes(16).toString('hex');
+    this.prover = proverFromSecret(this.secret);
   }
+
+  /** The public key that verifies this engine's decision proofs, as a JWK Set. Safe to publish. */
+  proofKeys() { return { keys: [this.prover.jwk] }; }
 
   /**
    * Connection classification for a session from its arrival request and the
@@ -217,11 +226,12 @@ export class NanoTarget {
       simulated,
       assessment,
       created: now,
-    });
+    }, (r, seq) => this.prover.sign(r, seq));
     if (row.dataDelivered && !simulated) await this.store.markFirstData(input.session.id, now);
     if (assessment.actor === 'agent_likely' && !simulated) await this.store.markFirstAgent(input.session.id, now);
     bus.publish({ type: 'decision', room: input.room, session: input.session.id, at: now, id: row.id, resource: row.resource, decision: row.decision, actor: row.actor, reasonCodes: row.reasonCodes });
-    return { decision: row, assessment, server, stepUp };
+    const { seq: _seq, proof, ...decisionRow } = row;
+    return { decision: decisionRow, proof, assessment, server, stepUp };
   }
 
   issueToken(decision: DecisionRow): string {

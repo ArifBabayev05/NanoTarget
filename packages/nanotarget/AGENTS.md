@@ -279,6 +279,26 @@ Create an account at https://nanotarget-mvp.vercel.app/portal, create an API key
 
 The portal shows, per key: the share of sessions with an AI agent, decisions over time, which agents were seen, which resources they reached for, and a live log of recent decisions. Start in `observe` mode and you get the picture before anything is enforced.
 
+### Decision proofs — the evidence an auditor can check
+
+Every decision is signed on your server when it is made (Ed25519, key derived from `secret`). The proof states what was decided and why — resource, decision, actor, reason codes, policy and engine versions, whether data was delivered, and its place in the hash-chained audit log — with a digest of the session instead of the id. **Your end users see nothing**: no header, no body field, no extra request.
+
+```js
+app.get('/api/export', nt.protect('report.export'), (req, res) => {
+  audit.save({ decision: req.nt.full.id, proof: req.nt.proof });   // optional: keep it in your own records too
+  /* … */
+});
+const file = await nt.proofBundle(sessionId);   // every signed decision for one session + the verifying key
+```
+
+With an `apiKey`, proofs travel with the telemetry; the portal checks each signature on arrival (✓ in Activity) and **Export proofs** downloads a bundle. An auditor checks it offline, against the key your own site publishes:
+
+```bash
+npx nanotarget verify-proof proofs.json --keys https://your-app.example/nanotarget/proof-keys
+```
+
+Proofs are standard compact JWS (EdDSA), so any JOSE library verifies them. Management API: `GET /api/v1/manage/proofs?key=<id>&range=30d`.
+
 ### Management API — for coding agents and CI
 
 A **management key** (`nt_admin_…`, created in the portal under Settings) administers the account over HTTP, so an agent can set NanoTarget up end to end without a human opening the portal:
@@ -297,6 +317,7 @@ curl -X DELETE -H "Authorization: Bearer $NT_ADMIN" $BASE/api/v1/manage/keys/<id
 curl -H "Authorization: Bearer $NT_ADMIN" "$BASE/api/v1/manage/overview?range=7d"
 curl -H "Authorization: Bearer $NT_ADMIN" "$BASE/api/v1/manage/stats?key=<id>&range=7d"
 curl -H "Authorization: Bearer $NT_ADMIN" "$BASE/api/v1/manage/events?key=<id>&range=7d&limit=100"
+curl -H "Authorization: Bearer $NT_ADMIN" "$BASE/api/v1/manage/proofs?key=<id>&range=30d"          # signed decisions + verifying keys
 ```
 
 `POST /keys` answers with `{ id, name, env, expires, key }` — put `key` into the app's environment as `NT_API_KEY` and it starts reporting. `GET /manage/me` lists every endpoint, so an agent can discover the API from one call. A management key can create and revoke project keys: treat it like a password, and revoke it in the portal when the job is done.

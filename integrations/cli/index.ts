@@ -5,11 +5,14 @@
  *   npx nanotarget scan [dir] --proposal           only the plain-language proposal to show the product owner
  *   npx nanotarget verify <baseUrl> <protectedPath> [--base /nanotarget]   run the 4 post-integration checks
  *   npx nanotarget secret                          print a fresh NT_SECRET
+ *   npx nanotarget verify-proof <bundle.json> [--keys <jwks.json | https://…/nanotarget/proof-keys>]
+ *                                                  check signed decision proofs offline (for an auditor)
  */
 import { randomBytes } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderProposal, renderReport, scan } from './scan.ts';
+import { thumbprint, verifyProof } from '../../server/proof.ts';
 
 const [cmd, ...rest] = process.argv.slice(2);
 const flag = (name: string) => { const i = rest.indexOf(name); return i >= 0 ? rest[i + 1] : undefined; };
@@ -25,6 +28,32 @@ async function main() {
     else if (has('--proposal')) console.log(renderProposal(r));
     else console.log(renderReport(r));
     return;
+  }
+  if (cmd === 'verify-proof') {
+    // An auditor's check. Nothing is sent anywhere; the only input is the file (and, better, a key you got
+    // yourself from the business's own site — the key inside a bundle proves consistency, not origin).
+    const file = positional[0];
+    if (!file) { console.error('usage: nanotarget verify-proof <bundle.json> [--keys <jwks.json | https://…/nanotarget/proof-keys>]'); process.exit(2); }
+    const bundle = JSON.parse(readFileSync(resolve(file), 'utf8')) as { keys?: { x: string; kid?: string }[]; proofs?: string[] };
+    const keySrc = flag('--keys');
+    let keys = bundle.keys ?? [];
+    if (keySrc) {
+      const raw = /^https?:\/\//.test(keySrc) ? await (await fetch(keySrc)).json() : JSON.parse(readFileSync(resolve(keySrc), 'utf8'));
+      keys = (raw.keys ?? raw) as { x: string }[];
+    }
+    const proofs = bundle.proofs ?? [];
+    if (!keys.length || !proofs.length) { console.error('The file has no keys or no proofs.'); process.exit(2); }
+    let ok = 0;
+    for (const [i, jws] of proofs.entries()) {
+      const c = verifyProof(jws, keys);
+      if (c.valid) {
+        ok++;
+        const p = c.payload;
+        console.log(`✓ ${new Date(p.iat * 1000).toISOString()}  ${p.resource.padEnd(22)} ${p.decision.padEnd(8)} actor=${p.actor.padEnd(13)} delivered=${p.delivered ? 'yes' : 'no '}  decision ${p.jti}  chain #${p.audit.seq}`);
+      } else console.log(`✗ proof ${i + 1}: ${c.reason}`);
+    }
+    console.log(`\n${ok}/${proofs.length} proofs valid, signed by ${[...new Set(keys.map((k) => thumbprint(k.x)))].join(', ')}${keySrc ? '' : '\nKeys came from the bundle itself. For an independent check pass --keys https://<their-site>/nanotarget/proof-keys'}`);
+    process.exit(ok === proofs.length ? 0 : 1);
   }
   if (cmd === 'verify') {
     const base = positional[0]; const path = positional[1]; const ntBase = flag('--base') ?? '/nanotarget';
@@ -60,7 +89,7 @@ async function main() {
     process.exit(allOk ? 0 : 1);
   }
   if (cmd === 'secret') { console.log(randomBytes(32).toString('base64url')); return; }
-  console.log('nanotarget <scan [dir] [--json] | verify <baseUrl> <protectedPath> [--base /nanotarget] | secret>');
+  console.log('nanotarget <scan [dir] [--json] | verify <baseUrl> <protectedPath> [--base /nanotarget] | verify-proof <bundle.json> [--keys <jwks|url>] | secret>');
   process.exit(cmd ? 2 : 0);
 }
 main().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });
