@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- **Grade decisions.** In the portal's Activity each decision has right/wrong marks; gated decisions marked wrong count as false stops, allows marked wrong as misses, both shown for the range. `POST /api/v1/manage/feedback` for agents.
+- **`GET <basePath>/health`** and `nt.health()`: policy version, reporter state, proof key id, and integration warnings — 503 while one stands.
+- **`identify()` guard.** When the same identity arrives from five different clients the middleware logs once, loudly, that it is a constant (every visitor would share one session) and flips health to 503.
+- `/trust`: a one-page data-flow summary for security and legal reviewers.
 - **Fixed: one visitor split into many sessions.** A page that calls several protected endpoints at load sent them all before the session cookie existed, and each opened its own session — the agent's traces landed in one, the data request in another, and the request looked like `NO_CLIENT_TELEMETRY`. The browser SDK now lets the first call establish the session and holds the others until it has (a later page in the same tab skips the wait).
 - **Fixed: reports lost on serverless.** On Vercel, AWS Lambda, Netlify and Azure Functions each report is sent at once (and kept alive with Vercel's `waitUntil`) instead of waiting for a 3-second timer a frozen function never reaches. `telemetryImmediate: true` turns this on anywhere else.
 - **Fixed: a retried batch counted twice.** Every report carries an id; the portal stores and counts each once.
