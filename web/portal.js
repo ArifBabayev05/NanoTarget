@@ -282,7 +282,9 @@
   const seal = (e) => e.signed === true
     ? `<button class="seal ok" data-proof-session="${esc(e.session)}" title="Signed and verified — download this session's proofs">✓</button>`
     : e.signed === false ? '<span class="seal bad" title="A proof came with this decision but did not verify">!</span>' : '<span class="seal none" title="Unsigned (reported by an older middleware)">·</span>';
-  const logRow = (e) => `<div class="e"><span class="t">${seal(e)}${fmtT(e.at)}</span><span class="s">${esc(e.session.slice(0, 8))}</span><span class="r" title="${esc(e.resource)}">${esc(e.resource)}</span><span class="chip ${esc(e.decision)}">${esc(e.decision)}</span><span class="st"><span class="chip ${esc(e.actor)}">${esc(ACTOR_WORD[e.actor] || e.actor)}</span>${e.tools.length ? ` <span class="chip">${esc(e.tools[0])}</span>` : ''}</span><span class="reasons" title="${esc(e.reasons.join(', '))}">${esc(STATE_WORD[e.state] || e.state)} · ${esc(e.reasons.slice(0, 3).join(' · '))}</span></div>`;
+  // The customer grades a decision in place. This is the only ground truth the product gets from the field.
+  const grade = (e) => `<span class="grade" data-grade-id="${e.id}"><button class="${e.feedback === 'correct' ? 'on' : ''}" data-v="correct" title="This decision was right">✓</button><button class="${e.feedback === 'wrong' ? 'on bad' : ''}" data-v="wrong" title="This was wrong — a person stopped, or an agent let through">✗</button></span>`;
+  const logRow = (e) => `<div class="e${e.feedback === 'wrong' ? ' wrong' : ''}"><span class="t">${seal(e)}${fmtT(e.at)}</span><span class="s">${esc(e.session.slice(0, 8))}</span><span class="r" title="${esc(e.resource)}">${esc(e.resource)}</span><span class="chip ${esc(e.decision)}">${esc(e.decision)}</span><span class="st"><span class="chip ${esc(e.actor)}">${esc(ACTOR_WORD[e.actor] || e.actor)}</span>${e.tools.length ? ` <span class="chip">${esc(e.tools[0])}</span>` : ''}</span><span class="reasons" title="${esc(e.reasons.join(', '))}">${esc(STATE_WORD[e.state] || e.state)} · ${esc(e.reasons.slice(0, 3).join(' · '))}</span>${grade(e)}</div>`;
   function filterLog(q) {
     const s = (q || '').toLowerCase();
     // the newest page comes from stats; anything the reader asked for beyond it is appended below
@@ -328,6 +330,18 @@
   }
   $('#export-proofs').onclick = () => downloadProofs(null);
   $('#log').addEventListener('click', (e) => { const b = e.target.closest('[data-proof-session]'); if (b) downloadProofs(b.dataset.proofSession); });
+  $('#log').addEventListener('click', async (e) => {
+    const b = e.target.closest('.grade button'); if (!b) return;
+    const id = Number(b.parentElement.dataset.gradeId), v = b.dataset.v;
+    const row = [...lastRecent, ...older].find((x) => x.id === id); if (!row) return;
+    const verdict = row.feedback === v ? null : v;                       // clicking the same thumb again clears it
+    try {
+      await api('/api/v1/portal/feedback', { method: 'POST', body: JSON.stringify({ key: keyId, id, verdict }) });
+      row.feedback = verdict; filterLog($('#search').value);
+      toast(verdict === 'wrong' ? 'Marked wrong — thank you, this trains the model' : verdict === 'correct' ? 'Marked correct' : 'Grade cleared');
+      loadStats();
+    } catch (err) { toast(err.message); }
+  });
 
   // the export walks the range server-side, so it is the log the reader sees, not just the visible page
   $('#export-csv').onclick = async () => {
@@ -371,6 +385,9 @@
       const pct = d.sessions.total ? Math.round(d.sessions.agent / d.sessions.total * 100) : 0;
       $('#pct').textContent = `${pct}%`; $('#sessions').textContent = d.sessions.total; $('#agent-sessions').textContent = d.sessions.agent; $('#decisions').textContent = total;
       $('#gated').textContent = (d.decisions.mask || 0) + (d.decisions.block || 0) + (d.decisions.step_up || 0);
+      const fb = d.feedback || { reviewed: 0, falseStops: 0, gated: 0 };
+      $('#false-stops').textContent = fb.reviewed ? `${fb.falseStops}` : '–';
+      $('#false-stops').title = fb.reviewed ? `${fb.reviewed} decision${fb.reviewed === 1 ? '' : 's'} graded · ${fb.falseStops} false stop${fb.falseStops === 1 ? '' : 's'} of ${fb.gated} gated · ${fb.misses} agent${fb.misses === 1 ? '' : 's'} let through` : 'Grade decisions in the log to see this';
       bars($('#bars-decisions'), d.decisions, ['allow', 'mask', 'step_up', 'block']);
       bars($('#bars-actors'), d.actors, ['human_like', 'agent_likely', 'unknown']);
       bars($('#bars-tools'), Object.fromEntries(d.tools.map((t) => [t.tool, t.sessions])), [], 'tool');
@@ -450,6 +467,7 @@
       ['GET', '/api/v1/manage/stats?key=:id', 'one key in depth'],
       ['GET', '/api/v1/manage/events?key=:id', 'the decision log, paged'],
       ['GET', '/api/v1/manage/proofs?key=:id', 'signed decision proofs — the auditor file'],
+      ['POST', '/api/v1/manage/feedback', '{key, id, verdict} grade a decision'],
     ].map(([m, p, d]) => `<div><span>${m}</span> ${esc(p)} <span style="color:var(--fg3)">— ${esc(d)}</span></div>`).join('');
   }
   $('#admin-add').onclick = () => { $('#admin-modal').hidden = false; $('#admin-new').hidden = false; $('#admin-show').hidden = true; $('#admin-name').value = ''; setTimeout(() => $('#admin-name').focus(), 50); };

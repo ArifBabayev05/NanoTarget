@@ -259,6 +259,7 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
     <div><span>POST</span> /step-up <em>— answer a challenge</em></div>
     <div><span>POST</span> /webauthn/register/options · /register · /assert/options · /assert <em>— passkeys</em></div>
     <div><span>GET</span> /proof-keys <em>— the public key that verifies your decision proofs (JWK Set)</em></div>
+    <div><span>GET</span> /health <em>— policy version, reporter state, integration warnings (503 while one stands)</em></div>
   </div>
   <p>Protected responses carry <code>X-NT-Decision</code> and <code>X-NT-Policy</code>, and <code>nt.send</code> adds a small <code>_nt</code> summary to the body so your front end can explain itself.</p>
 </section>
@@ -280,6 +281,10 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
   <p>Your customers see nothing: no header, no field, no extra request. The proof travels with the telemetry report, the portal checks the signature on arrival, and each verified decision shows a <b>✓</b> in Activity. <b>Export proofs</b> downloads every signed decision in range — or click a ✓ for one session — as a single file an auditor can check without trusting us, you, or the database:</p>
   <pre class="code">npx nanotarget verify-proof proofs.json --keys https://your-app.example/nanotarget/proof-keys</pre>
   <p class="fine">Proofs are standard compact JWS (EdDSA / Ed25519), so any JOSE library verifies them too. Pass <code>--keys</code> from your own site for an independent check; the keys inside a bundle prove it is consistent, your site proves where it came from.</p>
+  <h3>Grading decisions</h3>
+  <p>Every decision in Activity has two marks: right, or wrong. A gated decision marked wrong is a <b>false stop</b> (a person was masked or blocked); an allow marked wrong is a miss. The counts appear on the Activity page for the selected range. This is the only ground truth a detector gets from the field, and the reason to grade a few decisions a week.</p>
+  <h3>Health</h3>
+  <p><code>GET &lt;basePath&gt;/health</code> on your server answers with the policy version, the reporter's state and any integration warning — most importantly when <code>identify()</code> returns the same value for many different visitors, which would merge them into one session. It returns 503 while a warning stands, so your monitoring notices.</p>
   <h3>Key lifecycle</h3>
   <p>A key can be <b>rotated</b> — the same key keeps its name, environment and history while a new secret is issued and the old one stops working at once — or <b>revoked</b>, which stops its servers reporting but leaves everything it already reported in place. A revoked key can then be deleted, and its decisions go with it. The decision log exports to CSV for whatever range is on screen.</p>
 </section>
@@ -299,6 +304,7 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
     <div><span>GET</span> /api/v1/manage/stats?key=:id&amp;range=7d <em>— one key in depth</em></div>
     <div><span>GET</span> /api/v1/manage/events?key=:id&amp;range=7d&amp;before=:id <em>— the decision log, paged</em></div>
     <div><span>GET</span> /api/v1/manage/proofs?key=:id&amp;range=30d <em>— signed decision proofs and the keys that verify them</em></div>
+    <div><span>POST</span> /api/v1/manage/feedback <em>— {key, id, verdict} grade one reported decision</em></div>
   </div>
   <p class="fine">A management key can create and revoke project keys. Treat it like a password and revoke it when the job is done.</p>
 </section>
@@ -324,6 +330,7 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
     <li>Decisions and their evidence live in your database. Telemetry to the portal is opt-in per key and carries the fields listed <a href="#portal">above</a>.</li>
     <li>Decisions are written to a hash-chained log, so an auditor can verify afterwards that the record was not edited.</li>
   </ul>
+  <p>For a security or legal review there is a one-page summary at <a href="/trust">/trust</a>: what stays on your server, what leaves when you opt in, and what is never collected.</p>
 </section>
 
 <section id="limits">

@@ -173,6 +173,8 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['GET', '/training', labPage('training.html')],
     // customer portal + middleware telemetry
     ['GET', '/docs', async (_req, res) => page(res, 'docs.html', {})],
+    ['GET', '/trust', async (_req, res) => page(res, 'trust.html', {})],
+    ['GET', '/privacy', async (_req, res) => page(res, 'trust.html', {})],
     ['GET', '/portal', async (_req, res) => page(res, 'portal.html', { 'nt-serverless': serverless ? '1' : '0' })],
     ['POST', '/api/v1/portal/signup', portal.signup],
     ['POST', '/api/v1/portal/login', portal.login],
@@ -187,6 +189,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['POST', '/api/v1/portal/account/password', portal.changePassword],
     ['GET', '/api/v1/portal/events', portal.events],
     ['GET', '/api/v1/portal/proofs', portal.proofs],
+    ['POST', '/api/v1/portal/feedback', portal.feedback],
     ['POST', '/api/v1/proof/verify', portal.verifyBundle],
     ['GET', '/api/v1/proof-keys', async (_req, res) => json(res, 200, engine.proofKeys())],
     ['GET', '/api/v1/portal/admin-keys', portal.listAdminKeys],

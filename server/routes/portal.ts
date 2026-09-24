@@ -286,7 +286,21 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     const range = RANGES[u.searchParams.get('range') ?? '7d'] ?? RANGES['7d']!;
     if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
     const now = Date.now();
-    json(res, 200, { key, range: { since: now - range.since, bucketMs: range.bucket }, now, ...(await store.telemetryStats(key, now - range.since, range.bucket)) });
+    json(res, 200, { key, range: { since: now - range.since, bucketMs: range.bucket }, now, ...(await store.telemetryStats(key, now - range.since, range.bucket)), feedback: await store.telemetryFeedback(key, now - range.since) });
+  };
+
+  /** POST /api/v1/portal/feedback { key, id, verdict: 'correct'|'wrong'|null, note? } — the customer grades one decision. */
+  const feedback = async (req: Req, res: Res) => {
+    if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    const b = (await readJson(req, 4000).catch(() => null)) as Record<string, unknown> | null | undefined;
+    const key = typeof b?.key === 'string' ? b.key : '';
+    const id = typeof b?.id === 'number' && Number.isInteger(b.id) && b.id > 0 ? b.id : 0;
+    const verdict = b?.verdict === 'correct' || b?.verdict === 'wrong' ? b.verdict : b?.verdict === null ? null : undefined;
+    const note = typeof b?.note === 'string' ? b.note.replace(/[\x00-\x1f\x7f]/g, '').slice(0, 200) : null;
+    if (!id || verdict === undefined || !(await store.apiKeyOwned(key, account))) return json(res, 400, { error: 'bad_feedback', message: 'Send { key, id, verdict: "correct" | "wrong" | null }.' });
+    json(res, 200, { ok: await store.setTelemetryFeedback(key, id, verdict, note) });
   };
 
   const overview = async (req: Req, res: Res) => {
@@ -379,6 +393,13 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
       const now = Date.now();
       return json(res, 200, { key, range: { since: now - range.since, bucketMs: range.bucket }, now, ...(await store.telemetryStats(key, now - range.since, range.bucket)) });
     }
+    if (path === 'feedback' && method === 'POST') {
+      const key = typeof body?.key === 'string' ? body.key : '';
+      const id = typeof body?.id === 'number' && Number.isInteger(body.id) ? body.id : 0;
+      const verdict = body?.verdict === 'correct' || body?.verdict === 'wrong' ? body.verdict : null;
+      if (!id || !(await store.apiKeyOwned(key, account))) return json(res, 400, { error: 'bad_feedback' });
+      return json(res, 200, { ok: await store.setTelemetryFeedback(key, id, verdict, typeof body?.note === 'string' ? body.note.slice(0, 200) : null) });
+    }
     if (path === 'proofs' && method === 'GET') {
       const key = u.searchParams.get('key') ?? '';
       if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
@@ -393,7 +414,7 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     return json(res, 404, { error: 'unknown_endpoint', endpoints: MANAGE_ENDPOINTS });
   };
 
-  return { signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, proofs, verifyBundle, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
+  return { signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, proofs, verifyBundle, feedback, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
 }
 
 export const MANAGE_ENDPOINTS = [
@@ -406,6 +427,7 @@ export const MANAGE_ENDPOINTS = [
   'GET    /api/v1/manage/stats?key=:id&range=7d — one key: sessions, agents, resources, recent decisions',
   'GET    /api/v1/manage/events?key=:id&range=7d&before=:id&limit=100 — the decision log, paged',
   'GET    /api/v1/manage/proofs?key=:id&range=30d[&session=:hash] — signed decision proofs + verifying keys (auditor bundle)',
+  'POST   /api/v1/manage/feedback                — {key, id, verdict: correct|wrong, note?} grade one reported decision (false-stop rate)',
 ];
 
 const DECISIONS = new Set(['allow', 'mask', 'block', 'step_up']);

@@ -117,3 +117,46 @@ test('immediate mode (serverless) delivers without waiting for the batch timer',
   assert.equal(after - before, 1, 'delivered within 2 s without an explicit flush');
   s.close(); await quick.close();
 });
+
+test('a customer grades a decision; false stops are counted on the stats', async () => {
+  await fetch(`${base}/api/balance`);
+  await new Promise((r) => setTimeout(r, 150)); await nt.telemetry!.flush();
+  let st = await (await fetch(`${pbase}/api/v1/portal/stats?key=${key.id}&range=24h`, { headers: { Cookie: cookie } })).json();
+  const row = st.recent[0];
+  assert.equal(row.feedback, null);
+  // an allow marked wrong is a miss, not a false stop
+  let r = await fetch(`${pbase}/api/v1/portal/feedback`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: pbase, Cookie: cookie }, body: JSON.stringify({ key: key.id, id: row.id, verdict: 'wrong', note: 'that was Claude' }) });
+  assert.equal((await r.json()).ok, true);
+  st = await (await fetch(`${pbase}/api/v1/portal/stats?key=${key.id}&range=24h`, { headers: { Cookie: cookie } })).json();
+  assert.equal(st.recent[0].feedback, 'wrong');
+  assert.equal(st.feedback.reviewed, 1);
+  assert.equal(st.feedback.misses, 1);
+  assert.equal(st.feedback.falseStops, 0);
+  // clearing it
+  r = await fetch(`${pbase}/api/v1/portal/feedback`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: pbase, Cookie: cookie }, body: JSON.stringify({ key: key.id, id: row.id, verdict: null }) });
+  st = await (await fetch(`${pbase}/api/v1/portal/stats?key=${key.id}&range=24h`, { headers: { Cookie: cookie } })).json();
+  assert.equal(st.feedback.reviewed, 0);
+  // another account's key cannot be graded
+  r = await fetch(`${pbase}/api/v1/portal/feedback`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: pbase, Cookie: cookie }, body: JSON.stringify({ key: 'not-mine', id: row.id, verdict: 'wrong' }) });
+  assert.equal(r.status, 400);
+});
+
+test('health reports the policy and the reporter; a constant identify() flips it to 503 with the reason', async () => {
+  let h = await fetch(`${base}/nanotarget/health`);
+  assert.equal(h.status, 200);
+  const body = await h.json();
+  assert.equal(body.ok, true); assert.equal(body.policy.version, 'tele-1'); assert.equal(body.telemetry.enabled, true); assert.match(body.proofKey, /^[A-Za-z0-9_-]{43}$/);
+
+  // the footgun: identify() returns the same string for everyone
+  const bad = await nanotarget({ secret: 'test-secret-test-secret-test-secret-9999', policy: policy as never, db: 'memory', identify: () => 'tenant-a' });
+  const a = express(); a.use(bad.middleware()); a.get('/api/balance', bad.protect('balance.read'), (req, res) => bad.send(req, res, { b: 1 }, (x) => x));
+  const s = a.listen(0); const b = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
+  for (let i = 0; i < 6; i++) await fetch(`${b}/api/balance`, { headers: { 'x-forwarded-for': `10.0.0.${i}`, 'user-agent': `Browser/${i}` } });
+  h = await fetch(`${b}/nanotarget/health`);
+  assert.equal(h.status, 503);
+  const hb = await h.json();
+  assert.equal(hb.ok, false);
+  assert.match(hb.warnings[0], /identify\(\) returned "tenant-a" for \d+ different clients/);
+  assert.equal(bad.health().ok, false);
+  s.close(); await bad.close();
+});

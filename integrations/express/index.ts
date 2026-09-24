@@ -206,10 +206,30 @@ export async function nanotarget(opts: NanoTargetOptions) {
     res.setHeader('Set-Cookie', Array.isArray(prev) ? [...prev, value] : prev ? [String(prev), value] : value);
   };
 
+  // The one integration mistake that has bitten a real deployment: `identify()` returning a constant
+  // ("user", the tenant name, a hard-coded id). Every visitor then shares one NanoTarget session, and a single
+  // agent test marks the whole site "agent" for everyone. The engine cannot tell a constant from a real id,
+  // but it can see the symptom: one identity arriving from many different clients. Warn loudly, once.
+  const clientsByIdentity = new Map<string, Set<string>>();
+  let identityWarning: string | null = null;
+  function watchIdentity(identity: string, req: IncomingMessage) {
+    if (identityWarning) return;
+    const ip = String(req.headers['x-forwarded-for'] ?? req.socket?.remoteAddress ?? '').split(',')[0]!.trim();
+    const ua = String(req.headers['user-agent'] ?? '').slice(0, 80);
+    let seen = clientsByIdentity.get(identity);
+    if (!seen) { if (clientsByIdentity.size >= 500) clientsByIdentity.clear(); seen = new Set(); clientsByIdentity.set(identity, seen); }
+    seen.add(`${ip}|${ua}`);
+    if (seen.size >= 5) {
+      identityWarning = `identify() returned "${identity.slice(0, 40)}" for ${seen.size} different clients (distinct IP or browser). That is a constant, not a login id: every visitor is sharing one session and one agent will mark them all. Return req.session.userId / req.user.id, or null.`;
+      console.error(`nanotarget: ${identityWarning}`);
+    }
+  }
+
   /** The NanoTarget session for this request: derived from `identify()` or from the first-party cookie. Creates it on first sight. */
   async function sessionFor(req: IncomingMessage, res: ServerResponse): Promise<SessionRow> {
     const identity = opts.identify ? await opts.identify(req) : null;
     if (identity) {
+      watchIdentity(String(identity), req);
       const id = derivedUuid(secret, 'session', String(identity));
       const existing = await store.getSession(id);
       if (existing) { if (cookies(req)[cookieName] !== id) setCookie(req, res, id); return existing; }
@@ -252,6 +272,10 @@ export async function nanotarget(opts: NanoTargetOptions) {
           res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'Content-Length': sdkCache.length });
           res.end(sdkCache);
           return;
+        }
+        // what an operator's monitoring asks: is it up, which policy, is the reporter healthy, any integration warning
+        if (sub === '/health' && req.method === 'GET') {
+          return json(res, identityWarning ? 503 : 200, health());
         }
         // the public key that verifies this deployment's decision proofs — an auditor fetches it from here
         if (sub === '/proof-keys' && req.method === 'GET') {
@@ -315,6 +339,17 @@ export async function nanotarget(opts: NanoTargetOptions) {
 
   /** the background reporter (null without an apiKey): `await nt.telemetry?.flush()` before exit if you want the last events delivered */
   const telemetry = reporter ? { flush: () => reporter.flush(), get pending() { return reporter.pending; } } : null;
+  /** Liveness and configuration in one object; `${basePath}/health` serves it (503 while an integration warning stands). */
+  function health() {
+    return {
+      ok: !identityWarning,
+      policy: { version: policy.version, enforcement: policy.enforcement, resources: policy.rules.length },
+      telemetry: reporter ? { enabled: true, pending: reporter.pending, immediate: opts.telemetryImmediate ?? SERVERLESS } : { enabled: false },
+      proofKey: engine.proofKeys().keys[0]!.kid,
+      warnings: identityWarning ? [identityWarning] : [],
+    };
+  }
+
   // --- proofs: what a business hands an auditor --------------------------------------------------
   /** the JWK Set that verifies this deployment's proofs (also served at `${basePath}/proof-keys`) */
   const proofKeys = () => engine.proofKeys();
@@ -328,7 +363,7 @@ export async function nanotarget(opts: NanoTargetOptions) {
   /** check a proof against this deployment's key — or pass `keys` to check one from another deployment */
   const checkProof = (jws: string, keys = engine.proofKeys().keys) => verifyProof(jws, keys);
 
-  return { middleware, protect, send, sessionFor, reloadPolicy, get policy() { return policy; }, engine, store, room, basePath, telemetry,
+  return { middleware, protect, send, sessionFor, reloadPolicy, get policy() { return policy; }, engine, store, room, basePath, telemetry, health,
     proofKeys, proofFor, proofBundle: proofBundleFor, verifyProof: checkProof,
     close: async () => { await reporter?.close(); store.close(); } };
 }

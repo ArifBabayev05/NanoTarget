@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NanoTarget — Trust &amp; privacy</title>
+<meta name="description" content="What NanoTarget keeps on your server, what leaves it when you opt in, and what is never collected. Written for security and legal reviewers.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/docs.css">
+<script src="/theme-boot.js"></script>
+<style>
+  .trust{max-width:1080px;margin:0 auto;padding:56px 24px 120px}
+  .trust .cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:28px 0 8px}
+  .trust .col{border:1px solid var(--line);border-radius:14px;padding:20px 22px;background:var(--bg2)}
+  .trust .col h3{margin:0 0 10px;font-size:15px;letter-spacing:.02em}
+  .trust .col.keep h3{color:var(--accent)}.trust .col.leave h3{color:var(--accent2)}.trust .col.never h3{color:var(--fg)}
+  .trust .col ul{margin:0;padding-left:18px;color:var(--fg2);font-size:14px;line-height:1.6}
+  .trust h2{margin-top:44px}
+  .trust .flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:10px;align-items:center;margin:20px 0}
+  .trust .flow .box{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--bg2);font-size:13.5px;line-height:1.5}
+  .trust .flow .box b{display:block;margin-bottom:4px}
+  .trust .flow .arr{color:var(--fg3);font-family:var(--mono);font-size:12px;text-align:center}
+  .trust .fine{margin-top:6px}
+  @media (max-width:820px){.trust .cols{grid-template-columns:1fr}.trust .flow{grid-template-columns:1fr}.trust .flow .arr{display:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><span class="mark"><span></span></span>NanoTarget <small>trust</small></a>
+  <div></div>
+  <nav class="top-links"><a href="/">Home</a><a href="/docs">Docs</a><a href="/portal">Portal</a><a href="https://github.com/ArifBabayev05/NanoTarget" target="_blank" rel="noopener">GitHub</a></nav>
+  <div class="theme" id="theme" role="group" aria-label="Theme">
+    <button data-theme-set="light" title="Light"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    <button data-theme-set="dark" title="Dark"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    <button data-theme-set="system" title="System"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></button>
+  </div>
+  <a class="btn primary" href="/docs#privacy">Full privacy docs</a>
+</header>
+
+<main class="trust doc">
+  <span class="eyebrow">Trust &amp; privacy</span>
+  <h1>Where your data is, at every step.</h1>
+  <p class="lead">NanoTarget runs inside your own server. The decision about what an AI agent may see is made next to your data and never leaves it. This page is for the security and legal reviewer: what stays, what leaves when you choose to send it, and what is never collected — by construction, not by policy.</p>
+
+  <div class="cols">
+    <div class="col keep">
+      <h3>Stays on your server</h3>
+      <ul>
+        <li>Every decision, with its evidence and reasons</li>
+        <li>The hash-chained audit log</li>
+        <li>The signed proof of each decision, and the private key that signs it</li>
+        <li>Session records and their agent/human state</li>
+        <li>Passkey credentials your users register</li>
+        <li>Your policy file and your mask functions</li>
+      </ul>
+    </div>
+    <div class="col leave">
+      <h3>Leaves only if you add an API key</h3>
+      <ul>
+        <li>A one-way digest of the session id (never the id)</li>
+        <li>Resource name, decision, actor, session state</li>
+        <li>Detected agent product names and reason codes</li>
+        <li>Enforcement mode and engine version</li>
+        <li>The signed proof — the same fields, signed</li>
+        <li>Nothing else. Remove the key and nothing leaves.</li>
+      </ul>
+    </div>
+    <div class="col never">
+      <h3>Never collected, anywhere</h3>
+      <ul>
+        <li>Request or response payloads</li>
+        <li>What the person typed — no keys, no characters, no form values</li>
+        <li>Page text or the content of what was displayed</li>
+        <li>Names, e-mails, account numbers, customer identities</li>
+        <li>IP addresses in reports</li>
+        <li>Cross-site identifiers or tracking fingerprints</li>
+      </ul>
+    </div>
+  </div>
+  <p class="fine">The page script measures how the session behaves — timing, movement geometry, known agent-tool traces — not what it contains. It is served from your origin and posts only to your origin.</p>
+
+  <h2>The path of one decision</h2>
+  <div class="flow">
+    <div class="box"><b>Browser</b>The page script sends behavioural metadata to <em>your</em> server. Data already on screen is redacted the instant an agent appears.</div>
+    <div class="arr">→ your origin only</div>
+    <div class="box"><b>Your server</b>The engine decides allow · mask · step up · block, writes the audit row, signs the proof. Your handler returns full or masked data.</div>
+    <div class="arr">→ opt-in, metadata</div>
+    <div class="box"><b>NanoTarget portal</b>With an API key, a report of the decision (fields above) arrives in the background, batched, off the request path. It never blocks your response.</div>
+  </div>
+
+  <h2>Questions a reviewer asks</h2>
+  <dl class="defs">
+    <dt>Where does NanoTarget run?</dt>
+    <dd>As a library inside your Node process. Storage is your SQLite file or your libSQL database. There is no NanoTarget component in the request path other than your own server.</dd>
+    <dt>Can we run it fully disconnected?</dt>
+    <dd>Yes. Without an API key no network call is ever made. Detection, policy, audit, proofs and passkey reclaim all work offline. Agent signature updates then arrive with package updates.</dd>
+    <dt>What is in the portal, and where is it hosted?</dt>
+    <dd>Aggregates and the decision log built from the metadata above, per API key, for your account only. The portal is hosted on Vercel with a Turso (libSQL) database. Sub-processors: Vercel, Turso. No advertising or analytics processors.</dd>
+    <dt>How long is telemetry kept?</dt>
+    <dd>Until you revoke and delete the API key, which removes its reported decisions. Revoked keys can be deleted at any time from the portal.</dd>
+    <dt>Can our auditor verify a decision without trusting you?</dt>
+    <dd>Yes. Every decision is signed on your server with a key derived from your secret. The public key is served from your own site; the proof verifies with any standard JOSE library or <code>npx nanotarget verify-proof</code>. NanoTarget the company is not in that loop.</dd>
+    <dt>Does the page script affect our users?</dt>
+    <dd>It is first-party, adds no third-party requests, sets one first-party cookie for the session, and changes nothing a person sees — except redacting sensitive fields the moment an agent attaches, which is the point.</dd>
+    <dt>Is behavioural data biometric?</dt>
+    <dd>NanoTarget does not identify people and keeps no per-person template. It answers one question per session — is an agent operating it — from evidence of the session, and discards the raw movement stream. Nothing can be matched across users or across sites.</dd>
+    <dt>Security contact</dt>
+    <dd>Report vulnerabilities per <a href="https://github.com/ArifBabayev05/NanoTarget/blob/main/SECURITY.md" target="_blank" rel="noopener">SECURITY.md</a>. Acknowledgement within 72 hours; a fix or mitigation plan within 14 days for confirmed issues.</dd>
+  </dl>
+
+  <div class="note">Need a DPA, a sub-processor list on letterhead, or a security questionnaire filled in? Write to the address in SECURITY.md — that is the founders' inbox.</div>
+</main>
+<script src="/trust.js"></script>
+</body>
+</html>
