@@ -10,7 +10,7 @@
  * arrives on `req.nt` and nothing here touches its authentication. Storage is local (sqlite) or libSQL, so the
  * package runs on-prem; telemetry never has to leave the company's network.
  */
-import { createHash, createHmac } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -64,6 +64,12 @@ export type NanoTargetOptions = {
    * Default: process.env.NT_API_KEY. Without a key nothing leaves your server.
    */
   apiKey?: string;
+  /**
+   * Send each report as soon as it is made instead of batching every 3 s. On by default on Vercel, AWS Lambda,
+   * Netlify and Azure Functions (a frozen function never reaches its timer); turn it on for any other
+   * platform that suspends the process between requests.
+   */
+  telemetryImmediate?: boolean;
   /** where reports go (default https://nanotarget-mvp.vercel.app/api/v1/ingest, or NT_TELEMETRY_URL) */
   telemetryUrl?: string;
 };
@@ -113,10 +119,24 @@ function derivedUuid(secret: Buffer, kind: string, name: string): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
-type TelemetryEvent = { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; version: string; proof?: string };
+type TelemetryEvent = { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; version: string; proof?: string; eid?: string };
 
 /** Buffers decision events and posts them to the portal in the background. Drops rather than blocks. */
-function createReporter(apiKey: string, endpoint: string, keys: ProofJwk[]) {
+/**
+ * On a serverless platform the function is frozen as soon as the response is sent: a batch waiting for its
+ * 3-second timer is sent on the next invocation at best, or lost with the instance. There, every event is
+ * sent right away, and on Vercel the send is registered with the request's `waitUntil` so the platform keeps
+ * the function alive until it finishes.
+ */
+const SERVERLESS = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY || process.env.FUNCTIONS_WORKER_RUNTIME);
+function keepAlive(p: Promise<unknown>) {
+  try {
+    const ctx = (globalThis as unknown as Record<symbol, { get?: () => { waitUntil?: (p: Promise<unknown>) => void } | undefined } | undefined>)[Symbol.for('@vercel/request-context')]?.get?.();
+    ctx?.waitUntil?.(p);
+  } catch { /* not on Vercel */ }
+}
+
+function createReporter(apiKey: string, endpoint: string, keys: ProofJwk[], eager = SERVERLESS) {
   let queue: TelemetryEvent[] = [];
   let timer: NodeJS.Timeout | null = null;
   let sending = false;
@@ -128,10 +148,10 @@ function createReporter(apiKey: string, endpoint: string, keys: ProofJwk[]) {
     sending = true;
     const batch = queue.splice(0, 100);   // a signed event is ~1 KB; 100 stays well under the ingest limit
     try {
-      const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ events: batch, keys }), signal: AbortSignal.timeout(5000) });
+      const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ events: batch, keys }), signal: AbortSignal.timeout(10000) });
       if (r.status === 401) { failures = 999; console.warn('nanotarget: telemetry API key rejected — check apiKey / NT_API_KEY'); queue = []; }
       else if (!r.ok) throw new Error(String(r.status));
-      else failures = 0;
+      else { failures = 0; if (eager && queue.length) setTimeout(() => { keepAlive(flush()); }, 0); }
     } catch {
       failures++; backoffUntil = Date.now() + Math.min(60_000, 2000 * 2 ** Math.min(failures, 5));
       queue = [...batch, ...queue].slice(-MAX);   // keep the newest
@@ -140,8 +160,9 @@ function createReporter(apiKey: string, endpoint: string, keys: ProofJwk[]) {
   let backoffUntil = 0;
   function push(e: TelemetryEvent) {
     if (failures >= 999) return;
-    queue.push(e); if (queue.length > MAX) queue = queue.slice(-MAX);
-    if (queue.length >= BATCH) void flush();
+    queue.push({ ...e, eid: e.eid ?? randomUUID() });   // a retried batch repeats these ids; the portal counts each once if (queue.length > MAX) queue = queue.slice(-MAX);
+    if (eager) keepAlive(flush());
+    else if (queue.length >= BATCH) void flush();
     if (!timer) { timer = setInterval(() => { void flush(); }, EVERY_MS); timer.unref?.(); }
   }
   return { push, flush, get pending() { return queue.length; }, close() { if (timer) clearInterval(timer); timer = null; return flush(); } };
@@ -161,7 +182,7 @@ export async function nanotarget(opts: NanoTargetOptions) {
   const model = await loadModel();
   attachModel(model ? { predict: (f) => predict(model, f), humanAbove: model.humanAbove, syntheticBelow: model.syntheticBelow } : null);
   const engine = new NanoTarget({ store, secret, sessionCookie: cookieName });
-  const reporter = apiKey ? createReporter(apiKey, opts.telemetryUrl ?? process.env.NT_TELEMETRY_URL ?? 'https://nanotarget-mvp.vercel.app/api/v1/ingest', engine.proofKeys().keys) : null;
+  const reporter = apiKey ? createReporter(apiKey, opts.telemetryUrl ?? process.env.NT_TELEMETRY_URL ?? 'https://nanotarget-mvp.vercel.app/api/v1/ingest', engine.proofKeys().keys, opts.telemetryImmediate ?? SERVERLESS) : null;
   engine.webauthnReclaimEnabled = opts.webauthnReclaim ?? true;
   const room = derivedUuid(secret, 'room', tenant);
   await store.ensureRoom(room, `tenant:${tenant}`);

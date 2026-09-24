@@ -198,7 +198,7 @@ CREATE TABLE IF NOT EXISTS challenges (
 
 /** additive migrations for databases created by earlier builds */
 /** The newest column of each migrated table. Add a line here whenever MIGRATIONS gains a column. */
-const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'proof_ok'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at']];
+const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'eid'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at']];
 
 const MIGRATIONS = [
   'ALTER TABLE sessions ADD COLUMN agent_attached_at INTEGER',
@@ -213,6 +213,8 @@ const MIGRATIONS = [
   'ALTER TABLE telemetry ADD COLUMN proof_kid TEXT',
   'ALTER TABLE telemetry ADD COLUMN proof_ok INTEGER',
   'ALTER TABLE api_keys ADD COLUMN proof_keys TEXT',
+  'ALTER TABLE telemetry ADD COLUMN eid TEXT',
+  'CREATE UNIQUE INDEX IF NOT EXISTS telemetry_eid ON telemetry (key_id, eid)',
 ];
 
 export type ApiKeyRow = { id: string; name: string; prefix: string; created: number; revoked: number | null; lastSeen: number | null; events: number; expires: number | null; env: string };
@@ -222,7 +224,9 @@ const apiKeyRow = (x: Row): ApiKeyRow => ({ id: String(x.id), name: String(x.nam
 
 export type TelemetryEvent = { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; version: string;
   /** signed decision proof (compact JWS), its key id, and whether the signature checked out at ingest */
-  proof?: string | null; proofKid?: string | null; proofOk?: boolean | null };
+  proof?: string | null; proofKid?: string | null; proofOk?: boolean | null;
+  /** the reporter's id for this event: a retried batch carries the same ids, so nothing is counted twice */
+  eid?: string | null };
 export type TelemetryStats = {
   decisions: Record<string, number>;
   actors: Record<string, number>;
@@ -622,12 +626,24 @@ export class Store {
     return r.rows.map((x) => ({ at: Number(x.at), session: String(x.session), proof: String(x.proof), ok: Number(x.proof_ok) === 1 }));
   }
 
-  async insertTelemetry(keyId: string, events: TelemetryEvent[], now = Date.now()) {
-    if (!events.length) return;
+  /**
+   * Store reported events. A reporter retries a batch when the answer did not reach it (a timeout on a cold
+   * start), so events that carry an id already stored for this key are dropped, and only new ones count.
+   * Returns how many were new.
+   */
+  async insertTelemetry(keyId: string, events: TelemetryEvent[], now = Date.now()): Promise<number> {
+    const ids = events.map((e) => e.eid).filter((x): x is string => !!x);
+    if (ids.length) {
+      const seen = new Set((await this.sql.execute(`SELECT eid FROM telemetry WHERE key_id = ? AND eid IN (${ids.map(() => '?').join(',')})`, [keyId, ...ids])).rows.map((r) => String(r.eid)));
+      const once = new Set<string>();
+      events = events.filter((e) => !e.eid || (!seen.has(e.eid) && !once.has(e.eid) && once.add(e.eid)));
+    }
+    if (!events.length) return 0;
     await this.sql.batch([
-      ...events.map((e) => ({ sql: 'INSERT INTO telemetry (key_id, at, session, resource, decision, actor, state, tools, reasons, enforcement, version, proof, proof_kid, proof_ok) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', args: [keyId, e.at, e.session, e.resource, e.decision, e.actor, e.state, JSON.stringify(e.tools), JSON.stringify(e.reasons), e.enforcement, e.version, e.proof ?? null, e.proofKid ?? null, e.proofOk == null ? null : e.proofOk ? 1 : 0] as SqlArg[] })),
+      ...events.map((e) => ({ sql: 'INSERT OR IGNORE INTO telemetry (key_id, at, session, resource, decision, actor, state, tools, reasons, enforcement, version, proof, proof_kid, proof_ok, eid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', args: [keyId, e.at, e.session, e.resource, e.decision, e.actor, e.state, JSON.stringify(e.tools), JSON.stringify(e.reasons), e.enforcement, e.version, e.proof ?? null, e.proofKid ?? null, e.proofOk == null ? null : e.proofOk ? 1 : 0, e.eid ?? null] as SqlArg[] })),
       { sql: 'UPDATE api_keys SET last_seen = ?, events = events + ? WHERE id = ?', args: [now, events.length, keyId] },
     ]);
+    return events.length;
   }
   /** everything the portal shows for one key since `since` */
   async telemetryStats(keyId: string, since: number, bucketMs: number): Promise<TelemetryStats> {

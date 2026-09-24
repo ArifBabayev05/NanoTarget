@@ -329,8 +329,8 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
       }
       events.push(ev);
     }
-    await store.insertTelemetry(key.id, events, now);
-    json(res, 202, { accepted: events.length, dropped: list.length - events.length, signed });
+    const stored = await store.insertTelemetry(key.id, events, now);
+    json(res, 202, { accepted: events.length, stored, duplicates: events.length - stored, dropped: list.length - events.length, signed });
   };
 
   /**
@@ -428,7 +428,8 @@ export function parseEvent(x: unknown, now: number): TelemetryEvent | null {
   const reasons = Array.isArray(o.reasons) ? o.reasons.filter((t): t is string => typeof t === 'string' && TOKEN.test(t)).slice(0, 8) : [];
   if (!session || !resource || !decision) return null;
   const proof = typeof o.proof === 'string' && o.proof.length <= 6000 && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(o.proof) ? o.proof : null;
-  return { at, session, resource, decision, actor, state, tools, reasons, enforcement, version, proof };
+  const eid = typeof o.eid === 'string' && /^[A-Za-z0-9_-]{8,40}$/.test(o.eid) ? o.eid : null;
+  return { at, session, resource, decision, actor, state, tools, reasons, enforcement, version, proof, eid };
 }
 
 /** Public keys a deployment reports with its events. The id is recomputed from the key, never trusted. */

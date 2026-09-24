@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- **Fixed: one visitor split into many sessions.** A page that calls several protected endpoints at load sent them all before the session cookie existed, and each opened its own session — the agent's traces landed in one, the data request in another, and the request looked like `NO_CLIENT_TELEMETRY`. The browser SDK now lets the first call establish the session and holds the others until it has (a later page in the same tab skips the wait).
+- **Fixed: reports lost on serverless.** On Vercel, AWS Lambda, Netlify and Azure Functions each report is sent at once (and kept alive with Vercel's `waitUntil`) instead of waiting for a 3-second timer a frozen function never reaches. `telemetryImmediate: true` turns this on anywhere else.
+- **Fixed: a retried batch counted twice.** Every report carries an id; the portal stores and counts each once.
+- Portal: Activity opens on the key that is actually reporting; a revoked key's history stays viewable; the overview title follows the selected range.
+- SDK: transport state is declared before any probe can report during page load.
+
+## 0.3.0 — 2026-09-24
 - **Decision proofs.** Every decision is signed server-side (Ed25519, compact JWS, key derived from `secret`) and stored with its audit row; the proof covers the decision, its reasons and its place in the hash chain, never the raw session id. `req.nt.proof`, `nt.proofBundle(sessionId)`, `nt.proofFor(id)`, `nt.verifyProof(jws)`, `nt.proofKeys()`; public key at `<basePath>/proof-keys`. Nothing changes for end users.
 - Telemetry carries the proof; the portal verifies each one at ingest (and that it belongs to its event), marks it ✓ in Activity, and exports an auditor bundle. `npx nanotarget verify-proof <bundle> [--keys <url>]` checks one offline.
 - Portal: key rotation, revoked-key history and deletion, password change, paged log with CSV export.

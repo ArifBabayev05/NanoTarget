@@ -87,7 +87,7 @@
   }
   const currentView = () => (location.hash.replace('#', '') || 'overview');
   addEventListener('hashchange', () => { if (me) show(currentView()); });
-  $$('#range-ov button').forEach((b) => b.addEventListener('click', () => { ovRange = b.dataset.r; $$('#range-ov button').forEach((x) => x.classList.toggle('on', x === b)); loadOverview(); }));
+  $$('#range-ov button').forEach((b) => b.addEventListener('click', () => { ovRange = b.dataset.r; $('#usage-title').textContent = { '24h': 'Last 24 hours', '7d': 'Last 7 days', '30d': 'Last 30 days' }[ovRange]; $$('#range-ov button').forEach((x) => x.classList.toggle('on', x === b)); loadOverview(); }));
   $$('#range button').forEach((b) => b.addEventListener('click', () => { range = b.dataset.r; $$('#range button').forEach((x) => x.classList.toggle('on', x === b)); loadStats(); }));
   $('#banner-x').onclick = () => { $('#banner').hidden = true; try { localStorage.setItem('nt-portal-banner', '1'); } catch {} };
   try { if (localStorage.getItem('nt-portal-banner')) $('#banner').hidden = true; } catch {}
@@ -171,7 +171,7 @@
       menuKey = b.dataset.menu;
       // a revoked key can only be restored to the list or removed for good; a live one has the rest
       const dead = !!(me.keys || []).find((x) => x.id === menuKey)?.revoked;
-      $$('#row-menu [data-act]').forEach((x) => { x.hidden = ['delete'].includes(x.dataset.act) ? !dead : dead; });
+      $$('#row-menu [data-act]').forEach((x) => { x.hidden = x.dataset.act === 'activity' ? false : x.dataset.act === 'delete' ? !dead : dead; });
       const r = b.getBoundingClientRect(); menu.hidden = false;
       menu.style.left = `${Math.min(innerWidth - 190, r.right - 180)}px`; menu.style.top = `${r.bottom + 6}px`;
       e.stopPropagation(); return;
@@ -240,7 +240,9 @@
 
   // ------------------------------------------------------------------ activity (per key)
   function renderKeyChips() {
-    const keys = liveKeys(); if (!keyId || !keys.some((k) => k.id === keyId)) keyId = keys[0]?.id || null;
+    // open on the key that is actually reporting (most recent event), not on whichever was created first
+    const chosenDead = (me?.keys || []).find((k) => k.id === keyId && k.revoked);
+    const keys = chosenDead ? [...liveKeys(), chosenDead] : liveKeys(); if (!keyId || !keys.some((k) => k.id === keyId)) keyId = [...keys].sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0) || b.created - a.created)[0]?.id || null;
     $('#keys').innerHTML = keys.map((k) => `<button class="key ${k.id === keyId ? 'on' : ''} ${k.lastSeen ? 'live' : ''}" data-key="${esc(k.id)}"><i class="dot"></i>${esc(k.name)}<span class="pre">${esc(k.prefix)}…</span></button>`).join('');
     $$('[data-key]').forEach((b) => b.addEventListener('click', () => { keyId = b.dataset.key; renderKeyChips(); loadStats(); }));
   }
@@ -395,7 +397,7 @@
     const keys = liveKeys();
     if (!keys.length) { $('#setup-key').innerHTML = '<option>no keys yet</option>'; }
     else {
-      if (!setupKeyId || !keys.some((k) => k.id === setupKeyId)) setupKeyId = keys[0].id;
+      if (!setupKeyId || !keys.some((k) => k.id === setupKeyId)) setupKeyId = [...keys].sort((a, b) => b.created - a.created)[0].id;   // the key you just made
       $('#setup-key').innerHTML = keys.map((k) => `<option value="${esc(k.id)}" ${k.id === setupKeyId ? 'selected' : ''}>${esc(k.name)} · ${esc(k.prefix)}…</option>`).join('');
     }
     const k = keys.find((x) => x.id === setupKeyId);

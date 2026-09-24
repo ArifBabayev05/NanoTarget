@@ -90,3 +90,30 @@ test('every decision is signed server-side, reaches the portal verified, and exp
   assert.ok(local.proofs.length >= 1);
   assert.equal(nt.verifyProof(local.proofs[0]!).valid, true);
 });
+
+test('a batch sent twice (retry after a timeout) is stored and counted once', async () => {
+  const ev = { at: Date.now(), session: 'aaaabbbbccccdddd', resource: 'balance.read', decision: 'allow', actor: 'unknown', state: 'no_indication', tools: [], reasons: [], enforcement: 'observe', version: 'x', eid: 'retry-test-eid-0001' };
+  const send = () => fetch(`${pbase}/api/v1/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key.key}` }, body: JSON.stringify({ events: [ev, { ...ev, eid: 'retry-test-eid-0002' }] }) }).then((r) => r.json());
+  const before = (await (await fetch(`${pbase}/api/v1/portal/me`, { headers: { Cookie: cookie } })).json()).keys.find((k: { id: string }) => k.id === key.id).events;
+  const first = await send();
+  const second = await send();
+  assert.equal(first.stored, 2);
+  assert.equal(second.stored, 0, 'the same ids are not stored again');
+  assert.equal(second.duplicates, 2);
+  const after = (await (await fetch(`${pbase}/api/v1/portal/me`, { headers: { Cookie: cookie } })).json()).keys.find((k: { id: string }) => k.id === key.id).events;
+  assert.equal(after - before, 2, 'the key counts each event once');
+});
+
+test('immediate mode (serverless) delivers without waiting for the batch timer', async () => {
+  const quick = await nanotarget({ secret: 'test-secret-test-secret-test-secret-5678', policy: policy as never, db: 'memory', apiKey: key.key, telemetryUrl: `${pbase}/api/v1/ingest`, telemetryImmediate: true });
+  const a = express(); a.use(quick.middleware());
+  a.get('/api/balance', quick.protect('balance.read'), (req, res) => quick.send(req, res, { balance: 1 }, (x) => x));
+  const s = a.listen(0); const b = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
+  const before = (await (await fetch(`${pbase}/api/v1/portal/me`, { headers: { Cookie: cookie } })).json()).keys.find((k: { id: string }) => k.id === key.id).events;
+  await fetch(`${b}/api/balance`);
+  // no flush() call: the event must arrive on its own well inside the 3 s batch interval
+  let after = before;
+  for (let i = 0; i < 20 && after === before; i++) { await new Promise((r) => setTimeout(r, 100)); after = (await (await fetch(`${pbase}/api/v1/portal/me`, { headers: { Cookie: cookie } })).json()).keys.find((k: { id: string }) => k.id === key.id).events; }
+  assert.equal(after - before, 1, 'delivered within 2 s without an explicit flush');
+  s.close(); await quick.close();
+});

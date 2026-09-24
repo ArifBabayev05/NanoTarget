@@ -211,6 +211,7 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
       <tr><td><code>db</code></td><td><code>sqlite:./file</code>, <code>memory</code>, or a libSQL URL for multi-instance and serverless.</td></tr>
       <tr><td><code>identify(req)</code></td><td>your login id, or <code>null</code>. Never a constant.</td></tr>
       <tr><td><code>apiKey</code></td><td>report decisions to the portal. Omit and nothing leaves your server.</td></tr>
+      <tr><td><code>telemetryImmediate</code></td><td>send each report at once instead of every 3 s. Automatic on Vercel, AWS Lambda, Netlify and Azure Functions; set it on any other platform that suspends the process between requests.</td></tr>
       <tr><td><code>basePath</code>, <code>cookie</code>, <code>secure</code>, <code>tenant</code>, <code>respond</code>, <code>webauthnReclaim</code></td><td>defaults are sensible: <code>/nanotarget</code>, <code>nt_sid</code>, auto, <code>default</code>, <code>true</code>, <code>true</code>.</td></tr>
     </tbody>
   </table>

@@ -271,11 +271,11 @@ SDK: `NanoTarget.fetch`, `.snapshot(withInteraction)`, `.sessionHeaders()`, `.on
 CLI: `npx nanotarget scan [dir] [--json]` · `npx nanotarget verify <baseUrl> <protectedPath> [--base /nanotarget]` · `npx nanotarget secret`.
 Routes under `basePath`: `GET /sdk.js`, `POST /signals`, `GET /connection`, `GET /session`, `POST /step-up`, `POST /webauthn/register/options|register|assert/options|assert`, `GET /webauthn/status`.
 
-Options: `secret` (required, ≥32 B) · `policy` (path or object, required) · `db` (`sqlite:./file` | `memory` | `libsql://…`) · `identify(req)` · `basePath` (`/nanotarget`) · `cookie` (`nt_sid`) · `secure` · `tenant` · `respond` (`true`) · `webauthnReclaim` (`true`) · `apiKey` (portal reporting, default `NT_API_KEY`) · `telemetryUrl`.
+Options: `secret` (required, ≥32 B) · `policy` (path or object, required) · `db` (`sqlite:./file` | `memory` | `libsql://…`) · `identify(req)` · `basePath` (`/nanotarget`) · `cookie` (`nt_sid`) · `secure` · `tenant` · `respond` (`true`) · `webauthnReclaim` (`true`) · `apiKey` (portal reporting, default `NT_API_KEY`) · `telemetryUrl` · `telemetryImmediate` (send each report at once; automatic on Vercel/Lambda/Netlify/Azure Functions).
 
 ## Portal: how many of your sessions had an AI agent in them
 
-Create an account at https://nanotarget-mvp.vercel.app/portal, create an API key (one per project) and pass it as `apiKey` (or set `NT_API_KEY`). The middleware then reports every decision in the background — batched, never on the request path, dropped rather than blocking if the portal is unreachable. Each report is metadata only: a hashed session id, resource, decision, actor, connection state, detected tool, reason codes. No payloads, no identities, no IPs. Without a key nothing leaves your server.
+Create an account at https://nanotarget-mvp.vercel.app/portal, create an API key (one per project) and pass it as `apiKey` (or set `NT_API_KEY`). The middleware then reports every decision in the background — batched (sent at once on serverless platforms), never on the request path, dropped rather than blocking if the portal is unreachable. Each report is metadata only: a hashed session id, resource, decision, actor, connection state, detected tool, reason codes. No payloads, no identities, no IPs. Without a key nothing leaves your server.
 
 The portal shows, per key: the share of sessions with an AI agent, decisions over time, which agents were seen, which resources they reached for, and a live log of recent decisions. Start in `observe` mode and you get the picture before anything is enforced.
 
