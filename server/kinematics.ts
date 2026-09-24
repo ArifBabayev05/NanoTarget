@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Pointer kinematics: features of the cursor trajectory that led to a click, and a
  * per-click judgement (human / synthetic / uncertain).

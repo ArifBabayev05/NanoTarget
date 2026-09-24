@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Train the per-click model on the labelled sample store.
  *   node scripts/kinematics-train.mjs            # train + grouped CV report, write server/kinematics-model.json

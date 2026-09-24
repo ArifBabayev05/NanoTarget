@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * HTTP application: wires routes, pages, the SDK and static files.
  *

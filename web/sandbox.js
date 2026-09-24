@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /* Kursor sandbox: 10 hədəf, hər klikdə trayektoriya serverə göndərilir və qiymət geri gəlir. */
 (() => {
   const $ = (s) => document.querySelector(s);

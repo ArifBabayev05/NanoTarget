@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Simulated customer applications for the public MVP: a bank, a CRM and an
  * insurer. Each declares its protected resources (what an agent may or may not

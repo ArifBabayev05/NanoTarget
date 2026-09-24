@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /* Shared live engine readout for the lab pages (training + sandbox).
    Every click the lab records comes back from the server with the real features and the real
    per-click verdict; this renders it while the run is still going — the trajectory as it was

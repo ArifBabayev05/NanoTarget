@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * The "company app": a synthetic bank account. Every endpoint that returns
  * sensitive data is wrapped by `engine.protect(resource, …)` — the decision

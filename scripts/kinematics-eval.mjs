@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Evaluate the kinematics judge on the sandbox dataset.
  *   node scripts/kinematics-eval.mjs            # uses TURSO_* or NT_DB from the environment / .env.local

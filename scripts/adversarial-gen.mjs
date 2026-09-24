@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Adversarial agent trajectories: what a "humanised" automation library produces.
  * Uses ghost-cursor's Bezier path generator (the library Puppeteer/Playwright bots use to look human),

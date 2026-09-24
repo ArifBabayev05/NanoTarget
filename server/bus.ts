@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * In-process event bus so integrations can react the moment something happens:
  * an agent attaching to a session, or a decision being made. Served to browsers

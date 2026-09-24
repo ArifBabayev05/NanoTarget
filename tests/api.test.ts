@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /** End-to-end API tests against a real server on a random port. */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
