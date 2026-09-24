@@ -26,6 +26,12 @@
   const sessionMeta = document.querySelector('meta[name="nt-session"]');
   const sessionId = (sessionMeta && sessionMeta.content) || null;
   const sessionHeaders = () => (sessionId ? { 'X-NT-Session': sessionId } : {});
+  // Transport state lives up here: probes may report (flush) while the page is still loading, before the
+  // transport section below has run, and a `let` read before its line would throw and take the SDK down.
+  let flushing = null;
+  let established = !!sessionId;
+  try { if (sessionStorage.getItem('nt-established') === '1') established = true; } catch { /* ignore */ }
+  let establishing = null;
 
   // ----------------------------------------------------------------- seal
   // Data already on screen when an agent attaches is the gap the server cannot close: the agent reads the
@@ -508,7 +514,6 @@
   const listeners = new Set();
   let lastAssessment = null;
   let lastConnection = null;
-  let flushing = null;
   function snapshot(withInteraction) {
     scan();
     return { early: { ...early, markers: early.markers.map((m) => ({ ...m })), environment: { ...early.environment }, reading: { ...early.reading }, surface: { ...early.surface }, focusConflict: { ...early.focusConflict } }, interaction: withInteraction ? takeInteraction() : null };
@@ -523,7 +528,21 @@
     for (const fn of listeners) { try { fn(lastAssessment, snap, lastConnection); } catch { /* ignore */ } }
     return lastAssessment;
   }
+  // The first request of a page establishes the session: the server answers it with the session cookie.
+  // Until then, calls made in parallel (a dashboard loading three cards at once) would each arrive without
+  // the cookie and each open a session of its own — one visitor's evidence split across many sessions, the
+  // agent's traces in one and the data request in another. So the first call goes alone; the rest wait for it.
+  // A tab that already has the cookie (a later page in the same tab) skips the wait.
+  function ensureSession() {
+    if (established) return Promise.resolve();
+    if (!establishing) {
+      const done = () => { established = true; establishing = null; try { sessionStorage.setItem('nt-established', '1'); } catch { /* ignore */ } };
+      establishing = post(snapshot(false)).then(done, done);   // a failed first report must not hold the page hostage
+    }
+    return establishing;
+  }
   function flush() {
+    if (!established) return ensureSession();
     if (flushing) return flushing;
     flushing = post(snapshot(false)).finally(() => { flushing = null; });
     return flushing;
@@ -537,11 +556,11 @@
 
   /** fetch() wrapper: attaches the current snapshot so the server decides with fresh telemetry. */
   function protectedFetch(input, init) {
-    const snap = snapshot(true);
+    const snap = snapshot(true);   // taken now: the click that caused this call belongs to it
     const headers = new Headers((init && init.headers) || {});
     headers.set('X-NT-Sample', JSON.stringify(snap));
     if (sessionId) headers.set('X-NT-Session', sessionId);
-    return fetch(input, { ...(init || {}), headers, credentials: 'same-origin', cache: 'no-store' });
+    return ensureSession().then(() => fetch(input, { ...(init || {}), headers, credentials: 'same-origin', cache: 'no-store' }));
   }
 
   /** Register a read-only WebMCP tool when the browser exposes the API. Calls are counted as strong agent evidence. */
