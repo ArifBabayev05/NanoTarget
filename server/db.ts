@@ -197,6 +197,9 @@ CREATE TABLE IF NOT EXISTS challenges (
 `;
 
 /** additive migrations for databases created by earlier builds */
+/** The newest column of each migrated table. Add a line here whenever MIGRATIONS gains a column. */
+const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'proof_ok'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at']];
+
 const MIGRATIONS = [
   'ALTER TABLE sessions ADD COLUMN agent_attached_at INTEGER',
   'ALTER TABLE sessions ADD COLUMN agent_attached_client_ms INTEGER',
@@ -205,6 +208,11 @@ const MIGRATIONS = [
   "ALTER TABLE rooms ADD COLUMN app TEXT NOT NULL DEFAULT 'bank'",
   'ALTER TABLE api_keys ADD COLUMN expires INTEGER',
   "ALTER TABLE api_keys ADD COLUMN env TEXT NOT NULL DEFAULT 'production'",
+  'ALTER TABLE decisions ADD COLUMN proof TEXT',
+  'ALTER TABLE telemetry ADD COLUMN proof TEXT',
+  'ALTER TABLE telemetry ADD COLUMN proof_kid TEXT',
+  'ALTER TABLE telemetry ADD COLUMN proof_ok INTEGER',
+  'ALTER TABLE api_keys ADD COLUMN proof_keys TEXT',
 ];
 
 export type ApiKeyRow = { id: string; name: string; prefix: string; created: number; revoked: number | null; lastSeen: number | null; events: number; expires: number | null; env: string };
@@ -212,7 +220,9 @@ export type ApiKeyRow = { id: string; name: string; prefix: string; created: num
 const safeList = (v: unknown): string[] => { try { const a: unknown = JSON.parse(String(v)); return Array.isArray(a) ? a.map(String) : []; } catch { return []; } };
 const apiKeyRow = (x: Row): ApiKeyRow => ({ id: String(x.id), name: String(x.name), prefix: String(x.prefix), created: Number(x.created), revoked: x.revoked == null ? null : Number(x.revoked), lastSeen: x.last_seen == null ? null : Number(x.last_seen), events: Number(x.events), expires: x.expires == null ? null : Number(x.expires), env: String(x.env ?? 'production') });
 
-export type TelemetryEvent = { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; version: string };
+export type TelemetryEvent = { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; version: string;
+  /** signed decision proof (compact JWS), its key id, and whether the signature checked out at ingest */
+  proof?: string | null; proofKid?: string | null; proofOk?: boolean | null };
 export type TelemetryStats = {
   decisions: Record<string, number>;
   actors: Record<string, number>;
@@ -221,7 +231,7 @@ export type TelemetryStats = {
   tools: { tool: string; sessions: number }[];
   sessions: { total: number; agent: number };
   series: { t: number; n: number; agent: number; gated: number }[];
-  recent: { id: number; at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string }[];
+  recent: { id: number; at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; signed: boolean | null }[];
 };
 
 export type TelemetryOverview = {
@@ -238,7 +248,12 @@ export class Store {
     const c = client ?? (await sqliteClient(':memory:'));
     // One round trip decides whether the schema exists; cold starts on a ready database then skip
     // the CREATE/ALTER statements (each of which is a network round trip on libSQL).
-    const ready = (await c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('rooms','challenges','samples','training_sessions','telemetry','admin_keys')")).rows.length === 6;
+    // A database is ready when every table exists AND the newest migrated columns exist: a deployment that
+    // predates a column must still get its ALTERs, or every insert naming that column fails.
+    const probe = (await c.execute(`SELECT
+      (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('rooms','challenges','samples','training_sessions','telemetry','admin_keys')) AS tables,
+      ${SCHEMA_MARKERS.map(([t, col]) => `(SELECT COUNT(*) FROM pragma_table_info('${t}') WHERE name='${col}')`).join(' + ')} AS columns`)).rows[0] ?? {};
+    const ready = Number(probe.tables) === 6 && Number(probe.columns) === SCHEMA_MARKERS.length;
     if (!ready || opts.migrate) {
       await c.executeMultiple(SCHEMA);
       for (const m of MIGRATIONS) { try { await c.execute(m); } catch { /* column exists */ } }
@@ -394,9 +409,9 @@ export class Store {
     return r ? { seq: Number(r.seq), hash: r.hash as string } : { seq: 0, hash: 'genesis' };
   }
 
-  async insertDecision(row: DecisionRow, seq: number) {
+  async insertDecision(row: DecisionRow, seq: number, proof: string | null = null) {
     const { room, session, created, prevHash, hash, ...body } = row;
-    await this.sql.execute('INSERT INTO decisions (id, room, session, seq, body, created, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [row.id, room, session, seq, JSON.stringify(body), created, prevHash, hash]);
+    await this.sql.execute('INSERT INTO decisions (id, room, session, seq, body, created, prev_hash, hash, proof) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [row.id, room, session, seq, JSON.stringify(body), created, prevHash, hash, proof]);
   }
 
   private rowToDecision(r: Record<string, unknown>): DecisionRow & { seq: number } {
@@ -409,6 +424,17 @@ export class Store {
       prevHash: r.prev_hash as string,
       hash: r.hash as string,
     };
+  }
+
+  /** The signed proof of one decision (proof.ts). Kept out of rowToDecision: it is not part of the hashed body. */
+  async decisionProof(id: string): Promise<string | null> {
+    const r = (await this.sql.execute('SELECT proof FROM decisions WHERE id = ?', [id])).rows[0];
+    return r && typeof r.proof === 'string' ? r.proof : null;
+  }
+  /** Every signed decision of one session, oldest first — what a business hands an auditor about one customer. */
+  async sessionProofs(session: string, limit = 5000): Promise<{ id: string; seq: number; proof: string }[]> {
+    const r = await this.sql.execute('SELECT id, seq, proof FROM decisions WHERE session = ? AND proof IS NOT NULL ORDER BY created, seq LIMIT ?', [session, limit]);
+    return r.rows.map((x) => ({ id: String(x.id), seq: Number(x.seq), proof: String(x.proof) }));
   }
 
   async listDecisions(room: string, limit = 300): Promise<(DecisionRow & { seq: number })[]> {
@@ -574,10 +600,32 @@ export class Store {
     return true;
   }
 
+  /** Remember the public keys a deployment reports with its events; old keys stay so old proofs keep verifying. */
+  async rememberProofKeys(keyId: string, keys: { kty: string; crv: string; x: string; kid: string }[]) {
+    if (!keys.length) return;
+    const r = (await this.sql.execute('SELECT proof_keys FROM api_keys WHERE id = ?', [keyId])).rows[0];
+    let known: { kty: string; crv: string; x: string; kid: string; first: number }[] = [];
+    try { known = r?.proof_keys ? JSON.parse(String(r.proof_keys)) : []; } catch { known = []; }
+    let changed = false;
+    for (const k of keys) if (!known.some((q) => q.kid === k.kid)) { known.push({ kty: k.kty, crv: k.crv, x: k.x, kid: k.kid, first: Date.now() }); changed = true; }
+    if (changed) await this.sql.execute('UPDATE api_keys SET proof_keys = ? WHERE id = ?', [JSON.stringify(known.slice(-10)), keyId]);
+  }
+  async proofKeysFor(keyId: string): Promise<{ kty: 'OKP'; crv: 'Ed25519'; x: string; kid: string; first: number }[]> {
+    const r = (await this.sql.execute('SELECT proof_keys FROM api_keys WHERE id = ?', [keyId])).rows[0];
+    try { return r?.proof_keys ? JSON.parse(String(r.proof_keys)) : []; } catch { return []; }
+  }
+  /** Signed decisions for one key (optionally one session), oldest first, for a proof bundle. */
+  async telemetryProofs(keyId: string, since: number, session: string | null, limit = 5000): Promise<{ at: number; session: string; proof: string; ok: boolean }[]> {
+    const r = session
+      ? await this.sql.execute('SELECT at, session, proof, proof_ok FROM telemetry WHERE key_id = ? AND at >= ? AND session = ? AND proof IS NOT NULL ORDER BY id LIMIT ?', [keyId, since, session, limit])
+      : await this.sql.execute('SELECT at, session, proof, proof_ok FROM telemetry WHERE key_id = ? AND at >= ? AND proof IS NOT NULL ORDER BY id LIMIT ?', [keyId, since, limit]);
+    return r.rows.map((x) => ({ at: Number(x.at), session: String(x.session), proof: String(x.proof), ok: Number(x.proof_ok) === 1 }));
+  }
+
   async insertTelemetry(keyId: string, events: TelemetryEvent[], now = Date.now()) {
     if (!events.length) return;
     await this.sql.batch([
-      ...events.map((e) => ({ sql: 'INSERT INTO telemetry (key_id, at, session, resource, decision, actor, state, tools, reasons, enforcement, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', args: [keyId, e.at, e.session, e.resource, e.decision, e.actor, e.state, JSON.stringify(e.tools), JSON.stringify(e.reasons), e.enforcement, e.version] as SqlArg[] })),
+      ...events.map((e) => ({ sql: 'INSERT INTO telemetry (key_id, at, session, resource, decision, actor, state, tools, reasons, enforcement, version, proof, proof_kid, proof_ok) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', args: [keyId, e.at, e.session, e.resource, e.decision, e.actor, e.state, JSON.stringify(e.tools), JSON.stringify(e.reasons), e.enforcement, e.version, e.proof ?? null, e.proofKid ?? null, e.proofOk == null ? null : e.proofOk ? 1 : 0] as SqlArg[] })),
       { sql: 'UPDATE api_keys SET last_seen = ?, events = events + ? WHERE id = ?', args: [now, events.length, keyId] },
     ]);
   }
@@ -592,7 +640,7 @@ export class Store {
       this.sql.execute("SELECT tools, COUNT(DISTINCT session) AS n FROM telemetry WHERE key_id = ? AND at >= ? AND tools != '[]' GROUP BY tools", [keyId, since]),
       this.sql.execute(`SELECT COUNT(DISTINCT session) AS total, COUNT(DISTINCT CASE WHEN ${agentCase} THEN session END) AS agent FROM telemetry WHERE key_id = ? AND at >= ?`, [keyId, since]),
       this.sql.execute(`SELECT CAST(at / ? AS INTEGER) * ? AS t, COUNT(*) AS n, SUM(CASE WHEN ${agentCase} THEN 1 ELSE 0 END) AS agent, SUM(CASE WHEN decision IN ('mask','block','step_up') THEN 1 ELSE 0 END) AS gated FROM telemetry WHERE key_id = ? AND at >= ? GROUP BY t ORDER BY t`, [bucketMs, bucketMs, keyId, since]),
-      this.sql.execute('SELECT id, at, session, resource, decision, actor, state, tools, reasons, enforcement FROM telemetry WHERE key_id = ? AND at >= ? ORDER BY id DESC LIMIT 60', [keyId, since]),
+      this.sql.execute('SELECT id, at, session, resource, decision, actor, state, tools, reasons, enforcement, proof_ok FROM telemetry WHERE key_id = ? AND at >= ? ORDER BY id DESC LIMIT 60', [keyId, since]),
     ]);
     const toolCounts: Record<string, number> = {};
     for (const x of tools.rows) { let arr: unknown = []; try { arr = JSON.parse(String(x.tools)); } catch { /* ignore */ } if (Array.isArray(arr)) for (const t of arr) toolCounts[String(t)] = (toolCounts[String(t)] ?? 0) + Number(x.n); }
@@ -605,18 +653,19 @@ export class Store {
       tools: Object.entries(toolCounts).sort((a, b) => b[1] - a[1]).map(([tool, sessions]) => ({ tool, sessions })),
       sessions: { total: Number(s0.total ?? 0), agent: Number(s0.agent ?? 0) },
       series: series.rows.map((x) => ({ t: Number(x.t), n: Number(x.n), agent: Number(x.agent), gated: Number(x.gated) })),
-      recent: recent.rows.map((x) => ({ id: Number(x.id), at: Number(x.at), session: String(x.session), resource: String(x.resource), decision: String(x.decision), actor: String(x.actor), state: String(x.state), tools: safeList(x.tools), reasons: safeList(x.reasons), enforcement: String(x.enforcement) })),
+      recent: recent.rows.map((x) => ({ id: Number(x.id), at: Number(x.at), session: String(x.session), resource: String(x.resource), decision: String(x.decision), actor: String(x.actor), state: String(x.state), tools: safeList(x.tools), reasons: safeList(x.reasons), enforcement: String(x.enforcement), signed: x.proof_ok == null ? null : Number(x.proof_ok) === 1 })),
     };
   }
 
   /** the decision log, oldest-last, paged by id so an export can walk the whole range */
-  async telemetryEvents(keyId: string, since: number, beforeId: number | null, limit: number): Promise<{ id: number; at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string }[]> {
+  async telemetryEvents(keyId: string, since: number, beforeId: number | null, limit: number): Promise<{ id: number; at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; signed: boolean | null }[]> {
     const r = beforeId == null
-      ? await this.sql.execute('SELECT id, at, session, resource, decision, actor, state, tools, reasons, enforcement FROM telemetry WHERE key_id = ? AND at >= ? ORDER BY id DESC LIMIT ?', [keyId, since, limit])
-      : await this.sql.execute('SELECT id, at, session, resource, decision, actor, state, tools, reasons, enforcement FROM telemetry WHERE key_id = ? AND at >= ? AND id < ? ORDER BY id DESC LIMIT ?', [keyId, since, beforeId, limit]);
+      ? await this.sql.execute('SELECT id, at, session, resource, decision, actor, state, tools, reasons, enforcement, proof_ok FROM telemetry WHERE key_id = ? AND at >= ? ORDER BY id DESC LIMIT ?', [keyId, since, limit])
+      : await this.sql.execute('SELECT id, at, session, resource, decision, actor, state, tools, reasons, enforcement, proof_ok FROM telemetry WHERE key_id = ? AND at >= ? AND id < ? ORDER BY id DESC LIMIT ?', [keyId, since, beforeId, limit]);
     return r.rows.map((x) => ({
       id: Number(x.id), at: Number(x.at), session: String(x.session), resource: String(x.resource), decision: String(x.decision),
       actor: String(x.actor), state: String(x.state), tools: safeList(x.tools), reasons: safeList(x.reasons), enforcement: String(x.enforcement),
+      signed: x.proof_ok == null ? null : Number(x.proof_ok) === 1,
     }));
   }
 
