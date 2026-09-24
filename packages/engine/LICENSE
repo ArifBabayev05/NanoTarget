@@ -5,7 +5,7 @@ Parameters
 
 Licensor:             Arif Babayev
 Licensed Work:        NanoTarget engine, version 0.4.0 or later: the
-                      @nanotarget/engine package and, in the NanoTarget source
+                      nanotarget-engine package and, in the NanoTarget source
                       repository, every file not listed as Apache-2.0 in the
                       repository's LICENSE file. The Licensed Work is (c) 2026
                       Arif Babayev.

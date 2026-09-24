@@ -71,6 +71,6 @@
   },
   "author": "Arif Babayev",
   "dependencies": {
-    "@nanotarget/engine": "0.3.1"
+    "nanotarget-engine": "0.3.1"
   }
 }

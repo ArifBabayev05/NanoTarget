@@ -29,7 +29,7 @@ test('the packages declare the licence their files carry', () => {
   const engine = JSON.parse(readFileSync('packages/engine/package.json', 'utf8'));
   assert.equal(open.license, 'Apache-2.0');
   assert.equal(engine.license, 'BUSL-1.1');
-  assert.equal(open.dependencies['@nanotarget/engine'], engine.version, 'released in lockstep');
+  assert.equal(open.dependencies['nanotarget-engine'], engine.version, 'released in lockstep');
   assert.match(readFileSync('packages/nanotarget/LICENSE', 'utf8'), /Apache License\s+Version 2\.0, January 2004/);
   assert.match(readFileSync('packages/engine/LICENSE', 'utf8'), /Business Source License 1\.1/);
   assert.match(readFileSync('packages/engine/LICENSE', 'utf8'), /Additional Use Grant: You may make production use/);

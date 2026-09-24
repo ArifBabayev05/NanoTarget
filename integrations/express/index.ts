@@ -17,7 +17,7 @@ import { readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-// The engine is a separate package (@nanotarget/engine, BUSL-1.1); this adapter talks to it only through its
+// The engine is a separate package (nanotarget-engine, BUSL-1.1); this adapter talks to it only through its
 // public surface. In this repository that is ../../server/public.ts; the build rewrites it to the package.
 import {
   NanoTarget, Store, attachModel, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,

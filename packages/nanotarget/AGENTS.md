@@ -324,6 +324,6 @@ curl -H "Authorization: Bearer $NT_ADMIN" "$BASE/api/v1/manage/proofs?key=<id>&r
 
 ## Licence
 
-`nanotarget` (this package: the browser SDK, the Express middleware, the CLI and the proof verifier) is **Apache 2.0**. It depends on `@nanotarget/engine`, which is **Business Source License 1.1** with a production-use grant: you may run it in production, at any scale, to protect your own applications and the services you provide to your customers. The only use not granted is offering NanoTarget itself to third parties as a competing hosted or embedded product. Each engine version converts to Apache 2.0 four years after release. Versions before 0.4.0 were MIT.
+`nanotarget` (this package: the browser SDK, the Express middleware, the CLI and the proof verifier) is **Apache 2.0**. It depends on `nanotarget-engine`, which is **Business Source License 1.1** with a production-use grant: you may run it in production, at any scale, to protect your own applications and the services you provide to your customers. The only use not granted is offering NanoTarget itself to third parties as a competing hosted or embedded product. Each engine version converts to Apache 2.0 four years after release. Versions before 0.4.0 were MIT.
 
 Live demo: https://nanotarget-mvp.vercel.app · Source and docs: https://github.com/ArifBabayev05/NanoTarget (SDK and middleware Apache-2.0; engine BUSL-1.1 — production use granted) · `docs/INTEGRATION.md`, `docs/EVAL.md`.

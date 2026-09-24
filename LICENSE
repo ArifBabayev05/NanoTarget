@@ -11,7 +11,7 @@ NanoTarget is licensed in two parts. Copyright (c) 2026 Arif Babayev.
 2. Business Source License 1.1 — full text and parameters in LICENSE-BSL.
    Everything else in this repository: the engine (server/), the portal and web
    console (web/), the build, training and evaluation tooling (scripts/), tests
-   and documentation, and the published `@nanotarget/engine` npm package.
+   and documentation, and the published `nanotarget-engine` npm package.
 
    The Additional Use Grant permits production use, including protecting your own
    applications and the services you provide to your customers. It does not permit

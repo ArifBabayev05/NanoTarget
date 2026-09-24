@@ -1,4 +1,4 @@
-# @nanotarget/engine
+# nanotarget-engine
 
 The engine behind [`nanotarget`](https://www.npmjs.com/package/nanotarget): AI-agent detection inside signed-in sessions, the per-resource policy (allow · mask · step up · block), the hash-chained audit log and signed decision proofs.
 

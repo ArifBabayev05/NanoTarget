@@ -108,6 +108,6 @@ NanoTarget is licensed in two parts. © 2026 Arif Babayev.
 | Part | Licence | What it means for you |
 | --- | --- | --- |
 | Browser SDK, Express middleware, CLI, proof verifier — the `nanotarget` package | [Apache 2.0](LICENSE-APACHE) | Use, modify and ship it anywhere, including closed-source products. Patent grant included. |
-| Engine, portal, tooling — the `@nanotarget/engine` package and the rest of this repository | [Business Source License 1.1](LICENSE-BSL) | **Production use is granted**, including protecting your own apps and the services you give your customers. Not granted: offering NanoTarget itself to others as a competing hosted or embedded product. Each version becomes Apache 2.0 four years after release. |
+| Engine, portal, tooling — the `nanotarget-engine` package and the rest of this repository | [Business Source License 1.1](LICENSE-BSL) | **Production use is granted**, including protecting your own apps and the services you give your customers. Not granted: offering NanoTarget itself to others as a competing hosted or embedded product. Each version becomes Apache 2.0 four years after release. |
 
 Versions before 0.4.0 were published under MIT and stay available under it. Contributions need the one-line [CLA](CLA.md). Alternative licensing: see [SECURITY.md](SECURITY.md) for the contact.

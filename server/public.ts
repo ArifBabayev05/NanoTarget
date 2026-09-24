@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 /**
- * @nanotarget/engine — the engine's public surface.
+ * nanotarget-engine — the engine's public surface.
  *
  * Everything the open integrations (the Express middleware, future adapters) need from the engine is
  * exported here and nowhere else. The open package imports only this module, so the build can publish it
