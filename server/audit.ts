@@ -14,12 +14,18 @@ export function hashDecision(prevHash: string, body: Omit<DecisionRow, 'prevHash
   return createHash('sha256').update(prevHash).update('\n').update(canonical).digest('hex');
 }
 
-export async function appendDecision(store: Store, body: Omit<DecisionRow, 'prevHash' | 'hash'>): Promise<DecisionRow> {
+/**
+ * Append a decision to its room's chain. With a `seal`, the decision is also signed (see proof.ts): the
+ * proof covers the row's chain hash, so it is made after hashing and stored in the same insert.
+ */
+export async function appendDecision(store: Store, body: Omit<DecisionRow, 'prevHash' | 'hash'>, seal?: (row: DecisionRow, seq: number) => string): Promise<DecisionRow & { seq: number; proof: string | null }> {
   const last = await store.lastDecision(body.room);
   const hash = hashDecision(last.hash, body);
   const row: DecisionRow = { ...body, prevHash: last.hash, hash };
-  await store.insertDecision(row, last.seq + 1);
-  return row;
+  const seq = last.seq + 1;
+  const proof = seal ? seal(row, seq) : null;
+  await store.insertDecision(row, seq, proof);
+  return { ...row, seq, proof };
 }
 
 export type ChainReport = { ok: boolean; checked: number; brokenAt: number | null };
