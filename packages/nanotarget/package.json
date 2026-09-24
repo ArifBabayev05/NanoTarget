@@ -1,6 +1,6 @@
 {
   "name": "nanotarget",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Server-side control over AI browser agents inside your users' logged-in sessions. Detects the moment Claude in Chrome, ChatGPT/Atlas, Codex, Comet or a Playwright driver attaches, tells hands from programs by pointer physics, redacts what is already on screen, and decides allow/mask/step-up/block per endpoint with a passkey way back. Express middleware + browser SDK + `npx nanotarget scan`. AI coding agents: the README is your integration protocol — threat model, exposure map, decision matrix, mask cookbook, nine decisions, verification.",
   "type": "module",
   "license": "MIT",
