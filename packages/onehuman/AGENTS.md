@@ -14,6 +14,8 @@ npm i onehuman            # Node ≥ 22.13 · Express 4/5, Connect, Next.js cust
 npx onehuman scan .       # what an AI agent could reach in this codebase + a draft policy
 ```
 
+That is the only install. `onehuman` (Apache-2.0) depends on `onehuman-engine` (BUSL-1.1, production use granted), which npm brings in automatically; you never add or import the engine yourself. Everything you use is `onehuman/express` and `npx onehuman`.
+
 ```js
 import { onehuman } from 'onehuman/express';
 
