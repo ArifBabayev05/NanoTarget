@@ -14,6 +14,8 @@ npm i nanotarget            # Node ≥ 22.13 · Express 4/5, Connect, Next.js cu
 npx nanotarget scan .       # what an AI agent could reach in this codebase + a draft policy
 ```
 
+That is the only install. `nanotarget` (Apache-2.0) depends on `nanotarget-engine` (BUSL-1.1, production use granted), which npm brings in automatically; you never add or import the engine yourself. Everything you use is `nanotarget/express` and `npx nanotarget`.
+
 ```js
 import { nanotarget } from 'nanotarget/express';
 

@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 // The engine is a separate package (nanotarget-engine, BUSL-1.1); this adapter talks to it only through its
 // public surface. In this repository that is ../../server/public.ts; the build rewrites it to the package.
 import {
-  NanoTarget, Store, attachModel, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
+  ENGINE_VERSION, NanoTarget, Store, attachModel, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
   sqliteClient, url, webauthnRoutes,
   type Assessment, type DecideResult, type DecisionRow, type Policy, type SessionRow, type SqlClient,
 } from '../../server/public.ts';
@@ -166,7 +166,16 @@ function createReporter(apiKey: string, endpoint: string, keys: ProofJwk[], eage
   return { push, flush, get pending() { return queue.length; }, close() { if (timer) clearInterval(timer); timer = null; return flush(); } };
 }
 
+declare const __NANOTARGET_VERSION__: string | undefined;
+/** this package's version, stamped by the build; from source both sides read 0.0.0-dev and the check is skipped */
+const PACKAGE_VERSION: string = typeof __NANOTARGET_VERSION__ === 'string' ? __NANOTARGET_VERSION__ : '0.0.0-dev';
+
 export async function nanotarget(opts: NanoTargetOptions) {
+  // `nanotarget` and `nanotarget-engine` ship together at one version. A lockfile that pins an older engine, or an
+  // engine added by hand, is the one install mistake that would fail somewhere deep and late — fail here instead.
+  if (PACKAGE_VERSION !== '0.0.0-dev' && ENGINE_VERSION !== '0.0.0-dev' && PACKAGE_VERSION !== ENGINE_VERSION) {
+    throw new Error(`nanotarget ${PACKAGE_VERSION} found nanotarget-engine ${ENGINE_VERSION}. The two are released together at the same version — run \`npm i nanotarget@${PACKAGE_VERSION}\` (it installs the matching engine) and do not add nanotarget-engine to your dependencies yourself.`);
+  }
   const secret = Buffer.isBuffer(opts.secret) ? opts.secret : Buffer.from(opts.secret, 'utf8');
   if (secret.length < 32) throw new Error('nanotarget: secret must be at least 32 bytes');
   const basePath = (opts.basePath ?? '/nanotarget').replace(/\/$/, '');

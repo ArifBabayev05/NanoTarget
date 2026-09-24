@@ -4,6 +4,8 @@
 npm i nanotarget      # Node ≥ 22.13
 ```
 
+Yeganə quraşdırma budur. `nanotarget` (Apache-2.0) `nanotarget-engine` paketindən (BUSL-1.1, produksiyada istifadə icazəlidir) asılıdır — npm onu özü gətirir; engine-i ayrıca əlavə etmək və ya import etmək lazım deyil. İstifadə etdiyiniz hər şey `nanotarget/express` və `npx nanotarget` altındadır.
+
 Bank, CRM və ya sığorta şirkəti NanoTarget-i öz backend-inə **middleware** kimi qoşur. Qaydalar şirkətin öz JSON faylındadır, maskalama şirkətin öz funksiyasıdır, autentifikasiyaya toxunulmur, məlumat bazası şirkətin öz diskindədir (on-prem).
 
 ```js

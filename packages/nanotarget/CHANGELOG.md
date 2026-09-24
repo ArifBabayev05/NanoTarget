@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased — 0.4.0
+## 0.5.0 — 2026-09-24
+- Package descriptions, landing, docs and portal wizard rewritten around one message: `npm i nanotarget` is the only install; the engine comes with it and is never imported. Startup now refuses a mismatched `nanotarget-engine` version with the exact command to fix it.
+
+## 0.4.0 — 2026-09-24 (identical content also published as 0.5.0)
 - **Licence split.** `nanotarget` (browser SDK, Express middleware, CLI, proof verifier) is now **Apache 2.0**. The engine moves to its own package, **`nanotarget-engine`**, under the **Business Source License 1.1** with a production-use grant: run it in production, at any scale, to protect your own applications and the services you provide to your customers; offering NanoTarget itself as a competing hosted or embedded product is not granted. Each engine version converts to Apache 2.0 four years after release. Versions up to 0.3.x remain MIT.
 - **Nothing changes in your code.** `npm i nanotarget` installs the engine as a dependency; `import { nanotarget } from 'nanotarget/express'` and every option, method and endpoint are the same.
 - The proof verifier (`npx nanotarget verify-proof`) is entirely Apache 2.0 and contains no engine code: an auditor needs nothing under the BSL to check a proof.

@@ -17,3 +17,11 @@ export { labRoutes } from './routes/lab.ts';
 export { webauthnRoutes } from './routes/webauthn.ts';
 export { libsqlClient, sqliteClient, type SqlClient } from './sql.ts';
 export { proverFromSecret, sessionDigest, type Prover } from './proof.ts';
+
+/**
+ * The engine's package version, stamped by the build (`0.0.0-dev` when run from source). `nanotarget/express`
+ * compares it with its own at startup: the two packages are released together and a mismatch means a broken
+ * install (a lockfile pinning an old engine, or the engine added by hand).
+ */
+declare const __NANOTARGET_ENGINE_VERSION__: string | undefined;
+export const ENGINE_VERSION: string = typeof __NANOTARGET_ENGINE_VERSION__ === 'string' ? __NANOTARGET_ENGINE_VERSION__ : '0.0.0-dev';

@@ -1,7 +1,7 @@
 {
   "name": "nanotarget",
   "version": "0.5.0",
-  "description": "Server-side control over AI browser agents inside your users' logged-in sessions. Detects the moment Claude in Chrome, ChatGPT/Atlas, Codex, Comet or a Playwright driver attaches, tells hands from programs by pointer physics, redacts what is already on screen, and decides allow/mask/step-up/block per endpoint with a passkey way back. Express middleware + browser SDK + `npx nanotarget scan`. AI coding agents: the README is your integration protocol — threat model, exposure map, decision matrix, mask cookbook, nine decisions, verification.",
+  "description": "Know the moment an AI agent (Claude in Chrome, ChatGPT Atlas, Codex, Comet, Playwright…) takes over a signed-in session — on your own server — and decide per endpoint what it may see: allow · mask · step-up · block, with a passkey way back and a signed proof of every decision. Express/Connect middleware + browser SDK + CLI. This package is Apache-2.0 and pulls in the engine (nanotarget-engine, BUSL-1.1, production use granted) automatically: `npm i nanotarget` is all you install. AI coding agents: the README is your integration protocol.",
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
@@ -47,7 +47,12 @@
     "pii-masking",
     "webauthn",
     "passkey",
-    "agentic-ai"
+    "agentic-ai",
+    "agent-detection",
+    "ai-browser-agent",
+    "decision-proof",
+    "audit",
+    "apache-2.0"
   ],
   "peerDependencies": {
     "express": ">=4"

@@ -99,7 +99,8 @@
   <h2>Quickstart</h2>
   <p>Node ≥ 22.13. Works with Express 4/5, Connect, a Next.js custom server, or plain <code>node:http</code>.</p>
   <ol class="steps">
-    <li><b>Install</b><pre class="code">npm i nanotarget</pre></li>
+    <li><b>Install</b><pre class="code">npm i nanotarget</pre>
+      <p class="fine">One package. It depends on <code>nanotarget-engine</code>, which npm installs with it — you never add or import the engine yourself. Everything you use is under <code>nanotarget/express</code> and <code>npx nanotarget</code>.</p></li>
     <li><b>See what an agent could reach</b><pre class="code">npx nanotarget scan .            <span class="c"># routes, sensitivity, a draft policy</span>
 npx nanotarget scan . --proposal <span class="c"># the same, in plain language</span></pre></li>
     <li><b>Wire the middleware</b><pre class="code"><span class="k">import</span> { nanotarget } <span class="k">from</span> <span class="s">'nanotarget/express'</span>;
@@ -202,7 +203,15 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
 <section id="api">
   <span class="eyebrow">Build</span>
   <h2>Server API</h2>
-  <pre class="code"><span class="k">const</span> nt = <span class="k">await</span> nanotarget(options);</pre>
+  <table class="tbl">
+    <thead><tr><th>Package</th><th>Licence</th><th>What it is</th></tr></thead>
+    <tbody>
+      <tr><td><code>nanotarget</code></td><td><span class="chip ok">Apache-2.0</span></td><td>What you install and import: the Express/Connect middleware (<code>nanotarget/express</code>), the browser SDK it serves, the CLI (<code>npx nanotarget</code>) and the proof verifier.</td></tr>
+      <tr><td><code>nanotarget-engine</code></td><td><span class="chip">BUSL-1.1</span></td><td>Its dependency, installed automatically: detection, policy, audit, proofs. Production use granted. You do not import it.</td></tr>
+    </tbody>
+  </table>
+  <pre class="code"><span class="k">import</span> { nanotarget } <span class="k">from</span> <span class="s">'nanotarget/express'</span>;
+<span class="k">const</span> nt = <span class="k">await</span> nanotarget(options);</pre>
   <table class="tbl">
     <thead><tr><th>Option</th><th></th></tr></thead>
     <tbody>

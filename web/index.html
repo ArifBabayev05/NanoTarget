@@ -52,6 +52,8 @@
     <div class="install-row">
       <a class="npm-link" href="https://www.npmjs.com/package/nanotarget" target="_blank" rel="noopener">npmjs.com/package/nanotarget <span class="ext">↗</span></a>
       <span class="sep">·</span>
+      <span class="install-note">one install — the engine comes with it</span>
+      <span class="sep">·</span>
       <a class="btn secondary" href="/bank">Open live demo <span class="arrow">→</span></a>
     </div>
   </div>
@@ -59,7 +61,7 @@
     <span><b>0.1–0.5 s</b> to detect Claude in Chrome</span>
     <span><b>0</b> false blocks in <b data-tick="15" data-dec="0">0</b> recorded human runs</span>
     <span><b data-tick="0.999" data-dec="3">0.000</b> AUC, cross-validated across people &amp; devices</span>
-    <span><b>Open SDK</b> · on your server · no data leaves</span>
+    <span><b>Apache-2.0 SDK</b> · engine on your server · no data leaves</span>
   </div>
 
   <div class="marquee reveal-now" aria-label="Agent products the engine recognises">
@@ -181,20 +183,29 @@
   </div>
   <div class="code-tabs reveal">
     <div class="tabs" id="code-tabs"><button class="on" data-tab="server">server.js</button><button data-tab="page">page.html</button><button data-tab="policy">nanotarget.policy.json</button><button data-tab="agent">Prompt for your agent</button></div>
-    <pre class="code" id="code-server"><code><span class="c">// three lines</span>
+    <pre class="code" id="code-server"><code><span class="c">// npm i nanotarget  — the engine (nanotarget-engine) is installed with it; import only from 'nanotarget/express'</span>
 <span class="k">import</span> { nanotarget } <span class="k">from</span> <span class="s">'nanotarget/express'</span>;
 
-<span class="k">const</span> nt = <span class="k">await</span> nanotarget({ secret: process.env.NT_SECRET, policy: <span class="s">'./nanotarget.policy.json'</span>,
-                              db: <span class="s">'sqlite:./nanotarget.db'</span>, identify: (req) =&gt; req.session?.userId ?? <span class="k">null</span> });
-app.use(nt.middleware());                                              <span class="c">// serves /nanotarget/sdk.js + its API</span>
+<span class="k">const</span> nt = <span class="k">await</span> nanotarget({
+  secret: process.env.NT_SECRET,            <span class="c">// ≥ 32 bytes, stable — signs tokens and decision proofs</span>
+  policy: <span class="s">'./nanotarget.policy.json'</span>,
+  db: <span class="s">'sqlite:./nanotarget.db'</span>,
+  identify: (req) =&gt; req.session?.userId ?? <span class="k">null</span>,   <span class="c">// your login id, never a constant</span>
+  apiKey: process.env.NT_API_KEY,           <span class="c">// optional: the portal shows agent share, decisions, proofs</span>
+});
+app.use(nt.middleware());                    <span class="c">// serves /nanotarget/sdk.js, /health, /proof-keys and the SDK's API</span>
 app.get(<span class="s">'/api/balance'</span>, nt.protect(<span class="s">'balance.read'</span>), (req, res) =&gt; nt.send(req, res, balance, maskBalance));</code></pre>
     <pre class="code" id="code-page" hidden><code>&lt;script src=<span class="s">"/nanotarget/sdk.js"</span>&gt;&lt;/script&gt;
 
-<span class="c">// call protected endpoints through the SDK so click physics reach the server</span>
+<span class="c">// call protected endpoints through the SDK; it sends the evidence and keeps one visitor one session</span>
 <span class="k">const</span> r = <span class="k">await</span> NanoTarget.fetch(<span class="s">'/api/balance'</span>);
 
 <span class="c">// mark rendered sensitive values; they are redacted the instant an agent attaches</span>
-&lt;div data-nt-sensitive=<span class="s">"full"</span>&gt;$4,939.10&lt;/div&gt;</code></pre>
+&lt;div data-nt-sensitive=<span class="s">"full"</span>&gt;$4,939.10&lt;/div&gt;
+
+<span class="c">// after deploying: four checks, then the auditor's own check of a proof</span>
+npx nanotarget verify https://your-app.example /api/balance
+npx nanotarget verify-proof proofs.json --keys https://your-app.example/nanotarget/proof-keys</code></pre>
     <pre class="code" id="code-policy" hidden><code>{
   <span class="s">"version"</span>: <span class="s">"bank-policy-1"</span>,
   <span class="s">"enforcement"</span>: <span class="s">"observe"</span>,
@@ -204,9 +215,10 @@ app.get(<span class="s">'/api/balance'</span>, nt.protect(<span class="s">'balan
   ]
 }</code></pre>
     <pre class="code" id="code-agent" hidden><code>https://www.npmjs.com/package/nanotarget — install this into my project.
-Follow the README protocol: scan the app, show me what an AI browser agent could reach
-and how to gate it, ask me the nine decisions, implement server + page + policy + masks,
-verify with `npx nanotarget verify`, then report.</code></pre>
+Follow the README protocol: `npm i nanotarget` (one package; its engine dependency comes with it),
+scan the app, show me what an AI browser agent could reach and how to gate it, ask me the nine
+decisions, implement server + page + policy + masks, verify with `npx nanotarget verify`, then report.
+Licence: the package is Apache-2.0; the engine is BUSL-1.1 with production use granted — say so if asked.</code></pre>
     <div class="code-actions"><button class="btn ghost" id="copy-code">Copy</button><a class="btn ghost" href="/docs#agent">Read the integration protocol →</a></div>
   </div>
 </section>
@@ -221,7 +233,7 @@ verify with `npx nanotarget verify`, then report.</code></pre>
 
 <section class="cta reveal">
   <h2 class="h2 tr">Know who’s clicking.</h2>
-  <p class="lead">Open SDK (Apache 2.0), source-available engine. Runs on your server. Add an API key and the portal shows you how many of your sessions had an AI agent in them.</p>
+  <p class="lead">One <code>npm i nanotarget</code>. The SDK and middleware are Apache 2.0; the engine they pull in is source-available, production use granted. Everything runs on your server. Add an API key and the portal shows you how many of your sessions had an AI agent in them.</p>
   <div class="hero-actions">
     <div class="npm"><span class="prompt">$</span><code>npm i nanotarget</code><button class="copy" data-copy="npm i nanotarget" aria-label="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div>
     <a class="btn secondary" href="/portal">Get your API key <span class="arrow">→</span></a>

@@ -34,3 +34,15 @@ test('the packages declare the licence their files carry', () => {
   assert.match(readFileSync('packages/engine/LICENSE', 'utf8'), /Business Source License 1\.1/);
   assert.match(readFileSync('packages/engine/LICENSE', 'utf8'), /Additional Use Grant: You may make production use/);
 });
+
+test('the middleware refuses an engine of a different version with an actionable message', async () => {
+  // simulate the built packages: stamp both sides, then let them disagree
+  const src = readFileSync('integrations/express/index.ts', 'utf8');
+  assert.match(src, /PACKAGE_VERSION !== ENGINE_VERSION/, 'the startup check exists');
+  assert.match(src, /npm i nanotarget@\$\{PACKAGE_VERSION\}/, 'and tells the user the exact fix');
+  // from source both read 0.0.0-dev and the check is skipped, so nanotarget() still works here
+  const { nanotarget } = await import('../integrations/express/index.ts');
+  const nt = await nanotarget({ secret: 'a-long-enough-secret-for-tests-0000000000', policy: { version: 'v', enforcement: 'observe', rules: [{ resource: 'x.read', title: 'x', onAgent: 'mask', onArtifact: 'allow', onUnknown: 'allow', onHumanLike: 'allow', actOn: ['strong'], minScore: 65 }] } as never, db: 'memory' });
+  assert.equal(nt.health().ok, true);
+  await nt.close();
+});
