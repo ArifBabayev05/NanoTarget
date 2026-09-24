@@ -1,6 +1,6 @@
 {
   "name": "nanotarget-engine",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "The NanoTarget engine: AI-agent detection, per-resource policy, hash-chained audit and signed decision proofs. Installed by the nanotarget package; you rarely need it directly.",
   "license": "BUSL-1.1",
   "type": "module",
