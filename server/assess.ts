@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Actor assessment: fuses server-observed request signals, early page
  * artifacts and recent interaction samples into an explainable judgment.

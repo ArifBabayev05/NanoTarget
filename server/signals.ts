@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Signal contracts shared by the browser SDK, the middleware and the assessor.
  *

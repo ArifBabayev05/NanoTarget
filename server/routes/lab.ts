@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Lab routes: rooms, sessions, signal ingestion, journal, benchmark, step-up
  * and the signed-request simulation.

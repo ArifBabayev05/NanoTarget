@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { KNOWN_OPERATORS, signRequest, verifyWebBotAuth, type OperatorKey } from '../server/web-bot-auth.ts';

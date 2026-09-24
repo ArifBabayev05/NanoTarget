@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Web Bot Auth / RFC 9421 HTTP Message Signature verification.
  *

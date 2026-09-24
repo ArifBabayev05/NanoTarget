@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Policy engine. A company declares which resources are protected and what
  * happens for each actor assessment. The decision is made at the endpoint

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Storage (SQLite dialect) over a SqlClient: node:sqlite locally, libSQL/Turso
  * in serverless deployments. All methods are async.

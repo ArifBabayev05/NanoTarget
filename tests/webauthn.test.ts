@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * WebAuthn verification with a software authenticator (P-256). Builds real
  * clientDataJSON / attestationObject / authenticatorData the way a browser
