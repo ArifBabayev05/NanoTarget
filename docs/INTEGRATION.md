@@ -4,6 +4,8 @@
 npm i onehuman      # Node ≥ 22.13
 ```
 
+Yeganə quraşdırma budur. `onehuman` (Apache-2.0) `onehuman-engine` paketindən (BUSL-1.1, produksiyada istifadə icazəlidir) asılıdır — npm onu özü gətirir; engine-i ayrıca əlavə etmək və ya import etmək lazım deyil. İstifadə etdiyiniz hər şey `onehuman/express` və `npx onehuman` altındadır.
+
 Bank, CRM və ya sığorta şirkəti OneHuman-i öz backend-inə **middleware** kimi qoşur. Qaydalar şirkətin öz JSON faylındadır, maskalama şirkətin öz funksiyasıdır, autentifikasiyaya toxunulmur, məlumat bazası şirkətin öz diskindədir (on-prem).
 
 ```js

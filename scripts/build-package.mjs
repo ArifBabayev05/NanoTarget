@@ -40,6 +40,7 @@ await build({
   outfile: `${ENGINE}/dist/engine.js`,
   bundle: true, platform: 'node', format: 'esm', target: 'node22', sourcemap: true, legalComments: 'none',
   external: ['@libsql/client', '@libsql/client/*', 'node:*'],
+  define: { __ONEHUMAN_ENGINE_VERSION__: JSON.stringify(enginePkg.version) },
   banner: { js: `// onehuman-engine ${enginePkg.version} — BUSL-1.1 (see LICENSE) — https://onehuman-mvp.vercel.app` },
 });
 if (existsSync('server/kinematics-model.json')) cpSync('server/kinematics-model.json', `${ENGINE}/dist/kinematics-model.json`);

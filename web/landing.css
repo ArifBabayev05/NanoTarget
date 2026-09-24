@@ -358,3 +358,6 @@ section{padding:96px 0}
 @keyframes vt-out{to{opacity:0;transform:translateY(-6px)}}
 @keyframes vt-in{from{opacity:0;transform:translateY(8px)}}
 
+
+.install-note{color:var(--fg3);font-size:13px}
+@media (max-width:560px){.install-note{display:none}}
