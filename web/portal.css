@@ -284,3 +284,54 @@ select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .log .e.wrong .chip{opacity:.6}
 .hero-side .hint{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;border:1px solid var(--line2);font-size:10px;font-style:normal;color:var(--fg3);margin-left:5px;cursor:help;vertical-align:1px}
 @media (max-width:820px){.log .e{grid-template-columns:88px minmax(0,1fr) 70px 58px}}
+
+/* people strip — "how many people did we stop" is the first question a bank asks */
+.people{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,2fr);gap:16px;margin-bottom:16px;border:1px solid var(--accent-line);border-radius:16px;padding:18px 20px;background:var(--bg2)}
+.people-main{display:flex;flex-direction:column;justify-content:center}
+.people-main b{font-size:44px;line-height:1;letter-spacing:-.04em;font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums}
+.people-main span{color:var(--fg2);font-size:13.5px;margin-top:6px}
+.people.warn{border-color:var(--line)}
+.people.warn .people-main b{color:var(--accent2)}
+.people-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.people-facts div{border-left:1px solid var(--line);padding:2px 0 2px 14px}
+.people-facts b{display:block;font-size:22px;letter-spacing:-.03em;font-weight:600;font-variant-numeric:tabular-nums}
+.people-facts span{color:var(--fg3);font-size:12.5px;line-height:1.45}
+/* integration check lights */
+.checks{display:grid;gap:8px}
+.check{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start;border:1px solid var(--line);border-radius:10px;padding:11px 14px;background:var(--bg3)}
+.check .dot{width:10px;height:10px;border-radius:50%;margin-top:4px;background:var(--fg3)}
+.check.ok .dot{background:var(--accent)}
+.check.warn .dot{background:var(--accent2)}
+.check.off .dot{background:transparent;border:1.5px solid var(--fg3)}
+.check b{display:block;font-size:13.5px}
+.check span{color:var(--fg2);font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.selftest{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;display:grid;gap:10px}
+.selftest .hint{margin:0}
+@media (max-width:820px){.people{grid-template-columns:1fr}.people-facts{grid-template-columns:1fr}.people-facts div{border-left:0;border-top:1px solid var(--line);padding:10px 0 0}}
+
+/* weekly report */
+.wk-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.wk-kpi{border:1px solid var(--line);border-radius:14px;padding:16px 18px;background:var(--bg2)}
+.wk-kpi b{display:block;font-size:28px;letter-spacing:-.035em;font-weight:600;font-variant-numeric:tabular-nums}
+.wk-kpi span{color:var(--fg3);font-size:12.5px;line-height:1.45;display:block}
+.wk-kpi em{font-style:normal;font-size:12px;color:var(--fg2)}
+.wk-kpi.good b{color:var(--accent)}
+.wk-news{display:grid;gap:10px}
+.wk-news article{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--bg3)}
+.wk-news h4{margin:0 0 4px;font-size:13.5px}
+.wk-news h4 small{color:var(--fg3);font-weight:400;margin-left:6px}
+.wk-news p{margin:3px 0;color:var(--fg2);font-size:13px;line-height:1.5}
+.wk-news p.do{color:var(--accent2)}
+.wk-chips{display:flex;flex-wrap:wrap;gap:6px}
+.wk-chips span{border:1px solid var(--line2);border-radius:999px;padding:3px 10px;font-size:12.5px}
+.wk-chips span.new{border-color:var(--accent2);color:var(--accent2)}
+/* policy builder */
+.pol-rows{display:grid;gap:8px}
+.pol-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.3fr) auto;gap:8px;align-items:start;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg3)}
+.pol-row input,.pol-row select{width:100%}
+.pol-row .what{grid-column:1 / -1;color:var(--fg3);font-size:12.5px;line-height:1.45;margin:0}
+.pol-row .rm{background:none;border:1px solid var(--line);border-radius:8px;color:var(--fg3);cursor:pointer;padding:7px 10px}
+.pol-row .rm:hover{color:var(--danger);border-color:var(--danger)}
+#pol-import-text{width:100%;font-family:var(--mono);font-size:12.5px}
+@media (max-width:820px){.wk-kpis{grid-template-columns:1fr 1fr}.pol-row{grid-template-columns:1fr}}
+@media print{body.print-weekly .top,body.print-weekly .side,body.print-weekly .page-head .head-tools,body.print-weekly .toast{display:none!important}body.print-weekly .shell{display:block}body.print-weekly .main{padding:0}body.print-weekly .view:not(#view-weekly){display:none!important}}
