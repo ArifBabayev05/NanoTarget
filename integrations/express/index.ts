@@ -25,14 +25,26 @@ import {
   type Assessment, type DecideResult, type DecisionRow, type Policy, type SessionRow, type SqlClient,
 } from '../../server/public.ts';
 import { proofBundle, verifyProof, type ProofJwk } from '../proof/verify.ts';
+import { createPolicySync, type PolicyStatus } from './policy-sync.ts';
 
 export type Req = IncomingMessage & { nt?: ProtectResult };
 export type Res = ServerResponse;
 export type Next = (err?: unknown) => void;
 
 export type NanoTargetOptions = {
-  /** path to the policy JSON file, or the policy object itself */
-  policy: string | Policy;
+  /**
+   * The policy file (path) or object. With an `apiKey` the portal is where the policy lives: on the first start this
+   * file is sent there and becomes version 1; after that the server reads the policy from the portal and sends this
+   * file again only when it changes. Optional when an `apiKey` is given and the portal already holds the policy.
+   */
+  policy?: string | Policy;
+  /**
+   * Read the policy from the portal (default true when an `apiKey` is set). False keeps the file as the only
+   * source — for servers that cannot reach the internet.
+   */
+  policyFromPortal?: boolean;
+  /** the portal's address (default: NT_PORTAL_URL, or the origin of `telemetryUrl`) */
+  portalUrl?: string;
   /** ≥ 32 bytes; signs single-use tokens and derives the tenant room id — keep it stable across restarts */
   secret: string | Buffer;
   /** 'memory' | 'sqlite:./nanotarget.db' | 'file:./nanotarget.db' | 'libsql://host?authToken=…'  (default sqlite:./nanotarget.db) */
@@ -189,13 +201,12 @@ export async function nanotarget(opts: NanoTargetOptions) {
   const model = await loadModel();
   attachModel(model ? { predict: (f) => predict(model, f), humanAbove: model.humanAbove, syntheticBelow: model.syntheticBelow } : null);
   const engine = new NanoTarget({ store, secret, sessionCookie: cookieName });
-  const reporter = apiKey ? createReporter(apiKey, opts.telemetryUrl ?? process.env.NT_TELEMETRY_URL ?? 'https://nanotarget-mvp.vercel.app/api/v1/ingest', engine.proofKeys().keys, opts.telemetryImmediate ?? SERVERLESS) : null;
+  const telemetryUrl = opts.telemetryUrl ?? process.env.NT_TELEMETRY_URL ?? 'https://nanotarget-mvp.vercel.app/api/v1/ingest';
+  const reporter = apiKey ? createReporter(apiKey, telemetryUrl, engine.proofKeys().keys, opts.telemetryImmediate ?? SERVERLESS) : null;
   engine.webauthnReclaimEnabled = opts.webauthnReclaim ?? true;
   const room = derivedUuid(secret, 'room', tenant);
   await store.ensureRoom(room, `tenant:${tenant}`);
 
-  let policy: Policy = await loadPolicy(opts.policy);
-  engine.policyForApp = () => policy;
   async function loadPolicy(src: string | Policy): Promise<Policy> {
     const raw = typeof src === 'string' ? JSON.parse(await readFile(src, 'utf8')) : src;
     const version = typeof raw?.version === 'string' ? raw.version : `policy-${tenant}-${Date.now()}`;
@@ -203,8 +214,30 @@ export async function nanotarget(opts: NanoTargetOptions) {
     if (!parsed) throw new Error('nanotarget: policy file is invalid (see docs/INTEGRATION.md for the schema)');
     return parsed;
   }
-  /** Re-read the policy file (e.g. on SIGHUP or from an admin endpoint). */
-  async function reloadPolicy() { policy = await loadPolicy(opts.policy); return policy; }
+  const fromPortal = !!apiKey && opts.policyFromPortal !== false;
+  if (opts.policy === undefined && !fromPortal) throw new Error('nanotarget: give a `policy` file, or an `apiKey` so the policy can come from the portal');
+  let filePolicy: Policy | null = opts.policy === undefined ? null : await loadPolicy(opts.policy);
+  // With an API key the portal holds the policy; this server keeps a signed copy for when the portal is unreachable.
+  const sync = fromPortal
+    ? createPolicySync({
+      store, apiKey, filePath: typeof opts.policy === 'string' ? opts.policy : null, initialFile: filePolicy,
+      portalUrl: (opts.portalUrl ?? process.env.NT_PORTAL_URL ?? new URL(telemetryUrl).origin),
+      parse: (raw, version) => parsePolicy(raw, version),
+    })
+    : null;
+  if (sync) await sync.init();
+  const currentPolicy = (): Policy => (sync ? sync.policy : filePolicy!);
+  engine.policyForApp = () => currentPolicy();
+  /** Re-read the policy: from the portal (and send the file if it changed), or from the file when there is no portal. */
+  async function reloadPolicy() {
+    if (sync) await sync.refresh();
+    else if (opts.policy !== undefined) filePolicy = await loadPolicy(opts.policy);
+    return currentPolicy();
+  }
+  /** Which policy runs and where it came from: portal, saved copy (portal unreachable) or the file in your code. */
+  const policySource = (): PolicyStatus => (sync ? sync.status() : { version: filePolicy!.version, source: 'file', n: null, confirmedAt: null, lastCheckAt: null, portalReachable: null, lastProposal: null, problem: null });
+  // outside production, responses say where the policy came from, so a developer can see it in the network tab
+  const debugPolicyHeader = process.env.NODE_ENV !== 'production';
 
   const isSecure = (req: IncomingMessage) => opts.secure ?? (url(req).protocol === 'https:' || req.headers['x-forwarded-proto'] === 'https');
   const setCookie = (req: IncomingMessage, res: ServerResponse, id: string) => {
@@ -305,8 +338,10 @@ export async function nanotarget(opts: NanoTargetOptions) {
   /** Decide for `resource`; the result is on `req.nt`. Block → 403, step-up → 428 (unless `respond: false`). */
   function protect(resource: string, local: { respond?: boolean } = {}) {
     const answer = local.respond ?? respond;
+    sync?.declare(resource);   // the portal lists endpoints that have no rule yet
     return async (req: Req, res: Res, next: Next) => {
       try {
+        sync?.maybeRefresh();
         const session = await sessionFor(req, res);
         const result = await engine.decide({ room, session, resource, request: req, snapshot: engine.snapshotFrom(req) });
         const d = result.decision;
@@ -317,6 +352,7 @@ export async function nanotarget(opts: NanoTargetOptions) {
         };
         res.setHeader('X-NT-Decision', d.id);
         res.setHeader('X-NT-Policy', d.policyVersion);
+        if (debugPolicyHeader) res.setHeader('X-NT-Policy-Source', sync ? sync.source : 'file');
         if (reporter) report(session, resource, d, result);
         if (answer && d.decision === 'block') return json(res, 403, { error: 'blocked', resource, decision: publicDecision(d), stepUp: result.stepUp });
         if (answer && d.decision === 'step_up') return json(res, 428, { error: 'step_up_required', resource, decision: publicDecision(d), stepUp: result.stepUp });
@@ -331,7 +367,7 @@ export async function nanotarget(opts: NanoTargetOptions) {
     engine.connectionFor(session).then((c) => {
       reporter.push({
         at: Date.now(), session: sessionHash(session.id), resource, decision: d.decision, actor: d.actor, state: c.state,
-        tools: c.tools.slice(0, 8), reasons: d.reasonCodes.slice(0, 8), enforcement: policy.enforcement, version: result.assessment.version,
+        tools: c.tools.slice(0, 8), reasons: d.reasonCodes.slice(0, 8), enforcement: currentPolicy().enforcement, version: result.assessment.version,
         ...(result.proof ? { proof: result.proof } : {}),
       });
     }).catch(() => {});
@@ -350,7 +386,7 @@ export async function nanotarget(opts: NanoTargetOptions) {
   function health() {
     return {
       ok: !identityWarning,
-      policy: { version: policy.version, enforcement: policy.enforcement, resources: policy.rules.length },
+      policy: { ...policySource(), version: currentPolicy().version, enforcement: currentPolicy().enforcement, resources: currentPolicy().rules.length },
       telemetry: reporter ? { enabled: true, pending: reporter.pending, immediate: opts.telemetryImmediate ?? SERVERLESS } : { enabled: false },
       proofKey: engine.proofKeys().keys[0]!.kid,
       warnings: identityWarning ? [identityWarning] : [],
@@ -370,9 +406,9 @@ export async function nanotarget(opts: NanoTargetOptions) {
   /** check a proof against this deployment's key — or pass `keys` to check one from another deployment */
   const checkProof = (jws: string, keys = engine.proofKeys().keys) => verifyProof(jws, keys);
 
-  return { middleware, protect, send, sessionFor, reloadPolicy, get policy() { return policy; }, engine, store, room, basePath, telemetry, health,
+  return { middleware, protect, send, sessionFor, reloadPolicy, get policy() { return currentPolicy(); }, policySource, engine, store, room, basePath, telemetry, health,
     proofKeys, proofFor, proofBundle: proofBundleFor, verifyProof: checkProof,
-    close: async () => { await reporter?.close(); store.close(); } };
+    close: async () => { sync?.close(); await reporter?.close(); store.close(); } };
 }
 
 export type NanoTargetInstance = Awaited<ReturnType<typeof nanotarget>>;

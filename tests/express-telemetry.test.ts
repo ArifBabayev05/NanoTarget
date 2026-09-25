@@ -146,7 +146,9 @@ test('health reports the policy and the reporter; a constant identify() flips it
   let h = await fetch(`${base}/nanotarget/health`);
   assert.equal(h.status, 200);
   const body = await h.json();
-  assert.equal(body.ok, true); assert.equal(body.policy.version, 'tele-1'); assert.equal(body.telemetry.enabled, true); assert.match(body.proofKey, /^[A-Za-z0-9_-]{43}$/);
+  assert.equal(body.ok, true);
+  // with an API key the policy file went to the portal as version 1 and the server now runs the portal's signed copy
+  assert.equal(body.policy.version, 'portal-v1'); assert.equal(body.policy.source, 'portal'); assert.equal(body.telemetry.enabled, true); assert.match(body.proofKey, /^[A-Za-z0-9_-]{43}$/);
 
   // the footgun: identify() returns the same string for everyone
   const bad = await nanotarget({ secret: 'test-secret-test-secret-test-secret-9999', policy: policy as never, db: 'memory', identify: () => 'tenant-a' });

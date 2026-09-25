@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+- **The policy lives in the portal.** With an `apiKey`, the first start sends `nanotarget.policy.json` to the portal as version 1 (no approval); the server then reads the policy from there every minute, so portal edits are live without a deploy. Later edits to the file are proposed to the portal: applied at once by default, or held for approval when the owner turns that on. Changes that weaken protection wait for approval and the account password unless the owner switches that check off. Every change is journalled (who, when, what).
+- The portal signs each version (Ed25519) for one API key; the server pins the portal key on first use, refuses unsigned or altered policies, and runs on its saved signed copy when the portal is unreachable.
+- `nt.protect()` names and resources seen in traffic are listed in the portal when no rule covers them, with a suggested protection.
+- `nt.policySource()`, `health().policy.source`, a log line on every change, and (outside production) the `X-NT-Policy-Source` response header say whether the running policy came from the portal, the saved copy or the file.
+- New options: `policyFromPortal` (default `true` with an `apiKey`; `false` keeps the file as the only source), `portalUrl`. `policy` is optional when an `apiKey` is given.
+- Management API: `GET /api/v1/manage/policy?key=`, `POST /api/v1/manage/policy {key, policy}`.
+
 ## 0.5.0 — 2026-09-24
 - Package descriptions, landing, docs and portal wizard rewritten around one message: `npm i nanotarget` is the only install; the engine comes with it and is never imported. Startup now refuses a mismatched `nanotarget-engine` version with the exact command to fix it.
 

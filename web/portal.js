@@ -7,7 +7,7 @@
   const api = async (path, opts = {}) => {
     const r = await fetch(path, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) }, ...opts });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw Object.assign(new Error(d.message || d.error || String(r.status)), { status: r.status });
+    if (!r.ok) throw Object.assign(new Error(d.message || d.error || String(r.status)), { status: r.status, data: d });
     return d;
   };
   // ---------------------------------------------------------------- theme
@@ -22,19 +22,21 @@
   // Every confirmation and every rename happens in the portal's own dialog: the browser's prompt()
   // and confirm() look like a different product and cannot be styled or typed into by a screen reader
   // in the same way. Resolves to the typed value, true, or null when the person backs out.
-  function ask({ title, body = '', hint = '', label = '', value = '', ok = 'Confirm', danger = false }) {
+  function ask({ title, body = '', hint = '', label = '', value = '', ok = 'Confirm', danger = false, password = false, list = null }) {
     const el = $('#ask');
     $('#ask-title').textContent = title;
     $('#ask-body').textContent = body; $('#ask-body').hidden = !body;
     $('#ask-hint').textContent = hint; $('#ask-hint').hidden = !hint;
     $('#ask-label').hidden = !label; $('#ask-label-text').textContent = label; $('#ask-input').value = value;
+    $('#ask-input').type = password ? 'password' : 'text'; $('#ask-input').maxLength = password ? 200 : 80; $('#ask-input').autocomplete = password ? 'current-password' : 'off';
+    $('#ask-list').innerHTML = (list || []).map((x) => `<li>${esc(x)}</li>`).join(''); $('#ask-list').hidden = !(list && list.length);
     const btn = $('#ask-ok'); btn.textContent = ok; btn.classList.toggle('danger', danger);
     el.hidden = false;
     setTimeout(() => (label ? $('#ask-input') : btn).focus(), 50);
     return new Promise((resolve) => {
-      const done = (v) => { el.hidden = true; btn.onclick = null; $('#ask-cancel').onclick = null; el.onclick = null; removeEventListener('keydown', key); resolve(v); };
+      const done = (v) => { el.hidden = true; $('#ask-input').value = ''; btn.onclick = null; $('#ask-cancel').onclick = null; el.onclick = null; removeEventListener('keydown', key); resolve(v); };
       const key = (e) => { if (e.key === 'Escape') done(null); if (e.key === 'Enter' && label) { e.preventDefault(); accept(); } };
-      const accept = () => { const v = label ? $('#ask-input').value.trim() : true; done(label && !v ? null : v); };
+      const accept = () => { const v = label ? (password ? $('#ask-input').value : $('#ask-input').value.trim()) : true; done(label && !v ? null : v); };
       btn.onclick = accept;
       $('#ask-cancel').onclick = () => done(null);
       el.onclick = (e) => { if (e.target === el) done(null); };
@@ -450,7 +452,7 @@
     fastify: (key) => `<span class="c">// server.js — Fastify uses the raw request/response</span>\n<span class="k">const</span> nt = <span class="k">await</span> nanotarget({ secret: process.env.NT_SECRET, policy: <span class="s">'./nanotarget.policy.json'</span>, apiKey: process.env.NT_API_KEY });\n\nfastify.addHook(<span class="s">'onRequest'</span>, (req, reply, done) =&gt; nt.middleware()(req.raw, reply.raw, done));\nfastify.get(<span class="s">'/api/balance'</span>, { onRequest: (req, reply, done) =&gt; nt.protect(<span class="s">'balance.read'</span>)(req.raw, reply.raw, done) },\n  (req, reply) =&gt; nt.send(req.raw, reply.raw, balance, mask));`,
     docker: (key) => `<span class="c"># docker-compose.yml</span>\nservices:\n  api:\n    environment:\n      NT_SECRET: <span class="s">\"\${NT_SECRET}\"</span>\n      NT_API_KEY: <span class="s">\"${esc(key)}\"</span>\n\n<span class="c"># or plain docker</span>\ndocker run -e NT_API_KEY=${esc(key)} -e NT_SECRET=$NT_SECRET my-api`,
   };
-  const agentPrompt = (key, admin) => `https://www.npmjs.com/package/nanotarget — install this into my app.\n\n\`npm i nanotarget\` is the only install (its engine dependency comes with it). Follow the README protocol: scan the app as if you were an AI browser agent holding a customer's\nlogged-in session, show me the exposure map and what you propose to gate, ask me the nine decisions,\nthen implement the server wiring, the page tags, the policy file and every mask function, verify with\n\`npx nanotarget verify\`, and report what you left open.\n\nReport telemetry to my NanoTarget portal: set apiKey: process.env.NT_API_KEY${key ? ` (${key})` : ''}.\n${admin ? `\nYou can administer my account yourself with the management API:\n  curl -H "Authorization: Bearer ${admin}" ${location.origin}/api/v1/manage/me\nGET /api/v1/manage/keys · POST /api/v1/manage/keys {name, expiresInDays, env} · DELETE /api/v1/manage/keys/:id\nGET /api/v1/manage/overview?range=7d · GET /api/v1/manage/stats?key=:id&range=7d` : ''}`;
+  const agentPrompt = (key, admin) => `https://www.npmjs.com/package/nanotarget — install this into my app.\n\n\`npm i nanotarget\` is the only install (its engine dependency comes with it). Follow the README protocol: scan the app as if you were an AI browser agent holding a customer's\nlogged-in session, show me the exposure map and what you propose to gate, ask me the nine decisions,\nthen implement the server wiring, the page tags, the policy file and every mask function, verify with\n\`npx nanotarget verify\`, and report what you left open.\n\nReport telemetry to my NanoTarget portal: set apiKey: process.env.NT_API_KEY${key ? ` (${key})` : ''}.\n${admin ? `\nYou can administer my account yourself with the management API:\n  curl -H "Authorization: Bearer ${admin}" ${location.origin}/api/v1/manage/me\nGET /api/v1/manage/keys · POST /api/v1/manage/keys {name, expiresInDays, env} · DELETE /api/v1/manage/keys/:id\nGET /api/v1/manage/overview?range=7d · GET /api/v1/manage/stats?key=:id&range=7d\nGET /api/v1/manage/policy?key=:id · POST /api/v1/manage/policy {key, policy}  (the key's policy lives in the portal; your server reads it from there)` : ''}`;
   function renderIntegration() {
     const keys = liveKeys();
     if (!keys.length) { $('#setup-key').innerHTML = '<option>no keys yet</option>'; }
@@ -539,17 +541,123 @@
   const presetOf = (r) => Object.entries(PRESETS).find(([, p]) => p.m && p.m.join() === [r.onAgent, r.onArtifact, r.onUnknown, r.onHumanLike].join())?.[0] || 'custom';
   const titleOf = (res) => res.replace(/[._]/g, ' ').replace(/^./, (c) => c.toUpperCase());
   const guessPreset = (res) => /export|download|payout|transfer|delete|withdraw|contacts/.test(res) ? 'guard' : /balance|medical|pipeline/.test(res) ? 'block' : 'mask';
-  let pol = null, policyKey = null;
-  async function renderPolicy() {
-    policyKey = keySelect($('#policy-key'), policyKey);
-    if (!pol) {
-      let seen = [];
-      if (policyKey) { try { const d = await api(`/api/v1/portal/stats?key=${encodeURIComponent(policyKey)}&range=30d`); seen = [...new Set(d.resources.map((r) => r.resource))].filter((r) => RES_RE.test(r)); } catch {} }
-      const list = seen.length ? seen : ['profile.read', 'balance.read', 'report.export'];
-      pol = { enforcement: 'observe', rules: list.slice(0, 50).map((r) => ({ resource: r, title: titleOf(r), preset: guessPreset(r) })) };
-      $('#policy-src').textContent = seen.length ? `${seen.length} resource${seen.length === 1 ? '' : 's'} your middleware reported in the last 30 days` : 'an example to start from; rename to match nt.protect() in your code';
+  let pol = null, policyKey = null, pv = null, savedCanon = '';
+  const addedHere = new Set();
+  const ORIGIN = { install: 'first start of your server', server: 'the policy file in your code', agent: 'a coding agent', portal: 'this portal' };
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const canon = (d) => JSON.stringify([d.enforcement, [...d.rules].map((r) => [r.resource, r.title || '', r.onAgent, r.onArtifact ?? 'allow', r.onUnknown, r.onHumanLike, [...(r.actOn || [])].sort().join(), r.minScore ?? 65]).sort()]);
+  const fromDoc = (o) => ({ enforcement: o.enforcement === 'enforce' ? 'enforce' : 'observe', rules: o.rules.slice(0, 50).map((r) => { const x = { resource: String(r.resource || ''), title: String(r.title || ''), onAgent: r.onAgent, onArtifact: r.onArtifact ?? 'allow', onUnknown: r.onUnknown, onHumanLike: r.onHumanLike }; return { resource: x.resource, title: x.title, preset: presetOf(x), modes: [x.onAgent, x.onArtifact, x.onUnknown, x.onHumanLike], actOn: Array.isArray(r.actOn) ? r.actOn : undefined, minScore: typeof r.minScore === 'number' ? r.minScore : undefined }; }) });
+  /** POST that may answer 403 {error:'confirm'}: ask for the password, showing what gets weaker, and send again. */
+  async function withPassword(path, body, title) {
+    const send = (extra) => api(path, { method: 'POST', body: JSON.stringify({ ...body, ...extra }) });
+    try { return await send({}); } catch (e) {
+      if (e.status !== 403 || e.data?.error !== 'confirm') throw e;
+      for (;;) {
+        const pw = await ask({ title, body: e.data.weakening?.length ? 'This lets AI agents see or do more than now:' : e.message, list: e.data.weakening, label: 'Your password', password: true, ok: 'Confirm with password', danger: true, hint: 'A second step so that one careless edit, or one stolen session, cannot switch protection off.' });
+        if (!pw) return null;
+        try { return await send({ password: pw }); } catch (e2) { if (e2.status !== 401) throw e2; toast('That password is not right'); }
+      }
     }
-    drawPolicy();
+  }
+  async function renderPolicy(reload = false) {
+    policyKey = keySelect($('#policy-key'), policyKey);
+    pv = null;
+    if (policyKey) { try { pv = await api(`/api/v1/portal/policy?key=${encodeURIComponent(policyKey)}`); } catch (e) { toast(e.message); } }
+    if (!pol || reload) {
+      addedHere.clear();
+      if (pv?.policy) {
+        pol = fromDoc(pv.policy); savedCanon = canon(policyDoc().doc);
+        $('#policy-src').textContent = `version ${pv.n}, saved in the portal`;
+      } else {
+        let seen = [...(pv?.declared || [])];
+        if (policyKey) { try { const d = await api(`/api/v1/portal/stats?key=${encodeURIComponent(policyKey)}&range=30d`); seen = [...new Set([...seen, ...d.resources.map((r) => r.resource)])].filter((r) => RES_RE.test(r)); } catch {} }
+        const list = seen.length ? seen : ['profile.read', 'balance.read', 'report.export'];
+        pol = { enforcement: 'observe', rules: list.slice(0, 50).map((r) => ({ resource: r, title: titleOf(r), preset: guessPreset(r) })) };
+        savedCanon = '';
+        $('#policy-src').textContent = seen.length ? `a draft from the ${plural(seen.length, 'endpoint')} your server reported` : 'an example to start from; rename to match nt.protect() in your code';
+      }
+    }
+    drawStatus(); drawPending(); drawUnruled(); drawSettings(); drawHistory(); drawPolicy();
+  }
+  function drawStatus() {
+    const el = $('#pol-status');
+    if (!policyKey) { el.innerHTML = '<i class="dot"></i><div><h3>No API key yet</h3><p>Create a key in API Keys. Each key has its own policy.</p></div>'; return; }
+    if (!pv?.policy) { el.innerHTML = '<i class="dot"></i><div><h3>No policy yet</h3><p>It appears here by itself the first time your server starts with this key: the policy file in your code becomes version 1, nothing to approve. Or build one below and save it.</p></div>'; return; }
+    const p = pv.policy, latest = `portal-v${pv.n}`, sv = pv.server;
+    let dot = 'ok', line;
+    if (!sv) { dot = 'warn'; line = 'Your server has not checked in yet. It asks for the policy when it starts, then every minute.'; }
+    else if (sv.source === 'cache') { dot = 'warn'; line = `Your server could not reach the portal, so it runs its saved copy <code>${esc(sv.version)}</code>. It stays protected and catches up when the portal is back.`; }
+    else if (sv.source === 'file' || sv.source === 'none') { dot = 'warn'; line = `Your server runs ${sv.source === 'file' ? `the policy file in its code (<code>${esc(sv.version)}</code>)` : 'no policy'}, not the portal copy. It switches on its next check.`; }
+    else if (sv.version !== latest) { dot = 'warn'; line = `Your server still runs <code>${esc(sv.version)}</code>. It picks up version ${pv.n} on its next check, within a minute.`; }
+    else line = `Your server runs this version, read from the portal.`;
+    if (sv) line += ` <span class="fine">Last check ${ago(sv.at)}.</span>`;
+    el.innerHTML = `<i class="dot ${dot}"></i><div><h3>Version ${pv.n} · ${p.enforcement === 'enforce' ? 'enforcing' : 'observe mode, nothing blocked'} · ${plural(p.rules.length, 'rule')}</h3><p>${line}</p><p class="fine">Changed ${ago(pv.updated)}.${pv.pending.length ? ` <b>${plural(pv.pending.length, 'change')} waiting for you below.</b>` : ''}</p></div>`;
+  }
+  const changeList = (c) => `<ul>${c.summary.map((x) => `<li class="${c.weakening.includes(x) || c.weakening.some((w) => w.startsWith(x)) ? 'weak' : ''}">${esc(x)}</li>`).join('')}</ul>`;
+  function drawPending() {
+    const list = pv?.pending || [];
+    $('#pol-pending-card').hidden = !list.length;
+    $('#pol-pending').innerHTML = list.map((c) => `<div class="pol-item" data-id="${c.id}">
+      <p class="meta">From ${esc(ORIGIN[c.origin] || c.origin)} · ${esc(c.actor)} · ${ago(c.at)}${c.weakening.length ? '<span class="weak-tag">weakens protection</span>' : ''}</p>
+      ${changeList(c)}
+      <div class="row"><button class="btn primary" data-decide="1">Approve</button><button class="btn ghost" data-decide="0">Reject</button></div></div>`).join('');
+  }
+  $('#pol-pending').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-decide]'); if (!b) return;
+    const id = +b.closest('[data-id]').dataset.id, approve = b.dataset.decide === '1';
+    b.disabled = true;
+    try {
+      const r = await withPassword('/api/v1/portal/policy/decide', { key: policyKey, id, approve }, 'Approve a change that weakens protection');
+      if (r) toast(r.status === 'applied' ? `Approved. Version ${r.n} is live.` : 'Rejected. Nothing changed.');
+      await renderPolicy(true);
+    } catch (err) { toast(err.message); b.disabled = false; }
+  });
+  function drawUnruled() {
+    const list = (pv?.unruled || []).filter((u) => !addedHere.has(u.resource) && !pol?.rules.some((r) => r.resource === u.resource));
+    $('#pol-unruled-card').hidden = !list.length;
+    $('#pol-unruled').innerHTML = list.map((u) => `<div class="pol-un" data-res="${esc(u.resource)}">
+      <div><code>${esc(u.resource)}</code><span class="fine">${u.from.includes('code') ? 'in your code' : ''}${u.from.length > 1 ? ' · ' : ''}${u.from.includes('traffic') ? 'seen in traffic' : ''} · ${ago(u.lastSeen)}</span></div>
+      <select>${Object.entries(PRESETS).filter(([k]) => k !== 'custom').map(([k, p]) => `<option value="${k}" ${k === guessPreset(u.resource) ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select>
+      <button class="btn">Add</button></div>`).join('');
+  }
+  $('#pol-unruled').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const row = b.closest('[data-res]'), res = row.dataset.res;
+    pol.rules.push({ resource: res, title: titleOf(res), preset: row.querySelector('select').value });
+    addedHere.add(res); drawUnruled(); drawPolicy();
+    toast('Added. Save to portal to apply it.');
+  });
+  function drawSettings() {
+    const st = pv?.settings || { requireApproval: false, confirmWeakening: true };
+    const none = !pv?.policy;
+    $('#pol-req').checked = st.requireApproval; $('#pol-weak').checked = st.confirmWeakening;
+    $('#pol-req').disabled = $('#pol-weak').disabled = none;
+    $('#pol-req-hint').textContent = st.requireApproval
+      ? 'On: an edit waits under “Waiting for your approval”. Your server keeps the current policy until you approve it.'
+      : 'Off (default): an edit goes live by itself within a minute. You see each one in History below.';
+    $('#pol-weak-hint').textContent = st.confirmWeakening
+      ? 'On (recommended): a change that lets agents see or do more — a rule removed, block → allow, Enforce → Observe — waits for your approval and your password, even when the switch above is off.'
+      : 'Off: weakening changes go through like any other. Turning this back on needs no password.';
+    if (none) $('#pol-req-hint').textContent = 'Available once the key has a policy.';
+  }
+  const saveSetting = async (patch, el, title) => {
+    el.disabled = true;
+    try {
+      const r = await withPassword('/api/v1/portal/policy/settings', { key: policyKey, ...patch }, title);
+      if (r) toast('Saved');
+      await renderPolicy();
+    } catch (err) { toast(err.message); await renderPolicy(); }
+  };
+  $('#pol-req').addEventListener('change', (e) => saveSetting({ requireApproval: e.target.checked }, e.target));
+  $('#pol-weak').addEventListener('change', (e) => saveSetting({ confirmWeakening: e.target.checked }, e.target, 'Turn off the check on weakening changes'));
+  function drawHistory() {
+    const list = pv?.history || [];
+    $('#pol-history').innerHTML = list.length ? list.map((c) => {
+      const label = c.status === 'settings' ? 'setting' : c.status === 'applied' && c.toN ? `v${c.toN}` : c.status;
+      const who = c.status === 'applied' && c.decidedBy ? `${c.actor} · approved by ${c.decidedBy}` : c.decidedBy ? `${c.actor} · ${c.status} by ${c.decidedBy}` : c.actor;
+      return `<div class="pol-hist"><span class="when" title="${esc(new Date(c.at).toLocaleString())}">${ago(c.at)}</span>
+        <div><span class="chip ${esc(c.status)}">${esc(label)}</span> <span class="who">from ${esc(ORIGIN[c.origin] || c.origin)} · ${esc(who)}</span>${changeList(c)}</div></div>`;
+    }).join('') : '<p class="fine" style="margin:0">Nothing yet. Every change will be listed here: who made it, when, and what it changed.</p>';
   }
   function drawPolicy() {
     $('#pol-rows').innerHTML = pol.rules.map((r, i) => `<div class="pol-row" data-i="${i}">
@@ -573,11 +681,19 @@
       return { resource: r.resource, title: (r.title || titleOf(r.resource)).slice(0, 80), onAgent: m[0], onArtifact: m[1], onUnknown: m[2], onHumanLike: m[3], actOn: r.actOn || ['verified', 'strong', 'control', 'behavioral'], minScore: r.minScore ?? 65 };
     });
     if (!rules.length) errs.push('Add at least one resource.');
-    return { errs, doc: { version: `policy-${new Date().toISOString().slice(0, 10)}`, enforcement: pol.enforcement, rules } };
+    return { errs, doc: { version: pv?.policy ? pv.policy.version : `policy-${new Date().toISOString().slice(0, 10)}`, enforcement: pol.enforcement, rules } };
   }
-  function writePolicy() { const { errs, doc } = policyDoc(); $('#pol-err').textContent = errs.join(' '); $('#pol-json').textContent = JSON.stringify(doc, null, 2); $('#pol-download').disabled = !!errs.length; }
+  function writePolicy() {
+    const { errs, doc } = policyDoc();
+    const dirty = canon(doc) !== savedCanon;
+    $('#pol-err').textContent = errs.join(' ');
+    $('#pol-json').textContent = JSON.stringify(doc, null, 2);
+    $('#pol-download').disabled = !!errs.length;
+    $('#pol-save').disabled = !!errs.length || !policyKey || !dirty;
+    $('#pol-save-msg').textContent = !policyKey ? 'Create an API key first.' : !pv?.policy ? 'Not saved yet. Saving makes this version 1.' : dirty ? 'You have unsaved changes.' : `Saved. This is version ${pv.n}.`;
+  }
   $('#pol-rows').addEventListener('input', (e) => { const row = e.target.closest('.pol-row'); if (!row || !e.target.dataset.f) return; const r = pol.rules[+row.dataset.i]; if (e.target.dataset.f === 'preset') { r.preset = e.target.value; drawPolicy(); return; } r[e.target.dataset.f] = e.target.dataset.f === 'resource' ? e.target.value.trim() : e.target.value; writePolicy(); });
-  $('#pol-rows').addEventListener('click', (e) => { const b = e.target.closest('[data-rm]'); if (!b) return; pol.rules.splice(+b.dataset.rm, 1); drawPolicy(); });
+  $('#pol-rows').addEventListener('click', (e) => { const b = e.target.closest('[data-rm]'); if (!b) return; pol.rules.splice(+b.dataset.rm, 1); drawPolicy(); drawUnruled(); });
   $('#pol-add').onclick = () => { pol.rules.push({ resource: '', title: '', preset: 'guard' }); drawPolicy(); const inputs = $$('#pol-rows input[data-f="resource"]'); inputs[inputs.length - 1]?.focus(); };
   $$('#pol-mode button').forEach((b) => b.addEventListener('click', () => { pol.enforcement = b.dataset.mode; drawPolicy(); }));
   $('#pol-import-toggle').onclick = () => { $('#pol-import').hidden = !$('#pol-import').hidden; };
@@ -585,11 +701,20 @@
     try {
       const o = JSON.parse($('#pol-import-text').value);
       if (!o || !Array.isArray(o.rules) || !o.rules.length) throw new Error('No "rules" list in that file.');
-      pol = { enforcement: o.enforcement === 'enforce' ? 'enforce' : 'observe', rules: o.rules.slice(0, 50).map((r) => { const x = { resource: String(r.resource || ''), title: String(r.title || ''), onAgent: r.onAgent, onArtifact: r.onArtifact ?? 'allow', onUnknown: r.onUnknown, onHumanLike: r.onHumanLike }; const preset = presetOf(x); return { resource: x.resource, title: x.title, preset, modes: [x.onAgent, x.onArtifact, x.onUnknown, x.onHumanLike], actOn: Array.isArray(r.actOn) ? r.actOn : undefined, minScore: typeof r.minScore === 'number' ? r.minScore : undefined }; }) };
-      $('#policy-src').textContent = 'loaded from your file';
-      $('#pol-import-msg').textContent = `Loaded ${pol.rules.length} rule${pol.rules.length === 1 ? '' : 's'}.`;
-      drawPolicy();
+      pol = fromDoc(o);
+      $('#policy-src').textContent = 'loaded from the file you pasted, not saved yet';
+      $('#pol-import-msg').textContent = `Loaded ${plural(pol.rules.length, 'rule')}.`;
+      drawPolicy(); drawUnruled();
     } catch (e) { $('#pol-import-msg').textContent = e.message.startsWith('No') ? e.message : 'That is not valid JSON.'; }
+  };
+  $('#pol-save').onclick = async () => {
+    const { errs, doc } = policyDoc(); if (errs.length) return toast(errs[0]);
+    const b = $('#pol-save'); b.disabled = true;
+    try {
+      const r = await withPassword('/api/v1/portal/policy', { key: policyKey, policy: doc }, 'This change weakens protection');
+      if (r) toast(r.status === 'unchanged' ? 'Nothing changed' : `Saved as version ${r.n}. Your server picks it up within a minute.`);
+      if (r) await renderPolicy(true); else writePolicy();
+    } catch (e) { toast(e.message); writePolicy(); }
   };
   $('#policy-key').addEventListener('change', (e) => { policyKey = e.target.value; pol = null; renderPolicy(); });
   $('#pol-download').onclick = () => { const { errs, doc } = policyDoc(); if (errs.length) return toast(errs[0]); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2) + '\n'], { type: 'application/json' })); a.download = 'nanotarget.policy.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };

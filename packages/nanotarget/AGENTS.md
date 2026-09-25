@@ -158,7 +158,7 @@ app.get('/api/balance', nt.protect('balance.read'), (req, res) =>
 - **428**: step-up dialog; demo answer → `POST /nanotarget/step-up {id, answer}`; own OTP → verify your way, then server-side `nt.engine.store.grantStepUp(sessionId, resource, ttlMs)`, then retry.
 - CSP: `script-src 'self'`, `connect-src 'self'`; add `chrome-extension:` to `img-src`/`connect-src` for installed-extension detection.
 
-**Policy**: apply the answers to `nanotarget.policy.draft.json`, rename to `nanotarget.policy.json`. Branches: `onAgent` proven agent · `onArtifact` environment only · `onUnknown` not enough signal (never treated as human) · `onHumanLike` kinematic/behavioral human evidence or passkey. Keep `actOn`/`minScore` defaults. Unlisted resources stay unprotected — list that explicitly in your report.
+**Policy**: apply the answers to `nanotarget.policy.draft.json`, rename to `nanotarget.policy.json`. Branches: `onAgent` proven agent · `onArtifact` environment only · `onUnknown` not enough signal (never treated as human) · `onHumanLike` kinematic/behavioral human evidence or passkey. Keep `actOn`/`minScore` defaults. Unlisted resources stay unprotected — list that explicitly in your report. With an `apiKey` the file becomes version 1 in the portal on first start; later edits you make to it are sent there and may wait for the owner's approval (a change that weakens protection always does, by default) — say so in your report instead of assuming it is live.
 
 ### Mask cookbook — write these yourself, one per masked resource
 
@@ -267,19 +267,31 @@ Move the decision into the front end (the SDK is untrusted input) · protect log
 - **Seal-on-attach:** `data-nt-sensitive="full"` elements are redacted in the browser the instant an indicator appears — even a read that is already in flight sees `••••`.
 
 ## API surface
-`nanotarget(options)` → `{ middleware(), protect(resource, {respond?}), send(req,res,full,mask), sessionFor(req,res), reloadPolicy(), policy, engine, store, room, basePath, close() }`
+`nanotarget(options)` → `{ middleware(), protect(resource, {respond?}), send(req,res,full,mask), sessionFor(req,res), reloadPolicy(), policy, policySource(), health(), engine, store, room, basePath, close() }`
 `req.nt` → `{ decision, masked, blocked, stepUp, actor, score, reasonCodes, session, full, assessment, token() }`
 SDK: `NanoTarget.fetch`, `.snapshot(withInteraction)`, `.sessionHeaders()`, `.onAssessment(fn)`, `.seal()`, `.unseal(proof)`, `.sealed`, `.lastConnection`; event `nt:sealed`.
 CLI: `npx nanotarget scan [dir] [--json]` · `npx nanotarget verify <baseUrl> <protectedPath> [--base /nanotarget]` · `npx nanotarget secret`.
 Routes under `basePath`: `GET /sdk.js`, `POST /signals`, `GET /connection`, `GET /session`, `POST /step-up`, `POST /webauthn/register/options|register|assert/options|assert`, `GET /webauthn/status`.
 
-Options: `secret` (required, ≥32 B) · `policy` (path or object, required) · `db` (`sqlite:./file` | `memory` | `libsql://…`) · `identify(req)` · `basePath` (`/nanotarget`) · `cookie` (`nt_sid`) · `secure` · `tenant` · `respond` (`true`) · `webauthnReclaim` (`true`) · `apiKey` (portal reporting, default `NT_API_KEY`) · `telemetryUrl` · `telemetryImmediate` (send each report at once; automatic on Vercel/Lambda/Netlify/Azure Functions).
+Options: `secret` (required, ≥32 B) · `policy` (path or object; optional with an `apiKey`, see below) · `policyFromPortal` (`true` with an `apiKey`) · `portalUrl` · `db` (`sqlite:./file` | `memory` | `libsql://…`) · `identify(req)` · `basePath` (`/nanotarget`) · `cookie` (`nt_sid`) · `secure` · `tenant` · `respond` (`true`) · `webauthnReclaim` (`true`) · `apiKey` (portal reporting, default `NT_API_KEY`) · `telemetryUrl` · `telemetryImmediate` (send each report at once; automatic on Vercel/Lambda/Netlify/Azure Functions).
 
 ## Portal: how many of your sessions had an AI agent in them
 
 Create an account at https://nanotarget-mvp.vercel.app/portal, create an API key (one per project) and pass it as `apiKey` (or set `NT_API_KEY`). The middleware then reports every decision in the background — batched (sent at once on serverless platforms), never on the request path, dropped rather than blocking if the portal is unreachable. Each report is metadata only: a hashed session id, resource, decision, actor, connection state, detected tool, reason codes. No payloads, no identities, no IPs. Without a key nothing leaves your server.
 
 The portal shows, per key: the share of sessions with an AI agent, decisions over time, which agents were seen, which resources they reached for, and a live log of recent decisions. Start in `observe` mode and you get the picture before anything is enforced.
+
+### The policy lives in the portal
+
+With an `apiKey`, the portal is where the policy is kept. The first time your server starts, it sends `nanotarget.policy.json` to the portal and that becomes version 1 — nothing to approve. From then on the server reads the policy from the portal (every minute, and on requests on serverless), so a change made in the portal is live within a minute with no deploy.
+
+- **The file still works.** When a developer or a coding agent edits `nanotarget.policy.json`, the server sends the edit to the portal. By default it applies at once. In the portal's Policy page the owner can turn on *Ask me before a change from code takes effect*; then edits wait there for Approve / Reject.
+- **Weakening needs a second step.** A change that lets agents see or do more — a rule removed, `block` → `allow`, `enforce` → `observe` — waits for approval and the account password, unless the owner switched that check off (which itself needs the password).
+- **Signed, and it keeps working offline.** The portal signs each version (Ed25519) for your key only; the server pins the portal's key the first time and refuses anything unsigned or altered. It keeps the last signed version in its own database and runs on it when the portal cannot be reached.
+- **New endpoints are noticed.** Every `nt.protect('name')` is reported, and so is any resource seen in traffic; the portal lists the ones without a rule, with a suggested protection.
+- **Every change is journalled:** who (you, your server, an agent's management key), when, and what changed.
+- **Where did the policy come from?** Logged on every change (`nanotarget: policy portal-v3 (enforce, 4 rules) from the portal`), returned by `nt.policySource()` and `GET <basePath>/health`, and — outside `NODE_ENV=production` — sent as the `X-NT-Policy-Source: portal | cache | file` response header.
+- **Servers without internet:** `policyFromPortal: false` keeps the file as the only source; the portal can still download it.
 
 ### Decision proofs — the evidence an auditor can check
 
@@ -320,6 +332,9 @@ curl -H "Authorization: Bearer $NT_ADMIN" "$BASE/api/v1/manage/overview?range=7d
 curl -H "Authorization: Bearer $NT_ADMIN" "$BASE/api/v1/manage/stats?key=<id>&range=7d"
 curl -H "Authorization: Bearer $NT_ADMIN" "$BASE/api/v1/manage/events?key=<id>&range=7d&limit=100"
 curl -H "Authorization: Bearer $NT_ADMIN" "$BASE/api/v1/manage/proofs?key=<id>&range=30d"          # signed decisions + verifying keys
+curl -H "Authorization: Bearer $NT_ADMIN" "$BASE/api/v1/manage/policy?key=<id>"                     # the key's policy, pending changes, endpoints without a rule
+curl -H "Authorization: Bearer $NT_ADMIN" -H 'Content-Type: application/json' \
+     -d '{"key":"<id>","policy":{…}}' $BASE/api/v1/manage/policy                                   # propose a change: applied, or held for approval
 ```
 
 `POST /keys` answers with `{ id, name, env, expires, key }` — put `key` into the app's environment as `NT_API_KEY` and it starts reporting. `GET /manage/me` lists every endpoint, so an agent can discover the API from one call. A management key can create and revoke project keys: treat it like a password, and revoke it in the portal when the job is done.

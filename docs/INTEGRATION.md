@@ -35,7 +35,8 @@ Səhifəyə bir teq: `<script src="/nanotarget/sdk.js"></script>` və ekranda g�
 | Seçim | Mənası | Default |
 |---|---|---|
 | `secret` | ≥32 bayt; tokenlər və tenant otağı bundan çıxır, dəyişməz olmalıdır | — (məcburi) |
-| `policy` | JSON faylının yolu və ya obyekt; `nt.reloadPolicy()` ilə yenilənir | — (məcburi) |
+| `policy` | JSON faylının yolu və ya obyekt. `apiKey` varsa ilk startda portala 1-ci versiya kimi gedir, sonra server qaydanı portaldan oxuyur (aşağıya bax) | `apiKey` yoxdursa məcburi |
+| `policyFromPortal` | `false` — qayda yalnız fayldan (internetsiz server) | `apiKey` varsa `true` |
 | `db` | `sqlite:./nanotarget.db` · `memory` · `libsql://host?authToken=…` | `sqlite:./nanotarget.db` |
 | `basePath` | SDK və API-nin yolu | `/nanotarget` |
 | `identify(req)` | sizin login sessiya/istifadəçi id-niz → bir loginin bütün tabları bir NanoTarget sessiyası | cookie ilə brauzer başına |
@@ -43,6 +44,16 @@ Səhifəyə bir teq: `<script src="/nanotarget/sdk.js"></script>` və ekranda g�
 | `respond` | block/step_up-ı middleware cavablasın | `true` |
 | `webauthnReclaim` | agent bloklanandan sonra "Mən insanam" passkey yolu | `true` |
 | `tenant` | çoxtenant quraşdırmada otaq adı | `default` |
+
+## Qayda portalda saxlanılır
+
+`apiKey` verilibsə, qaydanın əsas yeri portaldır:
+- **İlk start:** `nanotarget.policy.json` portala gedir və 1-ci versiya olur — təsdiq istəmir.
+- **Sonra:** server hər dəqiqə qaydanı portaldan oxuyur. Portalda edilən dəyişiklik bir dəqiqəyə tətbiq olunur, deploy lazım deyil.
+- **Faylı developer və ya agent dəyişəndə:** dəyişiklik portala gedir. Default olaraq dərhal tətbiq olunur. Portalın Policy səhifəsində "Ask me before a change from code takes effect" açılsa, dəyişiklik təsdiq gözləyir.
+- **Qorumanı zəiflədən dəyişiklik** (qaydanın silinməsi, `block` → `allow`, `enforce` → `observe`) təsdiq və hesab şifrəsi istəyir. Bu yoxlamanı söndürmək də şifrə istəyir.
+- **İmza:** portal hər versiyanı yalnız sizin açar üçün imzalayır. Server portalın açarını ilk dəfə yadda saxlayır və imzasız və ya dəyişdirilmiş qaydanı qəbul etmir. Portal əlçatmaz olanda son imzalı nüsxə ilə işləyir.
+- **Qaydanın haradan gəldiyini görmək:** hər dəyişiklikdə log sətri yazılır, `nt.policySource()` və `/nanotarget/health` da göstərir. `NODE_ENV=production` deyilsə, cavabda `X-NT-Policy-Source: portal | cache | file` başlığı olur.
 
 ## Qayda faylı
 

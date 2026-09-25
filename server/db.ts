@@ -146,6 +146,48 @@ CREATE TABLE IF NOT EXISTS telemetry (
   version TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS telemetry_key_at ON telemetry (key_id, at);
+CREATE TABLE IF NOT EXISTS key_policies (
+  key_id TEXT PRIMARY KEY,
+  n INTEGER NOT NULL,
+  body TEXT NOT NULL,
+  updated INTEGER NOT NULL,
+  require_approval INTEGER NOT NULL DEFAULT 0,
+  confirm_weakening INTEGER NOT NULL DEFAULT 1,
+  last_file_hash TEXT,
+  seen_version TEXT,
+  seen_source TEXT,
+  seen_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS policy_changes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key_id TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  actor TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  status TEXT NOT NULL,
+  from_n INTEGER,
+  to_n INTEGER,
+  body TEXT,
+  summary TEXT NOT NULL,
+  weakening TEXT,
+  decided_by TEXT,
+  decided_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS policy_changes_key ON policy_changes (key_id, id);
+CREATE TABLE IF NOT EXISTS key_resources (
+  key_id TEXT NOT NULL,
+  resource TEXT NOT NULL,
+  first_seen INTEGER NOT NULL,
+  last_seen INTEGER NOT NULL,
+  PRIMARY KEY (key_id, resource)
+);
+CREATE TABLE IF NOT EXISTS policy_cache (
+  tag TEXT PRIMARY KEY,
+  envelope TEXT NOT NULL,
+  pinned_key TEXT NOT NULL,
+  fetched INTEGER NOT NULL,
+  pushed_file_hash TEXT
+);
 CREATE TABLE IF NOT EXISTS stepups (
   id TEXT PRIMARY KEY,
   session TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -199,7 +241,7 @@ CREATE TABLE IF NOT EXISTS challenges (
 
 /** additive migrations for databases created by earlier builds */
 /** The newest column of each migrated table. Add a line here whenever MIGRATIONS gains a column. */
-const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at']];
+const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash']];
 
 const MIGRATIONS = [
   'ALTER TABLE sessions ADD COLUMN agent_attached_at INTEGER',
@@ -221,6 +263,14 @@ const MIGRATIONS = [
   'ALTER TABLE telemetry ADD COLUMN feedback_at INTEGER',
 ];
 
+export type KeyPolicyRow = {
+  keyId: string; n: number; body: unknown; updated: number; requireApproval: boolean; confirmWeakening: boolean;
+  lastFileHash: string | null; seen: { version: string; source: string; at: number } | null;
+};
+export type PolicyChangeRow = {
+  id: number; at: number; actor: string; origin: string; status: string; fromN: number | null; toN: number | null;
+  body: unknown; summary: string[]; weakening: string[]; decidedBy: string | null; decidedAt: number | null;
+};
 export type ApiKeyRow = { id: string; name: string; prefix: string; created: number; revoked: number | null; lastSeen: number | null; events: number; expires: number | null; env: string };
 /** stored JSON columns are written by us, but a bad row must not take a whole page down */
 const safeList = (v: unknown): string[] => { try { const a: unknown = JSON.parse(String(v)); return Array.isArray(a) ? a.map(String) : []; } catch { return []; } };
@@ -624,9 +674,90 @@ export class Store {
     if (!owned.rows.length) return false;
     await this.sql.batch([
       { sql: 'DELETE FROM telemetry WHERE key_id = ?', args: [id] as SqlArg[] },
+      { sql: 'DELETE FROM key_policies WHERE key_id = ?', args: [id] as SqlArg[] },
+      { sql: 'DELETE FROM policy_changes WHERE key_id = ?', args: [id] as SqlArg[] },
+      { sql: 'DELETE FROM key_resources WHERE key_id = ?', args: [id] as SqlArg[] },
       { sql: 'DELETE FROM api_keys WHERE id = ? AND account = ?', args: [id, account] as SqlArg[] },
     ]);
     return true;
+  }
+
+  // --- portal-managed policy (per API key) ---------------------------------------------------------
+  /** The policy the portal holds for one key, its settings, and what the key's server last said it runs. */
+  async keyPolicy(keyId: string): Promise<KeyPolicyRow | null> {
+    const r = (await this.sql.execute('SELECT * FROM key_policies WHERE key_id = ?', [keyId])).rows[0];
+    if (!r) return null;
+    return {
+      keyId, n: Number(r.n), body: JSON.parse(String(r.body)), updated: Number(r.updated),
+      requireApproval: Number(r.require_approval) === 1, confirmWeakening: Number(r.confirm_weakening) === 1,
+      lastFileHash: r.last_file_hash == null ? null : String(r.last_file_hash),
+      seen: r.seen_at == null ? null : { version: String(r.seen_version ?? ''), source: String(r.seen_source ?? ''), at: Number(r.seen_at) },
+    };
+  }
+  /** Write a new version (or the first one). Settings are kept; a first write takes the defaults. */
+  async putKeyPolicy(keyId: string, n: number, body: unknown, now = Date.now()) {
+    await this.sql.execute(`INSERT INTO key_policies (key_id, n, body, updated) VALUES (?, ?, ?, ?)
+      ON CONFLICT(key_id) DO UPDATE SET n = excluded.n, body = excluded.body, updated = excluded.updated`, [keyId, n, JSON.stringify(body), now]);
+  }
+  async setKeyPolicySettings(keyId: string, s: { requireApproval?: boolean; confirmWeakening?: boolean }) {
+    if (s.requireApproval !== undefined) await this.sql.execute('UPDATE key_policies SET require_approval = ? WHERE key_id = ?', [s.requireApproval ? 1 : 0, keyId]);
+    if (s.confirmWeakening !== undefined) await this.sql.execute('UPDATE key_policies SET confirm_weakening = ? WHERE key_id = ?', [s.confirmWeakening ? 1 : 0, keyId]);
+  }
+  async setKeyPolicyFileHash(keyId: string, hash: string) {
+    await this.sql.execute('UPDATE key_policies SET last_file_hash = ? WHERE key_id = ?', [hash, keyId]);
+  }
+  /** What the key's server reported it is running, and where the policy came from (portal, cache or file). */
+  async setKeyPolicySeen(keyId: string, version: string, source: string, now = Date.now()) {
+    await this.sql.execute('UPDATE key_policies SET seen_version = ?, seen_source = ?, seen_at = ? WHERE key_id = ?', [version.slice(0, 80), source.slice(0, 20), now, keyId]);
+  }
+  async addPolicyChange(c: { keyId: string; actor: string; origin: string; status: string; fromN: number | null; toN: number | null; body: unknown; summary: string[]; weakening: string[] }, now = Date.now()): Promise<number> {
+    const r = await this.sql.execute('INSERT INTO policy_changes (key_id, at, actor, origin, status, from_n, to_n, body, summary, weakening) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [c.keyId, now, c.actor.slice(0, 120), c.origin, c.status, c.fromN, c.toN, c.body == null ? null : JSON.stringify(c.body), JSON.stringify(c.summary.slice(0, 60)), c.weakening.length ? JSON.stringify(c.weakening.slice(0, 60)) : null]);
+    return Number(r.lastInsertRowid);
+  }
+  async decidePolicyChange(keyId: string, id: number, status: 'applied' | 'rejected' | 'superseded', by: string, toN: number | null, now = Date.now()): Promise<boolean> {
+    const r = await this.sql.execute("UPDATE policy_changes SET status = ?, decided_by = ?, decided_at = ?, to_n = COALESCE(?, to_n) WHERE id = ? AND key_id = ? AND status = 'pending'", [status, by.slice(0, 120), now, toN, id, keyId]);
+    return r.rowsAffected > 0;
+  }
+  async policyChanges(keyId: string, opts: { status?: string; limit?: number } = {}): Promise<PolicyChangeRow[]> {
+    const r = opts.status
+      ? await this.sql.execute('SELECT * FROM policy_changes WHERE key_id = ? AND status = ? ORDER BY id DESC LIMIT ?', [keyId, opts.status, opts.limit ?? 50])
+      : await this.sql.execute('SELECT * FROM policy_changes WHERE key_id = ? ORDER BY id DESC LIMIT ?', [keyId, opts.limit ?? 50]);
+    return r.rows.map((x) => ({
+      id: Number(x.id), at: Number(x.at), actor: String(x.actor), origin: String(x.origin), status: String(x.status),
+      fromN: x.from_n == null ? null : Number(x.from_n), toN: x.to_n == null ? null : Number(x.to_n),
+      body: x.body == null ? null : JSON.parse(String(x.body)), summary: safeList(x.summary), weakening: x.weakening == null ? [] : safeList(x.weakening),
+      decidedBy: x.decided_by == null ? null : String(x.decided_by), decidedAt: x.decided_at == null ? null : Number(x.decided_at),
+    }));
+  }
+  /** The protected resources a key's server declared (every nt.protect() call it registered). */
+  async noteKeyResources(keyId: string, resources: string[], now = Date.now()) {
+    if (!resources.length) return;
+    await this.sql.batch(resources.slice(0, 200).map((res) => ({ sql: 'INSERT INTO key_resources (key_id, resource, first_seen, last_seen) VALUES (?, ?, ?, ?) ON CONFLICT(key_id, resource) DO UPDATE SET last_seen = excluded.last_seen', args: [keyId, res, now, now] as SqlArg[] })));
+  }
+  async keyResources(keyId: string): Promise<{ resource: string; firstSeen: number; lastSeen: number }[]> {
+    const r = await this.sql.execute('SELECT resource, first_seen, last_seen FROM key_resources WHERE key_id = ? ORDER BY resource', [keyId]);
+    return r.rows.map((x) => ({ resource: String(x.resource), firstSeen: Number(x.first_seen), lastSeen: Number(x.last_seen) }));
+  }
+  /** Resources the key reported decisions for (traffic), newest first — catches endpoints the server never declared. */
+  async telemetryResources(keyId: string, since: number): Promise<{ resource: string; n: number; last: number }[]> {
+    const r = await this.sql.execute('SELECT resource, COUNT(*) AS n, MAX(at) AS last FROM telemetry WHERE key_id = ? AND at >= ? GROUP BY resource ORDER BY last DESC LIMIT 200', [keyId, since]);
+    return r.rows.map((x) => ({ resource: String(x.resource), n: Number(x.n), last: Number(x.last) }));
+  }
+
+  // --- the server's own copy of the portal policy (engine side) --------------------------------------
+  /** The last signed envelope this server accepted from the portal, the portal key it pinned, and the file hash it last proposed. */
+  async policyCache(tag: string): Promise<{ envelope: string; pinnedKey: string; fetched: number; pushedFileHash: string | null } | null> {
+    const r = (await this.sql.execute('SELECT envelope, pinned_key, fetched, pushed_file_hash FROM policy_cache WHERE tag = ?', [tag])).rows[0];
+    return r ? { envelope: String(r.envelope), pinnedKey: String(r.pinned_key), fetched: Number(r.fetched), pushedFileHash: r.pushed_file_hash == null ? null : String(r.pushed_file_hash) } : null;
+  }
+  async putPolicyCache(tag: string, c: { envelope: string; pinnedKey: string; fetched: number }) {
+    await this.sql.execute(`INSERT INTO policy_cache (tag, envelope, pinned_key, fetched) VALUES (?, ?, ?, ?)
+      ON CONFLICT(tag) DO UPDATE SET envelope = excluded.envelope, pinned_key = excluded.pinned_key, fetched = excluded.fetched`, [tag, c.envelope, c.pinnedKey, c.fetched]);
+  }
+  async setPolicyCachePushed(tag: string, fileHash: string, pinnedKey: string) {
+    const r = await this.sql.execute('UPDATE policy_cache SET pushed_file_hash = ? WHERE tag = ?', [fileHash, tag]);
+    if (!r.rowsAffected) await this.sql.execute('INSERT INTO policy_cache (tag, envelope, pinned_key, fetched, pushed_file_hash) VALUES (?, ?, ?, 0, ?)', [tag, '', pinnedKey, fileHash]);
   }
 
   /** Remember the public keys a deployment reports with its events; old keys stay so old proofs keep verifying. */

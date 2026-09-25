@@ -13,6 +13,7 @@ import { cookies, json, readJson, sameOrigin, url, type Req, type Res } from '..
 import type { TelemetryEvent, TelemetryHealth } from '../db.ts';
 import { proofBundle, thumbprint, verifyProof, type ProofJwk } from '../proof.ts';
 import { newsSince } from '../agent-news.ts';
+import { policyRoutes } from './policy-portal.ts';
 
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
 const SHORT = /^[a-zA-Z0-9_.:\-\/ ]{1,80}$/;
@@ -60,6 +61,26 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     const sid = cookies(req)[COOKIE];
     return sid ? store.portalSession(sid) : null;
   };
+
+  // the portal-managed policy (./policy-portal.ts): the server authenticates with its API key, the page with the cookie
+  const pol = policyRoutes(engine, {
+    accountOf,
+    checkPassword: async (account, password) => {
+      const email = (await store.accountById(account))?.email;
+      const acc = email ? await store.accountByEmail(email) : null;
+      return !!acc && verifyPassword(password, acc.pass);
+    },
+    serverKey: async (req, res) => {
+      const auth = (req.headers.authorization ?? '').toString();
+      const raw = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      if (!/^nt_live_[a-f0-9]{40}$/.test(raw)) { json(res, 401, { error: 'bad_key' }); return null; }
+      const hash = hashKey(raw);
+      const key = await store.apiKeyByHash(hash);
+      if (!key || key.revoked) { json(res, 401, { error: 'bad_key' }); return null; }
+      if (key.expires && key.expires < Date.now()) { json(res, 401, { error: 'expired', message: 'This key expired; create a new one in the portal.' }); return null; }
+      return { id: key.id, account: key.account, tag: hash.slice(0, 16) };
+    },
+  });
   // a small in-memory rate limit per key for ingest (serverless instances each have their own; fine)
   const ingestWindow = new Map<string, { n: number; at: number }>();
 
@@ -466,10 +487,12 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
       const rows = await eventPage(key, u);
       return json(res, 200, { key, events: rows, more: rows.length === pageSize(u) });
     }
+    const adminName = (await store.listAdminKeys(account)).find((k) => k.id === admin.id)?.name ?? 'key';
+    if (await pol.manage(path, method, account, adminName, u, body, res)) return;
     return json(res, 404, { error: 'unknown_endpoint', endpoints: MANAGE_ENDPOINTS });
   };
 
-  return { signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, proofs, verifyBundle, feedback, health, weekly, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
+  return { policy: pol, signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, proofs, verifyBundle, feedback, health, weekly, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
 }
 
 export const MANAGE_ENDPOINTS = [
@@ -485,6 +508,8 @@ export const MANAGE_ENDPOINTS = [
   'GET    /api/v1/manage/health?key=:id&range=7d — integration check (reporting, browser signals, signatures, enforcement) + people stopped',
   'GET    /api/v1/manage/weekly?key=:id           — weekly report: this week vs last, new agents, what changed in the agents',
   'POST   /api/v1/manage/feedback                — {key, id, verdict: correct|wrong, note?} grade one reported decision (false-stop rate)',
+  'GET    /api/v1/manage/policy?key=:id          — policy of one key: settings, changes waiting for approval, endpoints without a rule',
+  'POST   /api/v1/manage/policy                  — {key, policy} propose a policy: applied at once, or held when the key requires approval or it weakens protection',
 ];
 
 export type Check = { id: 'reporting' | 'browser' | 'signed' | 'enforcing'; status: 'ok' | 'warn' | 'off'; title: string; detail: string };

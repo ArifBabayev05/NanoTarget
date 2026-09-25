@@ -140,11 +140,21 @@
 
     <!-- policy builder -->
     <section class="view" id="view-policy" hidden>
-      <div class="page-head"><div><h1>Policy</h1><p>Decide what an AI agent may do with each part of your app, without writing code. The result is the policy file your server reads.</p></div><div class="head-tools"><select id="policy-key" style="width:auto;min-width:200px" title="Resources this key has reported are filled in for you"></select></div></div>
+      <div class="page-head"><div><h1>Policy</h1><p>Decide what an AI agent may do with each part of your app, without writing code. Your server reads the policy from here and keeps a signed copy for when the portal cannot be reached.</p></div><div class="head-tools"><select id="policy-key" style="width:auto;min-width:200px" title="Each key has its own policy"></select></div></div>
+      <div class="card pol-status" id="pol-status"></div>
+      <div class="card" id="pol-pending-card" hidden>
+        <div class="card-head"><h3>Waiting for your approval</h3><span class="sub">your server keeps the current policy until you decide</span></div>
+        <div id="pol-pending"></div>
+      </div>
+      <div class="card" id="pol-unruled-card" hidden>
+        <div class="card-head"><h3>New endpoints without a rule</h3><span class="sub">found in your code or your traffic</span></div>
+        <p class="fine" style="margin:0 0 10px">NanoTarget records these but does not protect them yet. Pick a protection and add them, then save.</p>
+        <div id="pol-unruled"></div>
+      </div>
       <div class="card">
         <div class="card-head"><h3>Protected resources</h3><span class="sub" id="policy-src"></span></div>
         <div class="pol-rows" id="pol-rows"></div>
-        <div class="row" style="margin-top:12px"><button class="btn" id="pol-add">+ Add resource</button><button class="btn ghost" id="pol-import-toggle">Import my current file</button></div>
+        <div class="row" style="margin-top:12px"><button class="btn" id="pol-add">+ Add resource</button><button class="btn ghost" id="pol-import-toggle">Paste a policy file</button></div>
         <div id="pol-import" hidden style="margin-top:12px"><textarea id="pol-import-text" rows="6" placeholder="Paste the contents of nanotarget.policy.json"></textarea><div class="row" style="margin-top:8px"><button class="btn" id="pol-import-go">Load it</button><span class="fine" id="pol-import-msg"></span></div></div>
       </div>
       <div class="card">
@@ -152,12 +162,27 @@
         <div class="tabs" id="pol-mode"><button data-mode="observe" class="on">Observe: record, block nothing</button><button data-mode="enforce">Enforce: apply the rules</button></div>
         <p class="hint" id="pol-mode-hint">Start here. Every decision is recorded in Activity, nobody is blocked. Switch to Enforce when the numbers look right.</p>
       </div>
-      <div class="card">
-        <div class="card-head"><h3>Your policy file</h3><span class="sub"><button class="linky" id="pol-download">download nanotarget.policy.json</button></span></div>
+      <div class="card pol-save">
         <p class="err" id="pol-err"></p>
-        <div class="copyable"><pre class="code" id="pol-json"></pre><button class="copy" data-copy="#pol-json">Copy</button></div>
-        <p class="hint">Save it as <code>nanotarget.policy.json</code> next to your server. It takes effect on the next restart, or at once if you call <code>nt.reloadPolicy()</code>. Nothing changes for your users until a rule says so.</p>
+        <div class="row"><button class="btn primary" id="pol-save">Save to portal</button><span class="fine" id="pol-save-msg"></span></div>
+        <p class="hint">Your server picks the new policy up within a minute. No restart, no deploy.</p>
       </div>
+      <div class="card">
+        <div class="card-head"><h3>When the policy file in your code changes</h3></div>
+        <p class="fine" style="margin:0 0 12px">Your developer or coding agent may edit <code>nanotarget.policy.json</code>. The server sends every edit here. You choose what happens next.</p>
+        <label class="pol-toggle"><input type="checkbox" id="pol-req"><span><b>Ask me before a change from code takes effect</b><em id="pol-req-hint"></em></span></label>
+        <label class="pol-toggle"><input type="checkbox" id="pol-weak"><span><b>Always ask me when a change weakens protection</b><em id="pol-weak-hint"></em></span></label>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>History</h3><span class="sub">who changed what, and when</span></div>
+        <div id="pol-history"></div>
+      </div>
+      <details class="card pol-file">
+        <summary><b>Server without internet?</b> <span class="fine">Download the policy as a file</span></summary>
+        <p class="fine">Only for servers that cannot reach the portal: start them with <code>policyFromPortal: false</code> and this file. Every other server reads the policy from here by itself.</p>
+        <div class="copyable"><pre class="code" id="pol-json"></pre><button class="copy" data-copy="#pol-json">Copy</button></div>
+        <button class="btn ghost" id="pol-download" style="margin-top:10px">Download nanotarget.policy.json</button>
+      </details>
     </section>
 
     <!-- integrate -->
@@ -259,6 +284,7 @@
   <div class="modal">
     <h3 id="ask-title"></h3>
     <p class="lead" id="ask-body"></p>
+    <ul class="ask-list" id="ask-list" hidden></ul>
     <label id="ask-label" hidden><span id="ask-label-text"></span><input id="ask-input" maxlength="80"></label>
     <p class="hint" id="ask-hint" hidden></p>
     <div class="row"><button class="btn primary" id="ask-ok">Confirm</button><button class="btn ghost" id="ask-cancel">Cancel</button></div>
