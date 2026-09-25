@@ -22,11 +22,15 @@ import type { NanoTarget } from '../engine.ts';
 import { json, readJson, sameOrigin, url, type Req, type Res } from '../http.ts';
 import { parsePolicy, type Policy } from '../policy.ts';
 import { thumbprint } from '../proof.ts';
-import { diffPolicy, POLICY_TYP, type PolicyEnvelopePayload, type PolicyLike } from '../../integrations/policy/common.ts';
+import { assistEnabled, assistPolicy } from '../policy-assist.ts';
+import { diffPolicy, POLICY_TYP, type PolicyDiff, type PolicyEnvelopePayload, type PolicyLike } from '../../integrations/policy/common.ts';
 
 const RES_RE = /^[a-z][a-z0-9_.]{1,60}$/;
 const b64u = (b: Buffer | string) => Buffer.from(b).toString('base64url');
 const portalVersion = (n: number) => `portal-v${n}`;
+/** changes that need a careful look: they lower protection, or make real people confirm or be refused */
+const careful = (d: PolicyDiff) => [...d.weakening, ...d.affectsPeople];
+const CONFIRM = 'This change lowers protection or affects real people. Confirm with your password.';
 
 /** The portal's policy-signing key, derived from the deployment secret: the same on every instance. */
 export function policySigner(secret: Buffer) {
@@ -79,16 +83,16 @@ export function policyRoutes(engine: NanoTarget, deps: Deps) {
     if (meta.fileHash) await store.setKeyPolicyFileHash(keyId, meta.fileHash);
     const diff = diffPolicy(current.body as PolicyLike, next);
     if (diff.same) return { code: 200, body: { status: 'unchanged', n: current.n } };
-    const hold = current.requireApproval ? 'approval_required' : current.confirmWeakening && diff.weakening.length ? 'weakens_protection' : null;
+    const hold = current.requireApproval ? 'approval_required' : current.confirmWeakening && careful(diff).length ? (diff.weakening.length ? 'weakens_protection' : 'affects_people') : null;
     if (hold) {
       // only the newest proposal matters: older ones still waiting are superseded by it
       for (const p of await store.policyChanges(keyId, { status: 'pending' })) if (p.origin === meta.origin) await store.decidePolicyChange(keyId, p.id, 'superseded', meta.actor, null);
-      const id = await store.addPolicyChange({ keyId, actor: meta.actor, origin: meta.origin, status: 'pending', fromN: current.n, toN: null, body: next, summary: diff.changes, weakening: diff.weakening });
-      return { code: 202, body: { status: 'pending', id, reason: hold, n: current.n, weakening: diff.weakening } };
+      const id = await store.addPolicyChange({ keyId, actor: meta.actor, origin: meta.origin, status: 'pending', fromN: current.n, toN: null, body: next, summary: diff.changes, weakening: careful(diff) });
+      return { code: 202, body: { status: 'pending', id, reason: hold, n: current.n, weakening: careful(diff) } };
     }
     const n = current.n + 1;
     await store.putKeyPolicy(keyId, n, { ...next, version: portalVersion(n) });
-    await store.addPolicyChange({ keyId, actor: meta.actor, origin: meta.origin, status: 'applied', fromN: current.n, toN: n, body: next, summary: diff.changes, weakening: diff.weakening });
+    await store.addPolicyChange({ keyId, actor: meta.actor, origin: meta.origin, status: 'applied', fromN: current.n, toN: n, body: next, summary: diff.changes, weakening: careful(diff) });
     return { code: 200, body: { status: 'applied', n } };
   }
 
@@ -114,6 +118,7 @@ export function policyRoutes(engine: NanoTarget, deps: Deps) {
       history: kp ? await store.policyChanges(keyId, { limit: 40 }) : [],
       unruled: [...unruled.values()].sort((a, b) => b.lastSeen - a.lastSeen),
       declared: declared.map((d) => d.resource),
+      assistant: assistEnabled(),
     };
   }
 
@@ -176,13 +181,13 @@ export function policyRoutes(engine: NanoTarget, deps: Deps) {
     if (!next) return json(res, 400, { error: 'bad_policy', message: 'The policy is not valid.' });
     const diff = diffPolicy((current?.body as PolicyLike | undefined) ?? null, next);
     if (current && diff.same) return json(res, 200, { status: 'unchanged', n: current.n });
-    if (current && current.confirmWeakening && diff.weakening.length) {
+    if (current && current.confirmWeakening && careful(diff).length) {
       const pw = typeof b?.password === 'string' ? b.password : '';
-      if (!pw) return json(res, 403, { error: 'confirm', message: 'This change weakens protection. Confirm with your password.', weakening: diff.weakening });
+      if (!pw) return json(res, 403, { error: 'confirm', message: CONFIRM, weakening: careful(diff) });
       if (!(await deps.checkPassword(account, pw))) return json(res, 401, { error: 'wrong_password', message: 'That password is not right.' });
     }
     await store.putKeyPolicy(key, n, next);
-    await store.addPolicyChange({ keyId: key, actor: await actorOf(account), origin: 'portal', status: 'applied', fromN: current?.n ?? null, toN: n, body: next, summary: diff.changes, weakening: diff.weakening });
+    await store.addPolicyChange({ keyId: key, actor: await actorOf(account), origin: 'portal', status: 'applied', fromN: current?.n ?? null, toN: n, body: next, summary: diff.changes, weakening: careful(diff) });
     json(res, 200, { status: current ? 'applied' : 'created', n });
   };
 
@@ -198,14 +203,14 @@ export function policyRoutes(engine: NanoTarget, deps: Deps) {
     // switching the weakening check off is itself a weakening step
     if (confirmWeakening === false && kp.confirmWeakening) {
       const pw = typeof b?.password === 'string' ? b.password : '';
-      if (!pw) return json(res, 403, { error: 'confirm', message: 'Turning this off lets anyone with access weaken protection without a second step. Confirm with your password.' });
+      if (!pw) return json(res, 403, { error: 'confirm', message: 'Turning this off lets changes that lower protection or affect real people go through without a second step. Confirm with your password.' });
       if (!(await deps.checkPassword(account, pw))) return json(res, 401, { error: 'wrong_password', message: 'That password is not right.' });
     }
     await store.setKeyPolicySettings(key, { requireApproval, confirmWeakening });
     const said: string[] = [];
-    if (requireApproval !== undefined && requireApproval !== kp.requireApproval) said.push(requireApproval ? 'changes from code now wait for approval' : 'changes from code now apply at once');
-    if (confirmWeakening !== undefined && confirmWeakening !== kp.confirmWeakening) said.push(confirmWeakening ? 'weakening changes now need a second confirmation' : 'weakening changes no longer need a second confirmation');
-    if (said.length) await store.addPolicyChange({ keyId: key, actor: await actorOf(account), origin: 'portal', status: 'settings', fromN: kp.n, toN: kp.n, body: null, summary: said, weakening: confirmWeakening === false ? said.filter((s) => s.startsWith('weakening')) : [] });
+    if (requireApproval !== undefined && requireApproval !== kp.requireApproval) said.push(requireApproval ? 'Changes from your developers now wait for your OK' : 'Changes from your developers now go live by themselves');
+    if (confirmWeakening !== undefined && confirmWeakening !== kp.confirmWeakening) said.push(confirmWeakening ? 'Risky changes now need your OK and password' : 'Risky changes no longer need your OK and password');
+    if (said.length) await store.addPolicyChange({ keyId: key, actor: await actorOf(account), origin: 'portal', status: 'settings', fromN: kp.n, toN: kp.n, body: null, summary: said, weakening: confirmWeakening === false ? said.filter((s) => s.startsWith('Risky')) : [] });
     json(res, 200, { ok: true, settings: { requireApproval: requireApproval ?? kp.requireApproval, confirmWeakening: confirmWeakening ?? kp.confirmWeakening } });
   };
 
@@ -228,14 +233,40 @@ export function policyRoutes(engine: NanoTarget, deps: Deps) {
     if (!next) return json(res, 400, { error: 'bad_policy' });
     // measured against what runs now, not against what ran when it was proposed
     const diff = diffPolicy((kp?.body as PolicyLike | undefined) ?? null, next);
-    if (kp?.confirmWeakening && diff.weakening.length) {
+    if (kp?.confirmWeakening && careful(diff).length) {
       const pw = typeof b?.password === 'string' ? b.password : '';
-      if (!pw) return json(res, 403, { error: 'confirm', message: 'Approving this weakens protection. Confirm with your password.', weakening: diff.weakening });
+      if (!pw) return json(res, 403, { error: 'confirm', message: CONFIRM, weakening: careful(diff) });
       if (!(await deps.checkPassword(account, pw))) return json(res, 401, { error: 'wrong_password', message: 'That password is not right.' });
     }
     await store.putKeyPolicy(key, n, next);
     await store.decidePolicyChange(key, id, 'applied', who, n);
     json(res, 200, { status: 'applied', n });
+  };
+
+  /**
+   * The assistant: a message in plain words → edits of the existing rules, returned as a draft to review.
+   * It saves nothing. The draft is the unsaved editor state when given, else the saved policy.
+   */
+  const ASSIST_PER_DAY = 40;
+  const portalAssist = async (req: Req, res: Res) => {
+    if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
+    const b = (await readJson(req, 64_000).catch(() => null)) as Record<string, unknown> | null | undefined;
+    const key = typeof b?.key === 'string' ? b.key : '';
+    const account = await owned(req, res, key); if (!account) return;
+    if (!assistEnabled()) return json(res, 503, { error: 'assistant_off', message: 'The assistant is not switched on for this portal yet.' });
+    const message = typeof b?.message === 'string' ? b.message.trim() : '';
+    if (!message || message.length > 1000) return json(res, 400, { error: 'bad_message', message: 'Write what you want in up to 1000 characters.' });
+    const kp = await store.keyPolicy(key);
+    const draft = b?.draft !== undefined ? parse(b.draft, kp?.n ?? 0) : kp ? parse(kp.body, kp.n) : null;
+    if (!draft) return json(res, 409, { error: 'no_policy', message: 'There are no rules yet. They appear when your app first connects.' });
+    if ((await store.assistCount(account, Date.now() - 24 * 3600e3)) >= ASSIST_PER_DAY) return json(res, 429, { error: 'limit', message: `The assistant answers up to ${ASSIST_PER_DAY} requests a day. Try again tomorrow, or change the rules by hand.` });
+    await store.noteAssist(account);
+    try {
+      json(res, 200, await assistPolicy(draft, message));
+    } catch (e) {
+      const err = e as Error & { code?: string };
+      json(res, err.code === 'assistant_off' ? 503 : 502, { error: err.code ?? 'assistant_error', message: err.message });
+    }
   };
 
   // ---------------------------------------------------------------- for agents (management API)
@@ -257,5 +288,5 @@ export function policyRoutes(engine: NanoTarget, deps: Deps) {
     return false;
   }
 
-  return { getForServer, proposeFromServer, resourcesFromServer, publicKeys, portalGet, portalSave, portalSettings, portalDecide, manage, signerKey: signer.jwk };
+  return { getForServer, proposeFromServer, resourcesFromServer, publicKeys, portalGet, portalSave, portalSettings, portalDecide, portalAssist, manage, signerKey: signer.jwk };
 }

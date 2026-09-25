@@ -254,7 +254,7 @@
   const fmtT = (t) => { const d = new Date(t); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`; };
   const fmtDay = (t) => { const d = new Date(t); return range === '24h' ? `${String(d.getHours()).padStart(2, '0')}:00` : `${d.getDate()}/${d.getMonth() + 1}`; };
   const STATE_WORD = { signed_agent: 'signed agent', agent_attached: 'agent attached', agent_environment: 'agent environment', no_indication: 'no indication' };
-  const ACTOR_WORD = { human_like: 'human', agent_likely: 'agent', unknown: 'unknown' };
+  const ACTOR_WORD = { human_like: 'a person', agent_likely: 'an AI agent', unknown: 'could not tell', allow: 'let through', mask: 'details hidden', block: 'turned away', step_up: 'asked for a passkey' };
   const bars = (el, obj, order, cls) => {
     const total = Object.values(obj).reduce((a, b) => a + b, 0) || 1;
     const keys = order.filter((k) => obj[k]).concat(Object.keys(obj).filter((k) => !order.includes(k)));
@@ -383,7 +383,7 @@
     const k = (me.keys || []).find((z) => z.id === keyId) || {};
     if (!total && !k.events) {
       $('#snippet').innerHTML = codeSnippet(k.prefix); $('#curl-hint').textContent = 'npx nanotarget verify http://localhost:3000 /api/balance';
-      $('#empty h2').textContent = 'Waiting for the first decision'; $('#empty p').textContent = 'Put this key into your server and make one request to a protected endpoint. The panel updates on its own.';
+      $('#empty h2').textContent = 'Waiting for your app to connect'; $('#empty p').textContent = 'Once your developer adds this key to your app, the first visit shows up here by itself.';
       $('#empty').hidden = false; $('#stats').hidden = true;
     } else {
       $('#empty').hidden = true; $('#stats').hidden = false;
@@ -530,30 +530,33 @@
 
   // ------------------------------------------------------------------ policy builder
   const PRESETS = {
-    open: { label: 'Open to everyone', m: ['allow', 'allow', 'allow', 'allow'], what: 'Agents and people get the full answer. For pages with nothing sensitive.' },
-    mask: { label: 'Agents see it masked', m: ['mask', 'mask', 'allow', 'allow'], what: 'An AI agent gets the page with sensitive fields hidden. People see everything.' },
-    block: { label: 'Block agents', m: ['block', 'mask', 'allow', 'allow'], what: 'An AI agent is refused. A browser with agent tools installed gets it masked. People see everything.' },
-    guard: { label: 'Block agents, passkey when unsure', m: ['block', 'step_up', 'step_up', 'allow'], what: 'An AI agent is refused. When we cannot tell, the person confirms with a passkey and continues. Recommended for exports and downloads.' },
-    passkey: { label: 'Passkey for everyone', m: ['block', 'step_up', 'step_up', 'step_up'], what: 'Everyone confirms with a passkey, agents are refused. For the few critical actions: payouts, changing contact details, bulk export. Stops even scripts built for your site.' },
-    custom: { label: 'Custom (from your file)', m: null, what: 'Kept exactly as in your file.' },
+    open: { label: 'Open to everyone', m: ['allow', 'allow', 'allow', 'allow'], what: 'AI agents and people see everything. For pages with nothing sensitive.' },
+    mask: { label: 'AI agents see it with details hidden', m: ['mask', 'mask', 'allow', 'allow'], what: 'An AI agent gets the page, but sensitive details (amounts, numbers, names) are hidden. People see everything.' },
+    block: { label: 'Refuse AI agents', m: ['block', 'mask', 'allow', 'allow'], what: 'An AI agent is turned away. A browser that has AI tools installed sees it with details hidden. People see everything.' },
+    guard: { label: 'Refuse AI agents, passkey when unsure', m: ['block', 'step_up', 'step_up', 'allow'], what: 'An AI agent is turned away. When we cannot tell who it is, the person confirms with a passkey (fingerprint or face) and carries on. Good for downloads and exports.' },
+    passkey: { label: 'Everyone confirms with a passkey', m: ['block', 'step_up', 'step_up', 'step_up'], what: 'Every person confirms with a passkey; AI agents are turned away. Only for the few most critical actions: payouts, changing contact details, bulk export.' },
+    custom: { label: 'Custom', m: null, what: '' },
   };
   const RES_RE = /^[a-z][a-z0-9_.]{1,60}$/;
+  const MODE_WORDS = { allow: 'sees everything', mask: 'sees it with details hidden', step_up: 'confirms with a passkey', block: 'is turned away' };
+  const describeModes = (m) => `An AI agent ${MODE_WORDS[m[0]]}. A browser with AI tools ${MODE_WORDS[m[1]]}. When we cannot tell, the visitor ${MODE_WORDS[m[2]]}. A real person ${MODE_WORDS[m[3]]}.`;
   const presetOf = (r) => Object.entries(PRESETS).find(([, p]) => p.m && p.m.join() === [r.onAgent, r.onArtifact, r.onUnknown, r.onHumanLike].join())?.[0] || 'custom';
   const titleOf = (res) => res.replace(/[._]/g, ' ').replace(/^./, (c) => c.toUpperCase());
   const guessPreset = (res) => /export|download|payout|transfer|delete|withdraw|contacts/.test(res) ? 'guard' : /balance|medical|pipeline/.test(res) ? 'block' : 'mask';
   let pol = null, policyKey = null, pv = null, savedCanon = '';
   const addedHere = new Set();
-  const ORIGIN = { install: 'first start of your server', server: 'the policy file in your code', agent: 'a coding agent', portal: 'this portal' };
+  const ORIGIN = { install: 'your app, when it first connected', server: "your developers' code", agent: 'an AI coding assistant', portal: 'here, in the portal' };
+  const STATUS_WORD = { pending: 'waiting', rejected: 'declined', superseded: 'replaced by a newer change', settings: 'setting' };
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
   const canon = (d) => JSON.stringify([d.enforcement, [...d.rules].map((r) => [r.resource, r.title || '', r.onAgent, r.onArtifact ?? 'allow', r.onUnknown, r.onHumanLike, [...(r.actOn || [])].sort().join(), r.minScore ?? 65]).sort()]);
   const fromDoc = (o) => ({ enforcement: o.enforcement === 'enforce' ? 'enforce' : 'observe', rules: o.rules.slice(0, 50).map((r) => { const x = { resource: String(r.resource || ''), title: String(r.title || ''), onAgent: r.onAgent, onArtifact: r.onArtifact ?? 'allow', onUnknown: r.onUnknown, onHumanLike: r.onHumanLike }; return { resource: x.resource, title: x.title, preset: presetOf(x), modes: [x.onAgent, x.onArtifact, x.onUnknown, x.onHumanLike], actOn: Array.isArray(r.actOn) ? r.actOn : undefined, minScore: typeof r.minScore === 'number' ? r.minScore : undefined }; }) });
-  /** POST that may answer 403 {error:'confirm'}: ask for the password, showing what gets weaker, and send again. */
-  async function withPassword(path, body, title) {
+  /** POST that may answer 403 {error:'confirm'}: ask for the password, showing what is risky, and send again. */
+  async function withPassword(path, body) {
     const send = (extra) => api(path, { method: 'POST', body: JSON.stringify({ ...body, ...extra }) });
     try { return await send({}); } catch (e) {
       if (e.status !== 403 || e.data?.error !== 'confirm') throw e;
       for (;;) {
-        const pw = await ask({ title, body: e.data.weakening?.length ? 'This lets AI agents see or do more than now:' : e.message, list: e.data.weakening, label: 'Your password', password: true, ok: 'Confirm with password', danger: true, hint: 'A second step so that one careless edit, or one stolen session, cannot switch protection off.' });
+        const pw = await ask({ title: 'Please confirm this change', body: e.data.weakening?.length ? 'This change lowers protection or affects real people:' : e.message, list: e.data.weakening, label: 'Your password', password: true, ok: 'Confirm', danger: true, hint: 'We ask so that one careless edit, or someone using your open laptop, cannot switch protection off.' });
         if (!pw) return null;
         try { return await send({ password: pw }); } catch (e2) { if (e2.status !== 401) throw e2; toast('That password is not right'); }
       }
@@ -567,56 +570,92 @@
       addedHere.clear();
       if (pv?.policy) {
         pol = fromDoc(pv.policy); savedCanon = canon(policyDoc().doc);
-        $('#policy-src').textContent = `version ${pv.n}, saved in the portal`;
+        $('#policy-src').textContent = `version ${pv.n}`;
       } else {
         let seen = [...(pv?.declared || [])];
         if (policyKey) { try { const d = await api(`/api/v1/portal/stats?key=${encodeURIComponent(policyKey)}&range=30d`); seen = [...new Set([...seen, ...d.resources.map((r) => r.resource)])].filter((r) => RES_RE.test(r)); } catch {} }
         const list = seen.length ? seen : ['profile.read', 'balance.read', 'report.export'];
         pol = { enforcement: 'observe', rules: list.slice(0, 50).map((r) => ({ resource: r, title: titleOf(r), preset: guessPreset(r) })) };
         savedCanon = '';
-        $('#policy-src').textContent = seen.length ? `a draft from the ${plural(seen.length, 'endpoint')} your server reported` : 'an example to start from; rename to match nt.protect() in your code';
+        $('#policy-src').textContent = seen.length ? `a suggestion based on ${plural(seen.length, 'part')} of your app we have seen` : 'an example to start from';
       }
     }
-    drawStatus(); drawPending(); drawUnruled(); drawSettings(); drawHistory(); drawPolicy();
+    drawStatus(); drawPending(); drawAssist(); drawUnruled(); drawSettings(); drawHistory(); drawPolicy();
   }
   function drawStatus() {
     const el = $('#pol-status');
-    if (!policyKey) { el.innerHTML = '<i class="dot"></i><div><h3>No API key yet</h3><p>Create a key in API Keys. Each key has its own policy.</p></div>'; return; }
-    if (!pv?.policy) { el.innerHTML = '<i class="dot"></i><div><h3>No policy yet</h3><p>It appears here by itself the first time your server starts with this key: the policy file in your code becomes version 1, nothing to approve. Or build one below and save it.</p></div>'; return; }
+    if (!policyKey) { el.innerHTML = '<i class="dot"></i><div><h3>No app connected yet</h3><p>Create an API key in API Keys and give it to your developer. Each app has its own rules.</p></div>'; return; }
+    if (!pv?.policy) { el.innerHTML = '<i class="dot"></i><div><h3>No rules yet</h3><p>They appear here by themselves the first time your app connects: the rules your developer wrote become the first version, nothing to approve. Or set them up below and save.</p></div>'; return; }
     const p = pv.policy, latest = `portal-v${pv.n}`, sv = pv.server;
     let dot = 'ok', line;
-    if (!sv) { dot = 'warn'; line = 'Your server has not checked in yet. It asks for the policy when it starts, then every minute.'; }
-    else if (sv.source === 'cache') { dot = 'warn'; line = `Your server could not reach the portal, so it runs its saved copy <code>${esc(sv.version)}</code>. It stays protected and catches up when the portal is back.`; }
-    else if (sv.source === 'file' || sv.source === 'none') { dot = 'warn'; line = `Your server runs ${sv.source === 'file' ? `the policy file in its code (<code>${esc(sv.version)}</code>)` : 'no policy'}, not the portal copy. It switches on its next check.`; }
-    else if (sv.version !== latest) { dot = 'warn'; line = `Your server still runs <code>${esc(sv.version)}</code>. It picks up version ${pv.n} on its next check, within a minute.`; }
-    else line = `Your server runs this version, read from the portal.`;
+    if (!sv) { dot = 'warn'; line = 'Your app has not connected yet. It picks up the rules when it starts, then checks every minute.'; }
+    else if (sv.source === 'cache') { dot = 'warn'; line = 'Your app could not reach NanoTarget, so it is using the last rules it saved. It is still protected, and catches up by itself.'; }
+    else if (sv.source === 'file' || sv.source === 'none') { dot = 'warn'; line = 'Your app is still using the rules from its own code, not these. It switches over on its next check, within a minute.'; }
+    else if (sv.version !== latest) { dot = 'warn'; line = 'Your app has not picked up your latest change yet. It will within a minute.'; }
+    else line = 'Your app is using these rules.';
     if (sv) line += ` <span class="fine">Last check ${ago(sv.at)}.</span>`;
-    el.innerHTML = `<i class="dot ${dot}"></i><div><h3>Version ${pv.n} · ${p.enforcement === 'enforce' ? 'enforcing' : 'observe mode, nothing blocked'} · ${plural(p.rules.length, 'rule')}</h3><p>${line}</p><p class="fine">Changed ${ago(pv.updated)}.${pv.pending.length ? ` <b>${plural(pv.pending.length, 'change')} waiting for you below.</b>` : ''}</p></div>`;
+    const head = p.enforcement === 'enforce' ? `Protection is on · ${plural(p.rules.length, 'part')} of your app covered` : `Just watching · ${plural(p.rules.length, 'part')} of your app, nothing is blocked yet`;
+    el.innerHTML = `<i class="dot ${dot}"></i><div><h3>${head}</h3><p>${line}</p><p class="fine">Version ${pv.n} · changed ${ago(pv.updated)}.${pv.pending.length ? ` <b>${plural(pv.pending.length, 'change')} waiting for your OK below.</b>` : ''}</p></div>`;
   }
-  const changeList = (c) => `<ul>${c.summary.map((x) => `<li class="${c.weakening.includes(x) || c.weakening.some((w) => w.startsWith(x)) ? 'weak' : ''}">${esc(x)}</li>`).join('')}</ul>`;
+  const changeList = (summary, careful) => `<ul>${summary.map((x) => `<li class="${careful.includes(x) || careful.some((w) => w.startsWith(x)) ? 'weak' : ''}">${esc(x)}</li>`).join('')}</ul>`;
   function drawPending() {
     const list = pv?.pending || [];
     $('#pol-pending-card').hidden = !list.length;
     $('#pol-pending').innerHTML = list.map((c) => `<div class="pol-item" data-id="${c.id}">
-      <p class="meta">From ${esc(ORIGIN[c.origin] || c.origin)} · ${esc(c.actor)} · ${ago(c.at)}${c.weakening.length ? '<span class="weak-tag">weakens protection</span>' : ''}</p>
-      ${changeList(c)}
-      <div class="row"><button class="btn primary" data-decide="1">Approve</button><button class="btn ghost" data-decide="0">Reject</button></div></div>`).join('');
+      <p class="meta">From ${esc(ORIGIN[c.origin] || c.origin)} · ${ago(c.at)}${c.weakening.length ? '<span class="weak-tag">needs a careful look</span>' : ''}</p>
+      ${changeList(c.summary, c.weakening)}
+      <div class="row"><button class="btn primary" data-decide="1">Accept</button><button class="btn ghost" data-decide="0">Decline</button></div></div>`).join('');
   }
   $('#pol-pending').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-decide]'); if (!b) return;
     const id = +b.closest('[data-id]').dataset.id, approve = b.dataset.decide === '1';
     b.disabled = true;
     try {
-      const r = await withPassword('/api/v1/portal/policy/decide', { key: policyKey, id, approve }, 'Approve a change that weakens protection');
-      if (r) toast(r.status === 'applied' ? `Approved. Version ${r.n} is live.` : 'Rejected. Nothing changed.');
+      const r = await withPassword('/api/v1/portal/policy/decide', { key: policyKey, id, approve });
+      if (r) toast(r.status === 'applied' ? 'Accepted. Your app uses it within a minute.' : 'Declined. Nothing changed.');
       await renderPolicy(true);
     } catch (err) { toast(err.message); b.disabled = false; }
   });
+
+  // the assistant: plain words in, a reviewed change out
+  let asResult = null;
+  function drawAssist() {
+    $('#pol-assist-card').hidden = !(pv?.assistant && pv?.policy);
+  }
+  async function runAssist(message) {
+    if (!message) return;
+    const { errs, doc } = policyDoc();
+    if (errs.length) return toast(errs[0]);
+    const go = $('#as-go'); go.disabled = true; go.textContent = 'Thinking…';
+    $('#as-out').hidden = true;
+    try {
+      asResult = await api('/api/v1/portal/policy/assist', { method: 'POST', body: JSON.stringify({ key: policyKey, message, draft: doc }) });
+      const a = asResult;
+      $('#as-out').innerHTML = `<p class="reply">${esc(a.reply)}</p>
+        ${a.proposed ? changeList(a.changes, a.careful) + `<div class="row"><button class="btn primary" id="as-apply">Put this into my rules</button><button class="btn ghost" id="as-drop">No thanks</button>${a.careful.length ? '<span class="fine">Red lines lower protection or affect real people: saving asks for your password.</span>' : ''}</div>` : ''}
+        ${a.refused.length ? `<p class="refused">Left out: ${a.refused.map(esc).join('; ')}</p>` : ''}
+        ${a.needsCode ? `<p class="fine" style="margin:10px 0 6px">${esc(a.needsCode.why || 'This needs a new rule, and new rules are added in the app\'s code.')} Give this to your developer, or paste it into the AI coding assistant they use:</p><div class="copyable"><pre class="code" id="as-code">${esc(a.needsCode.prompt)}</pre><button class="copy" data-copy="#as-code">Copy</button></div>` : ''}`;
+      $('#as-out').hidden = false;
+    } catch (e) { toast(e.message); }
+    go.disabled = false; go.textContent = 'Suggest';
+  }
+  $('#as-go').onclick = () => runAssist($('#as-msg').value.trim());
+  $('#as-msg').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runAssist($('#as-msg').value.trim()); } });
+  $('#as-eg').addEventListener('click', (e) => { const b = e.target.closest('.chip-btn'); if (!b) return; $('#as-msg').value = b.textContent; runAssist(b.textContent); });
+  $('#as-out').addEventListener('click', (e) => {
+    if (e.target.id === 'as-drop') { $('#as-out').hidden = true; asResult = null; return; }
+    if (e.target.id !== 'as-apply' || !asResult?.proposed) return;
+    pol = fromDoc(asResult.proposed); drawPolicy(); drawUnruled();
+    $('#as-out').hidden = true; $('#as-msg').value = ''; asResult = null;
+    toast('Done. Look it over, then Save changes.');
+    $('#pol-save').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
   function drawUnruled() {
     const list = (pv?.unruled || []).filter((u) => !addedHere.has(u.resource) && !pol?.rules.some((r) => r.resource === u.resource));
     $('#pol-unruled-card').hidden = !list.length;
     $('#pol-unruled').innerHTML = list.map((u) => `<div class="pol-un" data-res="${esc(u.resource)}">
-      <div><code>${esc(u.resource)}</code><span class="fine">${u.from.includes('code') ? 'in your code' : ''}${u.from.length > 1 ? ' · ' : ''}${u.from.includes('traffic') ? 'seen in traffic' : ''} · ${ago(u.lastSeen)}</span></div>
+      <div><b>${esc(titleOf(u.resource))}</b> <code>${esc(u.resource)}</code><span class="fine">${u.from.includes('code') ? 'in your app\'s code' : 'seen in traffic'} · ${ago(u.lastSeen)}</span></div>
       <select>${Object.entries(PRESETS).filter(([k]) => k !== 'custom').map(([k, p]) => `<option value="${k}" ${k === guessPreset(u.resource) ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select>
       <button class="btn">Add</button></div>`).join('');
   }
@@ -625,62 +664,60 @@
     const row = b.closest('[data-res]'), res = row.dataset.res;
     pol.rules.push({ resource: res, title: titleOf(res), preset: row.querySelector('select').value });
     addedHere.add(res); drawUnruled(); drawPolicy();
-    toast('Added. Save to portal to apply it.');
+    toast('Added. Save changes to apply it.');
   });
   function drawSettings() {
     const st = pv?.settings || { requireApproval: false, confirmWeakening: true };
     const none = !pv?.policy;
     $('#pol-req').checked = st.requireApproval; $('#pol-weak').checked = st.confirmWeakening;
     $('#pol-req').disabled = $('#pol-weak').disabled = none;
-    $('#pol-req-hint').textContent = st.requireApproval
-      ? 'On: an edit waits under “Waiting for your approval”. Your server keeps the current policy until you approve it.'
-      : 'Off (default): an edit goes live by itself within a minute. You see each one in History below.';
+    $('#pol-req-hint').textContent = none ? 'Available once your app has connected.' : st.requireApproval
+      ? 'On: their changes wait under “Waiting for your OK”. Until you accept, your app keeps the current rules.'
+      : 'Off (default): their changes go live by themselves. You can see every one in History below.';
     $('#pol-weak-hint').textContent = st.confirmWeakening
-      ? 'On (recommended): a change that lets agents see or do more — a rule removed, block → allow, Enforce → Observe — waits for your approval and your password, even when the switch above is off.'
-      : 'Off: weakening changes go through like any other. Turning this back on needs no password.';
-    if (none) $('#pol-req-hint').textContent = 'Available once the key has a policy.';
+      ? 'On (recommended): a change that lets AI agents see or do more, or that makes real people confirm or be refused, waits for your OK and your password — even when the switch above is off.'
+      : 'Off: risky changes go through like any other. Turning this back on needs no password.';
   }
-  const saveSetting = async (patch, el, title) => {
-    el.disabled = true;
+  const saveSetting = async (patch) => {
     try {
-      const r = await withPassword('/api/v1/portal/policy/settings', { key: policyKey, ...patch }, title);
+      const r = await withPassword('/api/v1/portal/policy/settings', { key: policyKey, ...patch });
       if (r) toast('Saved');
-      await renderPolicy();
-    } catch (err) { toast(err.message); await renderPolicy(); }
+    } catch (err) { toast(err.message); }
+    await renderPolicy();
   };
-  $('#pol-req').addEventListener('change', (e) => saveSetting({ requireApproval: e.target.checked }, e.target));
-  $('#pol-weak').addEventListener('change', (e) => saveSetting({ confirmWeakening: e.target.checked }, e.target, 'Turn off the check on weakening changes'));
+  $('#pol-req').addEventListener('change', (e) => saveSetting({ requireApproval: e.target.checked }));
+  $('#pol-weak').addEventListener('change', (e) => saveSetting({ confirmWeakening: e.target.checked }));
   function drawHistory() {
     const list = pv?.history || [];
     $('#pol-history').innerHTML = list.length ? list.map((c) => {
-      const label = c.status === 'settings' ? 'setting' : c.status === 'applied' && c.toN ? `v${c.toN}` : c.status;
-      const who = c.status === 'applied' && c.decidedBy ? `${c.actor} · approved by ${c.decidedBy}` : c.decidedBy ? `${c.actor} · ${c.status} by ${c.decidedBy}` : c.actor;
+      const label = c.status === 'applied' && c.toN ? `version ${c.toN}` : STATUS_WORD[c.status] || c.status;
+      const who = c.status === 'applied' && c.decidedBy ? `${c.actor} · accepted by ${c.decidedBy}` : c.status === 'rejected' && c.decidedBy ? `${c.actor} · declined by ${c.decidedBy}` : c.actor;
       return `<div class="pol-hist"><span class="when" title="${esc(new Date(c.at).toLocaleString())}">${ago(c.at)}</span>
-        <div><span class="chip ${esc(c.status)}">${esc(label)}</span> <span class="who">from ${esc(ORIGIN[c.origin] || c.origin)} · ${esc(who)}</span>${changeList(c)}</div></div>`;
+        <div><span class="chip ${esc(c.status)}">${esc(label)}</span> <span class="who">from ${esc(ORIGIN[c.origin] || c.origin)} · ${esc(who)}</span>${changeList(c.summary, c.weakening)}</div></div>`;
     }).join('') : '<p class="fine" style="margin:0">Nothing yet. Every change will be listed here: who made it, when, and what it changed.</p>';
   }
   function drawPolicy() {
     $('#pol-rows').innerHTML = pol.rules.map((r, i) => `<div class="pol-row" data-i="${i}">
-      <label>Resource<input data-f="resource" value="${esc(r.resource)}" placeholder="report.export" spellcheck="false"></label>
-      <label>Label<input data-f="title" value="${esc(r.title)}" maxlength="80"></label>
-      <label>Protection<select data-f="preset">${Object.entries(PRESETS).filter(([k]) => k !== 'custom' || r.preset === 'custom').map(([k, p]) => `<option value="${k}" ${k === r.preset ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></label>
+      <label>What it is<input data-f="title" value="${esc(r.title)}" maxlength="80" placeholder="Monthly report download"></label>
+      <label>Name in code<input data-f="resource" value="${esc(r.resource)}" placeholder="report.export" spellcheck="false"></label>
+      <label>When an AI agent comes<select data-f="preset">${Object.entries(PRESETS).filter(([k]) => k !== 'custom' || r.preset === 'custom').map(([k, p]) => `<option value="${k}" ${k === r.preset ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></label>
       <button class="rm" data-rm="${i}" title="Remove" aria-label="Remove">✕</button>
-      <p class="what">${esc(PRESETS[r.preset].what)}</p></div>`).join('') || '<p class="fine">No resources yet. Add the names you pass to nt.protect().</p>';
+      <p class="what">${esc(r.preset === 'custom' ? describeModes(r.modes) : PRESETS[r.preset].what)}</p></div>`).join('') || '<p class="fine">No rules yet. Add a part of your app, using the name your developer gave it.</p>';
     $$('#pol-mode button').forEach((b) => b.classList.toggle('on', b.dataset.mode === pol.enforcement));
-    $('#pol-mode-hint').textContent = pol.enforcement === 'observe' ? 'Start here. Every decision is recorded in Activity, nobody is blocked. Switch to Enforce when the numbers look right.' : 'Rules apply. Agents get the answer each rule gives them; people are never blocked by a rule that allows them.';
+    $('#pol-mode-hint').textContent = pol.enforcement === 'observe' ? 'Start here. Everything is recorded in Activity, nobody is blocked. Turn protection on when the numbers look right.' : 'The rules apply. AI agents get what each rule allows them; real people are never blocked by a rule that lets them in.';
     writePolicy();
   }
   function policyDoc() {
     const errs = [];
     const seen = new Set();
     const rules = pol.rules.map((r) => {
-      if (!RES_RE.test(r.resource)) errs.push(`"${r.resource || '(empty)'}" is not a valid resource name: lowercase letters, digits, dots and underscores, starting with a letter.`);
+      if (!RES_RE.test(r.resource)) errs.push(`"${r.resource || '(empty)'}" cannot be used as a name in code: use lowercase letters, digits, dots and underscores, starting with a letter (ask your developer for the exact name).`);
       else if (seen.has(r.resource)) errs.push(`"${r.resource}" is listed twice.`);
       seen.add(r.resource);
       const m = r.preset === 'custom' ? r.modes : PRESETS[r.preset].m;
       return { resource: r.resource, title: (r.title || titleOf(r.resource)).slice(0, 80), onAgent: m[0], onArtifact: m[1], onUnknown: m[2], onHumanLike: m[3], actOn: r.actOn || ['verified', 'strong', 'control', 'behavioral'], minScore: r.minScore ?? 65 };
     });
-    if (!rules.length) errs.push('Add at least one resource.');
+    if (!rules.length) errs.push('Add at least one part of your app.');
     return { errs, doc: { version: pv?.policy ? pv.policy.version : `policy-${new Date().toISOString().slice(0, 10)}`, enforcement: pol.enforcement, rules } };
   }
   function writePolicy() {
@@ -690,11 +727,11 @@
     $('#pol-json').textContent = JSON.stringify(doc, null, 2);
     $('#pol-download').disabled = !!errs.length;
     $('#pol-save').disabled = !!errs.length || !policyKey || !dirty;
-    $('#pol-save-msg').textContent = !policyKey ? 'Create an API key first.' : !pv?.policy ? 'Not saved yet. Saving makes this version 1.' : dirty ? 'You have unsaved changes.' : `Saved. This is version ${pv.n}.`;
+    $('#pol-save-msg').textContent = !policyKey ? 'Create an API key first.' : !pv?.policy ? 'Not saved yet.' : dirty ? 'You have changes that are not saved yet.' : 'Everything is saved.';
   }
   $('#pol-rows').addEventListener('input', (e) => { const row = e.target.closest('.pol-row'); if (!row || !e.target.dataset.f) return; const r = pol.rules[+row.dataset.i]; if (e.target.dataset.f === 'preset') { r.preset = e.target.value; drawPolicy(); return; } r[e.target.dataset.f] = e.target.dataset.f === 'resource' ? e.target.value.trim() : e.target.value; writePolicy(); });
   $('#pol-rows').addEventListener('click', (e) => { const b = e.target.closest('[data-rm]'); if (!b) return; pol.rules.splice(+b.dataset.rm, 1); drawPolicy(); drawUnruled(); });
-  $('#pol-add').onclick = () => { pol.rules.push({ resource: '', title: '', preset: 'guard' }); drawPolicy(); const inputs = $$('#pol-rows input[data-f="resource"]'); inputs[inputs.length - 1]?.focus(); };
+  $('#pol-add').onclick = () => { pol.rules.push({ resource: '', title: '', preset: 'guard' }); drawPolicy(); const inputs = $$('#pol-rows input[data-f="title"]'); inputs[inputs.length - 1]?.focus(); };
   $$('#pol-mode button').forEach((b) => b.addEventListener('click', () => { pol.enforcement = b.dataset.mode; drawPolicy(); }));
   $('#pol-import-toggle').onclick = () => { $('#pol-import').hidden = !$('#pol-import').hidden; };
   $('#pol-import-go').onclick = () => {
@@ -709,14 +746,14 @@
   };
   $('#pol-save').onclick = async () => {
     const { errs, doc } = policyDoc(); if (errs.length) return toast(errs[0]);
-    const b = $('#pol-save'); b.disabled = true;
+    $('#pol-save').disabled = true;
     try {
-      const r = await withPassword('/api/v1/portal/policy', { key: policyKey, policy: doc }, 'This change weakens protection');
-      if (r) toast(r.status === 'unchanged' ? 'Nothing changed' : `Saved as version ${r.n}. Your server picks it up within a minute.`);
+      const r = await withPassword('/api/v1/portal/policy', { key: policyKey, policy: doc });
+      if (r) toast(r.status === 'unchanged' ? 'Nothing changed' : 'Saved. Your app uses it within a minute.');
       if (r) await renderPolicy(true); else writePolicy();
     } catch (e) { toast(e.message); writePolicy(); }
   };
-  $('#policy-key').addEventListener('change', (e) => { policyKey = e.target.value; pol = null; renderPolicy(); });
+  $('#policy-key').addEventListener('change', (e) => { policyKey = e.target.value; pol = null; $('#as-out').hidden = true; renderPolicy(); });
   $('#pol-download').onclick = () => { const { errs, doc } = policyDoc(); if (errs.length) return toast(errs[0]); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2) + '\n'], { type: 'application/json' })); a.download = 'nanotarget.policy.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
 
   // ------------------------------------------------------------------ auditor report (print → PDF)

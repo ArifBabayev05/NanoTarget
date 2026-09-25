@@ -188,6 +188,11 @@ CREATE TABLE IF NOT EXISTS policy_cache (
   fetched INTEGER NOT NULL,
   pushed_file_hash TEXT
 );
+CREATE TABLE IF NOT EXISTS assist_log (
+  account TEXT NOT NULL,
+  at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS assist_log_account ON assist_log (account, at);
 CREATE TABLE IF NOT EXISTS stepups (
   id TEXT PRIMARY KEY,
   session TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -241,7 +246,7 @@ CREATE TABLE IF NOT EXISTS challenges (
 
 /** additive migrations for databases created by earlier builds */
 /** The newest column of each migrated table. Add a line here whenever MIGRATIONS gains a column. */
-const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash']];
+const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash'], ['assist_log', 'at']];
 
 const MIGRATIONS = [
   'ALTER TABLE sessions ADD COLUMN agent_attached_at INTEGER',
@@ -758,6 +763,14 @@ export class Store {
   async setPolicyCachePushed(tag: string, fileHash: string, pinnedKey: string) {
     const r = await this.sql.execute('UPDATE policy_cache SET pushed_file_hash = ? WHERE tag = ?', [fileHash, tag]);
     if (!r.rowsAffected) await this.sql.execute('INSERT INTO policy_cache (tag, envelope, pinned_key, fetched, pushed_file_hash) VALUES (?, ?, ?, 0, ?)', [tag, '', pinnedKey, fileHash]);
+  }
+
+  /** The policy assistant's use per account, for its daily limit. */
+  async noteAssist(account: string) {
+    await this.sql.execute('INSERT INTO assist_log (account, at) VALUES (?, ?)', [account, Date.now()]);
+  }
+  async assistCount(account: string, since: number): Promise<number> {
+    return Number((await this.sql.execute('SELECT COUNT(*) AS n FROM assist_log WHERE account = ? AND at > ?', [account, since])).rows[0]?.n ?? 0);
   }
 
   /** Remember the public keys a deployment reports with its events; old keys stay so old proofs keep verifying. */

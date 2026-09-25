@@ -2,6 +2,8 @@
 
 ## Unreleased
 - **The policy lives in the portal.** With an `apiKey`, the first start sends `nanotarget.policy.json` to the portal as version 1 (no approval); the server then reads the policy from there every minute, so portal edits are live without a deploy. Later edits to the file are proposed to the portal: applied at once by default, or held for approval when the owner turns that on. Changes that weaken protection wait for approval and the account password unless the owner switches that check off. Every change is journalled (who, when, what).
+- Changes that make real people confirm or be refused are treated like weakening ones: they wait for approval and the password.
+- Portal: the Policy page is now **Rules**, written for non-technical owners, with an assistant that edits existing rules from a plain-language request (never adds or removes one; for a new rule it writes a prompt for the coding agent).
 - The portal signs each version (Ed25519) for one API key; the server pins the portal key on first use, refuses unsigned or altered policies, and runs on its saved signed copy when the portal is unreachable.
 - `nt.protect()` names and resources seen in traffic are listed in the portal when no rule covers them, with a suggested protection.
 - `nt.policySource()`, `health().policy.source`, a log line on every change, and (outside production) the `X-NT-Policy-Source` response header say whether the running policy came from the portal, the saved copy or the file.

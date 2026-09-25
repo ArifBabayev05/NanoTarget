@@ -11,6 +11,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
+import { createServer } from 'node:http';
 import { createApp } from '../server/app.ts';
 import { nanotarget } from '../integrations/express/index.ts';
 import { diffPolicy, keyTag, policyHash, verifyPolicyEnvelope, type PolicyLike } from '../integrations/policy/common.ts';
@@ -25,7 +26,11 @@ test('diffPolicy names every change and flags the ones that weaken protection', 
   assert.equal(diffPolicy(a, { ...a, version: 'other' }).same, true, 'the version string alone is not a change');
   const stronger = diffPolicy(a, doc('b', [rule('balance.read', 'block'), rule('export.csv', 'block'), rule('users.list')]) as PolicyLike);
   assert.deepEqual(stronger.weakening, []);
-  assert.ok(stronger.changes.includes('new rule users.list'));
+  assert.ok(stronger.changes.includes('New rule: users.list'));
+  assert.deepEqual(stronger.affectsPeople, [], 'agents blocked harder, people untouched');
+  const people = diffPolicy(a, doc('p', [{ ...rule('balance.read'), onHumanLike: 'step_up' }, rule('export.csv', 'block')]) as PolicyLike);
+  assert.equal(people.weakening.length, 0);
+  assert.equal(people.affectsPeople.length, 1, 'a person now has to confirm: a second look, like weakening');
   const weaker = diffPolicy(a, doc('c', [rule('balance.read', 'allow')], 'observe') as PolicyLike);
   assert.equal(weaker.weakening.length, 3, JSON.stringify(weaker.weakening)); // observe, mask→allow, export.csv removed
   const t = diffPolicy(a, doc('d', [{ ...rule('balance.read'), actOn: ['verified'], minScore: 80 }, rule('export.csv', 'block')]) as PolicyLike);
@@ -116,7 +121,7 @@ test('a file edit that strengthens protection applies at once; one that weakens 
   assert.equal(nt.policySource().lastProposal?.reason, 'weakens_protection');
   let v = await view();
   assert.equal(v.pending.length, 1);
-  assert.match(v.pending[0].weakening[0], /balance\.read: an AI agent mask → allow/);
+  assert.match(v.pending[0].weakening[0], /balance\.read: an AI agent sees it with sensitive details hidden → sees everything/);
 
   let r = await post('/decide', { id: v.pending[0].id, approve: true });
   assert.equal(r.status, 403); assert.equal((await r.json()).error, 'confirm');
@@ -133,6 +138,17 @@ test('a file edit that strengthens protection applies at once; one that weakens 
   // the same file again is not a new proposal
   await nt.reloadPolicy();
   assert.equal((await view()).history.length, v.history.length);
+});
+
+test('a change that makes real people confirm waits too, even with approval off', async () => {
+  writeFileSync(file, JSON.stringify(doc('pp-3b', [{ ...rule('balance.read', 'allow'), onHumanLike: 'step_up' }, rule('export.csv', 'block')])));
+  await nt.reloadPolicy();
+  assert.equal(nt.policySource().lastProposal?.reason, 'affects_people');
+  assert.equal(nt.policy.version, 'portal-v3');
+  const v = await view();
+  const r = await post('/decide', { id: v.pending[0].id, approve: false });
+  assert.deepEqual(await r.json(), { status: 'rejected' });
+  writeFileSync(file, JSON.stringify(doc('pp-3', [rule('balance.read', 'allow'), rule('export.csv', 'block')])));
 });
 
 test('with approval on, every change from code waits; a rejected one never runs', async () => {
@@ -199,4 +215,43 @@ test('portal down: a restarted server runs its saved signed copy; a tampered cop
   assert.equal(tampered.policySource().source, 'file', 'the forged copy is not used; the file is');
   assert.ok(logs.some((l) => /saved copy failed its check \(bad_signature\)/.test(l)), logs.join('\n'));
   await tampered.close();
+});
+
+test('the assistant edits existing rules only; a new rule becomes a prompt for the coding agent', async () => {
+  // a stand-in for the language model that answers what a careless model might: one valid edit, one invented rule
+  const fake = createServer((req, res) => {
+    let body = ''; req.on('data', (c) => (body += c)); req.on('end', () => {
+      const sent = JSON.parse(body);
+      assert.match(sent.messages[1].content, /balance\.read/, 'the rules are sent');
+      assert.doesNotMatch(sent.messages[1].content, /nt_live_/, 'the API key is not');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
+        reply: 'Agentlər balansı gizli məbləğlə görəcək.',
+        edits: [{ resource: 'balance.read', onAgent: 'mask' }, { resource: 'payout.create', onAgent: 'block' }, { resource: 'export.csv', onAgent: 'explode' }],
+        enforcement: null,
+        needsCode: { why: 'Ödəniş üçün qayda yoxdur.', prompt: 'Protect the payout endpoint from AI agents.' },
+      }) } }] }));
+    });
+  });
+  await new Promise<void>((r) => fake.listen(0, '127.0.0.1', () => r()));
+  process.env.OPENROUTER_API_KEY = 'test';
+  process.env.NT_ASSIST_URL = `http://127.0.0.1:${(fake.address() as AddressInfo).port}/`;
+  try {
+    const before = await view();
+    assert.equal(before.assistant, true);
+    const r = await post('/assist', { message: 'Agentlər balansı görsün amma məbləğ gizli olsun' });
+    assert.equal(r.status, 200);
+    const a = await r.json();
+    assert.equal(a.proposed.rules.length, before.policy.rules.length, 'no rule was added');
+    assert.equal(a.proposed.rules.find((x: { resource: string }) => x.resource === 'balance.read').onAgent, 'mask');
+    assert.equal(a.refused.length, 2, JSON.stringify(a.refused));
+    assert.equal(a.careful.length, 1, 'block → mask for agents lowers protection');
+    assert.match(a.needsCode.prompt, /^NanoTarget \(npm: nanotarget\) is installed[\s\S]*Protect the payout endpoint/);
+    assert.equal((await view()).n, before.n, 'the assistant saves nothing');
+    // empty and oversized messages are refused before any model call
+    assert.equal((await post('/assist', { message: '' })).status, 400);
+  } finally {
+    delete process.env.OPENROUTER_API_KEY; delete process.env.NT_ASSIST_URL; fake.close();
+  }
+  assert.equal((await post('/assist', { message: 'x' })).status, 503, 'without a model key the assistant is off');
 });

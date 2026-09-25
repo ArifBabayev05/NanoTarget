@@ -28,7 +28,7 @@
 <main class="auth" id="auth">
   <section class="auth-card">
     <h1 id="auth-title">Create your account</h1>
-    <p class="lead" id="auth-lead">One account, as many API keys as you have apps. Each key is a project; its panel shows every decision your middleware made and how many of your sessions had an AI agent in them.</p>
+    <p class="lead" id="auth-lead">One account for all your apps. For each app you see how often an AI agent was inside your customers' sessions, and what NanoTarget did about it.</p>
     <form id="auth-form" autocomplete="on">
       <label>E-mail<input type="email" id="email" required autocomplete="email" placeholder="you@company.com"></label>
       <label>Password<input type="password" id="password" required minlength="8" autocomplete="current-password" placeholder="at least 8 characters"></label>
@@ -40,8 +40,8 @@
   <aside class="auth-side">
     <div class="tile"><b>1</b><span>Create a key in the portal</span></div>
     <div class="tile"><b>2</b><span><code>npm i nanotarget</code> · pass the key as <code>apiKey</code></span></div>
-    <div class="tile"><b>3</b><span>Every decision shows up here — sessions, agents, resources, verdicts</span></div>
-    <p class="fine">Reports carry metadata only: hashed session id, resource, decision, actor, connection state, detected tool, reason codes. No payloads, no identities, no IPs.</p>
+    <div class="tile"><b>3</b><span>See what AI agents did in your app, and what was stopped</span></div>
+    <p class="fine">We only receive short summaries of what happened — never your customers' data, names or IP addresses.</p>
   </aside>
 </main>
 
@@ -54,8 +54,8 @@
       <a href="#keys" data-view="keys"><i>⚿</i>API Keys</a>
       <a href="#activity" data-view="activity"><i>≣</i>Activity</a>
       <a href="#weekly" data-view="weekly"><i>☷</i>Weekly report</a>
-      <a href="#policy" data-view="policy"><i>⛨</i>Policy</a>
-      <a href="#integrate" data-view="integrate"><i>⇄</i>Integration</a>
+      <a href="#policy" data-view="policy"><i>⛨</i>Rules</a>
+      <a href="#integrate" data-view="integrate"><i>⇄</i>Set up</a>
       <a href="#settings" data-view="settings"><i>⚙</i>Settings</a>
     </nav>
     <div class="side-label">Account</div>
@@ -68,37 +68,37 @@
   <main class="main">
     <!-- overview -->
     <section class="view" id="view-overview">
-      <div class="page-head"><div><h1>Overview</h1><p>What your middleware reported, across every key in this workspace.</p></div><div class="range" id="range-ov"><button data-r="24h">24h</button><button data-r="7d" class="on">7d</button><button data-r="30d">30d</button></div></div>
-      <div class="banner" id="banner"><div><b>Start in observe mode.</b> Nothing is blocked, every decision is recorded — and this page tells you how many of your sessions already have an AI agent in them.</div><button class="x" id="banner-x" aria-label="Dismiss">✕</button></div>
+      <div class="page-head"><div><h1>Overview</h1><p>What happened across all your apps.</p></div><div class="range" id="range-ov"><button data-r="24h">24h</button><button data-r="7d" class="on">7d</button><button data-r="30d">30d</button></div></div>
+      <div class="banner" id="banner"><div><b>Start by just watching.</b> Nothing is blocked, everything is recorded — and this page shows how many of your customers' sessions already have an AI agent in them.</div><button class="x" id="banner-x" aria-label="Dismiss">✕</button></div>
       <div class="sec-title"><h2 id="usage-title">Last 7 days</h2><a href="#activity">View Activity ›</a></div>
       <div class="usage" id="usage">
-        <article class="ucard"><div class="uhead"><span>Decisions</span><b id="u-decisions">0</b></div><div class="ubars" id="ub-decisions"></div><ul class="ulegend" id="ul-decisions"></ul></article>
+        <article class="ucard"><div class="uhead"><span>Checks</span><b id="u-decisions">0</b></div><div class="ubars" id="ub-decisions"></div><ul class="ulegend" id="ul-decisions"></ul></article>
         <article class="ucard"><div class="uhead"><span>Sessions with an AI agent</span><b id="u-agent">0%</b></div><div class="ubars" id="ub-agent"></div><ul class="ulegend" id="ul-agent"></ul></article>
-        <article class="ucard"><div class="uhead"><span>Masked · blocked · stepped up</span><b id="u-gated">0</b></div><div class="ubars" id="ub-gated"></div><ul class="ulegend" id="ul-gated"></ul></article>
+        <article class="ucard"><div class="uhead"><span>Limited or stopped</span><b id="u-gated">0</b></div><div class="ubars" id="ub-gated"></div><ul class="ulegend" id="ul-gated"></ul></article>
       </div>
       <div class="quick">
-        <a class="qcard" href="#keys"><i>⚿</i><div><b>API Keys</b><span>Create and manage the keys your servers report with.</span></div><em>›</em></a>
-        <a class="qcard" href="#activity"><i>≣</i><div><b>Activity</b><span>Every decision, live: resource, verdict, actor, agent.</span></div><em>›</em></a>
-        <a class="qcard" href="#integrate"><i>⇄</i><div><b>Integration</b><span>Three lines on the server, one tag on the page.</span></div><em>›</em></a>
+        <a class="qcard" href="#keys"><i>⚿</i><div><b>API Keys</b><span>One key per app. Your developer puts it into the app.</span></div><em>›</em></a>
+        <a class="qcard" href="#activity"><i>≣</i><div><b>Activity</b><span>Everything that happened, live: who came, what they asked for, what we did.</span></div><em>›</em></a>
+        <a class="qcard" href="#integrate"><i>⇄</i><div><b>Integration</b><span>For your developer: how to connect your app.</span></div><em>›</em></a>
       </div>
     </section>
 
     <!-- keys -->
     <section class="view" id="view-keys" hidden>
-      <div class="page-head"><div><h1>API Keys</h1><p>Create and manage your API keys. One key per project; the raw key is shown once.</p></div><button class="btn primary" id="key-add">+ New Key</button></div>
+      <div class="page-head"><div><h1>API Keys</h1><p>Each app gets its own key. Give it to your developer — it is shown only once.</p></div><button class="btn primary" id="key-add">+ New Key</button></div>
       <div class="panel">
         <div class="panel-tools"><label class="search inline"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="key-search" placeholder="Search by name, or paste a key to find it…"></label></div>
-        <table class="tbl" id="key-table"><thead><tr><th>Key</th><th>Environment</th><th>Status</th><th>Expires</th><th>Last used</th><th>Decisions</th><th>Agent share</th><th></th></tr></thead><tbody id="key-rows"></tbody></table>
+        <table class="tbl" id="key-table"><thead><tr><th>Key</th><th>Environment</th><th>Status</th><th>Expires</th><th>Last used</th><th>Checks</th><th>Sessions with an agent</th><th></th></tr></thead><tbody id="key-rows"></tbody></table>
         <div class="panel-foot" id="key-count">0 keys</div>
       </div>
     </section>
 
     <!-- activity -->
     <section class="view" id="view-activity" hidden>
-      <div class="page-head"><div><h1>Activity</h1><p>Per key: the share of sessions with an agent, decisions over time, agents seen, resources reached, and the live log.</p></div><div class="head-tools"><div class="keys" id="keys"></div><div class="range" id="range"><button data-r="24h">24h</button><button data-r="7d" class="on">7d</button><button data-r="30d">30d</button></div></div></div>
+      <div class="page-head"><div><h1>Activity</h1><p>For each app: how often an AI agent was present, which agents, what they reached for, and a live list of what happened.</p></div><div class="head-tools"><div class="keys" id="keys"></div><div class="range" id="range"><button data-r="24h">24h</button><button data-r="7d" class="on">7d</button><button data-r="30d">30d</button></div></div></div>
       <section class="empty" id="empty" hidden>
-        <h2>Waiting for the first decision</h2>
-        <p>Put this key into your server and make one request to a protected endpoint. The panel updates on its own.</p>
+        <h2>Waiting for your app to connect</h2>
+        <p>Once your developer adds the key to your app, the first visit shows up here by itself.</p>
         <pre class="code" id="snippet"></pre>
         <p class="fine">Or test from the terminal: <code id="curl-hint"></code></p>
       </section>
@@ -116,19 +116,19 @@
           <div class="hero-side">
             <div><b id="sessions">0</b><span>sessions</span></div>
             <div><b id="agent-sessions">0</b><span>with an agent</span></div>
-            <div><b id="decisions">0</b><span>decisions</span></div>
-            <div><b id="gated">0</b><span>masked / blocked / stepped up</span></div>
-            <div><b id="false-stops">–</b><span>false stops <i class="hint" title="Gated decisions you marked wrong in this range. Grade decisions with the thumbs in the log.">?</i></span></div>
+            <div><b id="decisions">0</b><span>checks</span></div>
+            <div><b id="gated">0</b><span>limited or stopped</span></div>
+            <div><b id="false-stops">–</b><span>stopped by mistake <i class="hint" title="Times someone was limited or stopped and you marked it wrong. Mark them with the thumbs in the list below.">?</i></span></div>
           </div>
         </div>
-        <div class="card chart-card"><div class="card-head"><h3>Decisions over time</h3><span class="legend"><i class="l-all"></i>all <i class="l-agent"></i>agent present <i class="l-gated"></i>gated</span></div><canvas id="chart" height="220"></canvas></div>
+        <div class="card chart-card"><div class="card-head"><h3>Activity over time</h3><span class="legend"><i class="l-all"></i>all <i class="l-agent"></i>AI agent present <i class="l-gated"></i>limited or stopped</span></div><canvas id="chart" height="220"></canvas></div>
         <div class="grid2">
-          <div class="card"><div class="card-head"><h3>Decisions</h3></div><div class="bars" id="bars-decisions"></div></div>
+          <div class="card"><div class="card-head"><h3>What we did</h3></div><div class="bars" id="bars-decisions"></div></div>
           <div class="card"><div class="card-head"><h3>Who was acting</h3></div><div class="bars" id="bars-actors"></div></div>
           <div class="card"><div class="card-head"><h3>Agents seen</h3><span class="sub">distinct sessions</span></div><div class="bars" id="bars-tools"></div></div>
-          <div class="card"><div class="card-head"><h3>Resources</h3><span class="sub">what agents reached for</span></div><div class="res" id="resources"></div></div>
+          <div class="card"><div class="card-head"><h3>Parts of your app</h3><span class="sub">what AI agents reached for</span></div><div class="res" id="resources"></div></div>
         </div>
-        <div class="card"><div class="card-head"><h3>Recent decisions</h3><span class="sub"><button class="linky on" id="live-toggle">live</button> · <button class="linky" id="export-csv">export CSV</button> · <button class="linky" id="export-proofs" title="Every signed decision in range, with the key that verifies it — the file you hand an auditor">export proofs</button> · <button class="linky" id="audit-report" title="A printable report of every signed decision in range, checked and ready to save as PDF for compliance">auditor report (PDF)</button></span></div><div class="log" id="log"></div><div class="log-more"><button class="btn ghost" id="log-more">Load older</button></div></div>
+        <div class="card"><div class="card-head"><h3>Recent activity</h3><span class="sub"><button class="linky on" id="live-toggle">live</button> · <button class="linky" id="export-csv">export CSV</button> · <button class="linky" id="export-proofs" title="Every signed decision in range, with the key that verifies it — the file you hand an auditor">export proofs</button> · <button class="linky" id="audit-report" title="A printable report of every signed decision in range, checked and ready to save as PDF for compliance">auditor report (PDF)</button></span></div><div class="log" id="log"></div><div class="log-more"><button class="btn ghost" id="log-more">Load older</button></div></div>
       </section>
     </section>
 
@@ -140,46 +140,53 @@
 
     <!-- policy builder -->
     <section class="view" id="view-policy" hidden>
-      <div class="page-head"><div><h1>Policy</h1><p>Decide what an AI agent may do with each part of your app, without writing code. Your server reads the policy from here and keeps a signed copy for when the portal cannot be reached.</p></div><div class="head-tools"><select id="policy-key" style="width:auto;min-width:200px" title="Each key has its own policy"></select></div></div>
+      <div class="page-head"><div><h1>Rules</h1><p>Choose what an AI agent may do in your app. Your app follows these rules on its own — change them here and they apply within a minute.</p></div><div class="head-tools"><select id="policy-key" style="width:auto;min-width:200px" title="Each app (API key) has its own rules"></select></div></div>
       <div class="card pol-status" id="pol-status"></div>
       <div class="card" id="pol-pending-card" hidden>
-        <div class="card-head"><h3>Waiting for your approval</h3><span class="sub">your server keeps the current policy until you decide</span></div>
+        <div class="card-head"><h3>Waiting for your OK</h3><span class="sub">nothing changes until you decide</span></div>
         <div id="pol-pending"></div>
       </div>
+      <div class="card pol-assist" id="pol-assist-card" hidden>
+        <div class="card-head"><h3>Tell the assistant what to change</h3><span class="sub">in your own words, any language</span></div>
+        <div class="assist-box"><textarea id="as-msg" rows="2" maxlength="1000" placeholder="For example: let AI agents see balances, but hide the amounts"></textarea><button class="btn primary" id="as-go">Suggest</button></div>
+        <div class="assist-eg" id="as-eg"><button class="chip-btn">Turn protection on</button><button class="chip-btn">Hide sensitive details from AI agents everywhere</button><button class="chip-btn">Never ask real people for a passkey</button></div>
+        <div id="as-out" hidden></div>
+        <p class="hint">The assistant can only change the rules you already have. It saves nothing: you see the change first. What is sent to the AI model: your message and your rules — never your users' data.</p>
+      </div>
       <div class="card" id="pol-unruled-card" hidden>
-        <div class="card-head"><h3>New endpoints without a rule</h3><span class="sub">found in your code or your traffic</span></div>
-        <p class="fine" style="margin:0 0 10px">NanoTarget records these but does not protect them yet. Pick a protection and add them, then save.</p>
+        <div class="card-head"><h3>Parts of your app without a rule</h3><span class="sub">found in your app's code or traffic</span></div>
+        <p class="fine" style="margin:0 0 10px">We see these, but nothing protects them yet. Choose what should happen and add them, then save.</p>
         <div id="pol-unruled"></div>
       </div>
       <div class="card">
-        <div class="card-head"><h3>Protected resources</h3><span class="sub" id="policy-src"></span></div>
+        <div class="card-head"><h3>Your rules</h3><span class="sub" id="policy-src"></span></div>
         <div class="pol-rows" id="pol-rows"></div>
-        <div class="row" style="margin-top:12px"><button class="btn" id="pol-add">+ Add resource</button><button class="btn ghost" id="pol-import-toggle">Paste a policy file</button></div>
+        <div class="row" style="margin-top:12px"><button class="btn" id="pol-add">+ Add a part of your app</button><button class="btn ghost" id="pol-import-toggle">Paste rules from a file</button></div>
         <div id="pol-import" hidden style="margin-top:12px"><textarea id="pol-import-text" rows="6" placeholder="Paste the contents of nanotarget.policy.json"></textarea><div class="row" style="margin-top:8px"><button class="btn" id="pol-import-go">Load it</button><span class="fine" id="pol-import-msg"></span></div></div>
       </div>
       <div class="card">
-        <div class="card-head"><h3>Mode</h3></div>
-        <div class="tabs" id="pol-mode"><button data-mode="observe" class="on">Observe: record, block nothing</button><button data-mode="enforce">Enforce: apply the rules</button></div>
-        <p class="hint" id="pol-mode-hint">Start here. Every decision is recorded in Activity, nobody is blocked. Switch to Enforce when the numbers look right.</p>
+        <div class="card-head"><h3>Protection</h3></div>
+        <div class="tabs" id="pol-mode"><button data-mode="observe" class="on">Just watch — block nothing</button><button data-mode="enforce">On — apply the rules</button></div>
+        <p class="hint" id="pol-mode-hint">Start here. Everything is recorded in Activity, nobody is blocked. Turn protection on when the numbers look right.</p>
       </div>
       <div class="card pol-save">
         <p class="err" id="pol-err"></p>
-        <div class="row"><button class="btn primary" id="pol-save">Save to portal</button><span class="fine" id="pol-save-msg"></span></div>
-        <p class="hint">Your server picks the new policy up within a minute. No restart, no deploy.</p>
+        <div class="row"><button class="btn primary" id="pol-save">Save changes</button><span class="fine" id="pol-save-msg"></span></div>
+        <p class="hint">Your app starts using the new rules within a minute. No restart, no developer needed.</p>
       </div>
       <div class="card">
-        <div class="card-head"><h3>When the policy file in your code changes</h3></div>
-        <p class="fine" style="margin:0 0 12px">Your developer or coding agent may edit <code>nanotarget.policy.json</code>. The server sends every edit here. You choose what happens next.</p>
-        <label class="pol-toggle"><input type="checkbox" id="pol-req"><span><b>Ask me before a change from code takes effect</b><em id="pol-req-hint"></em></span></label>
-        <label class="pol-toggle"><input type="checkbox" id="pol-weak"><span><b>Always ask me when a change weakens protection</b><em id="pol-weak-hint"></em></span></label>
+        <div class="card-head"><h3>When your developers change the rules</h3></div>
+        <p class="fine" style="margin:0 0 12px">Your developers — or the AI coding assistant they use — can also change the rules in the app's code. When they release that change, it arrives here by itself. You choose what happens next.</p>
+        <label class="pol-toggle"><input type="checkbox" id="pol-req"><span><b>Ask me before their changes go live</b><em id="pol-req-hint"></em></span></label>
+        <label class="pol-toggle"><input type="checkbox" id="pol-weak"><span><b>Always ask me before a risky change</b><em id="pol-weak-hint"></em></span></label>
       </div>
       <div class="card">
         <div class="card-head"><h3>History</h3><span class="sub">who changed what, and when</span></div>
         <div id="pol-history"></div>
       </div>
       <details class="card pol-file">
-        <summary><b>Server without internet?</b> <span class="fine">Download the policy as a file</span></summary>
-        <p class="fine">Only for servers that cannot reach the portal: start them with <code>policyFromPortal: false</code> and this file. Every other server reads the policy from here by itself.</p>
+        <summary><b>For developers</b> <span class="fine">the rules as a file, for servers without internet</span></summary>
+        <p class="fine">Only needed for a server that cannot reach NanoTarget: start it with <code>policyFromPortal: false</code> and this file. Every other server reads the rules from here by itself.</p>
         <div class="copyable"><pre class="code" id="pol-json"></pre><button class="copy" data-copy="#pol-json">Copy</button></div>
         <button class="btn ghost" id="pol-download" style="margin-top:10px">Download nanotarget.policy.json</button>
       </details>

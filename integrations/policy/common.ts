@@ -48,50 +48,59 @@ export function canonicalPolicy(p: PolicyLike): string {
 export const policyHash = (p: PolicyLike) => createHash('sha256').update(canonicalPolicy(p)).digest('hex').slice(0, 24);
 
 const STRICT: Record<PolicyMode, number> = { allow: 0, mask: 1, step_up: 2, block: 3 };
-const WHO: Record<string, string> = { onAgent: 'an AI agent', onArtifact: 'a browser with agent tools', onUnknown: 'an unclear visitor', onHumanLike: 'a person' };
+const WHO: Record<string, string> = { onAgent: 'an AI agent', onArtifact: 'a browser with AI tools installed', onUnknown: 'a visitor we cannot identify', onHumanLike: 'a real person' };
+/** what each mode means for the one asking, in plain words */
+export const MODE_WORDS: Record<PolicyMode, string> = { allow: 'sees everything', mask: 'sees it with sensitive details hidden', step_up: 'must confirm with a passkey', block: 'is refused' };
 
 export type PolicyDiff = {
   /** every change, in plain words */
   changes: string[];
   /** the subset that lets agents see or do more than before */
   weakening: string[];
+  /** the subset that makes real people confirm or be refused where they were not before */
+  affectsPeople: string[];
   same: boolean;
 };
 
-/** Compare two policies in plain language, and say which changes weaken protection. */
+/** Compare two policies in plain language, and say which changes weaken protection or reach real people. */
 export function diffPolicy(before: PolicyLike | null, after: PolicyLike): PolicyDiff {
-  const changes: string[] = [], weakening: string[] = [];
+  const changes: string[] = [], weakening: string[] = [], affectsPeople: string[] = [];
+  const name = (r: PolicyRuleLike) => (r.title && r.title !== r.resource ? `${r.title} (${r.resource})` : r.resource);
   if (!before) {
-    changes.push(`${after.rules.length} rule${after.rules.length === 1 ? '' : 's'}, ${after.enforcement} mode`);
-    return { changes, weakening, same: false };
+    changes.push(`${after.rules.length} rule${after.rules.length === 1 ? '' : 's'}, ${after.enforcement === 'enforce' ? 'protection on' : 'watching only'}`);
+    return { changes, weakening, affectsPeople, same: false };
   }
   if (before.enforcement !== after.enforcement) {
-    const s = `mode ${before.enforcement} → ${after.enforcement}`;
-    changes.push(s);
-    if (after.enforcement === 'observe') weakening.push(`${s}: nothing is blocked any more`);
+    if (after.enforcement === 'observe') { const s = 'Protection switched off: rules are only watched, nothing is blocked'; changes.push(s); weakening.push(s); }
+    else changes.push('Protection switched on: the rules now apply');
   }
   const was = new Map(before.rules.map((r) => [r.resource, r]));
   const now = new Map(after.rules.map((r) => [r.resource, r]));
   for (const [res, r] of now) {
     const o = was.get(res);
-    if (!o) { changes.push(`new rule ${res}`); continue; }
+    if (!o) {
+      changes.push(`New rule: ${name(r)}`);
+      if (r.onHumanLike !== 'allow') affectsPeople.push(`New rule ${name(r)}: ${WHO.onHumanLike} ${MODE_WORDS[r.onHumanLike]}`);
+      continue;
+    }
     for (const f of ['onAgent', 'onArtifact', 'onUnknown', 'onHumanLike'] as const) {
       const a = (o[f] ?? 'allow') as PolicyMode, b = (r[f] ?? 'allow') as PolicyMode;
       if (a === b) continue;
-      const s = `${res}: ${WHO[f]} ${a} → ${b}`;
+      const s = `${name(r)}: ${WHO[f]} ${MODE_WORDS[a]} → ${MODE_WORDS[b]}`;
       changes.push(s);
-      if (STRICT[b] < STRICT[a]) weakening.push(s);
+      if (STRICT[b] < STRICT[a] && f !== 'onHumanLike') weakening.push(s);
+      if (f === 'onHumanLike' && STRICT[b] > STRICT[a]) affectsPeople.push(s);
     }
     const ta = new Set(o.actOn ?? ['verified', 'strong', 'control', 'behavioral']), tb = new Set(r.actOn ?? ['verified', 'strong', 'control', 'behavioral']);
     const dropped = [...ta].filter((t) => !tb.has(t)), added = [...tb].filter((t) => !ta.has(t));
-    if (dropped.length) { const s = `${res}: stops acting on ${dropped.join(', ')} evidence`; changes.push(s); weakening.push(s); }
-    if (added.length) changes.push(`${res}: also acts on ${added.join(', ')} evidence`);
+    if (dropped.length) { const s = `${name(r)}: ignores kinds of evidence it used before (${dropped.join(', ')})`; changes.push(s); weakening.push(s); }
+    if (added.length) changes.push(`${name(r)}: also uses ${added.join(', ')} evidence`);
     const sa = o.minScore ?? 65, sb = r.minScore ?? 65;
-    if (sa !== sb) { const s = `${res}: score threshold ${sa} → ${sb}`; changes.push(s); if (sb > sa) weakening.push(s); }
-    if ((o.title ?? '') !== (r.title ?? '')) changes.push(`${res}: label renamed`);
+    if (sa !== sb) { const s = `${name(r)}: ${sb > sa ? 'needs stronger' : 'acts on weaker'} evidence before acting (score ${sa} → ${sb})`; changes.push(s); if (sb > sa) weakening.push(s); }
+    if ((o.title ?? '') !== (r.title ?? '')) changes.push(`${res}: renamed to "${r.title ?? ''}"`);
   }
-  for (const res of was.keys()) if (!now.has(res)) { const s = `rule ${res} removed: it is no longer protected`; changes.push(s); weakening.push(s); }
-  return { changes, weakening, same: changes.length === 0 };
+  for (const [res, o] of was) if (!now.has(res)) { const s = `${name(o)} is no longer protected (rule removed)`; changes.push(s); weakening.push(s); }
+  return { changes, weakening, affectsPeople, same: changes.length === 0 };
 }
 
 export type EnvelopeCheck =
