@@ -161,7 +161,7 @@ export function createPolicySync<P extends PolicyLike>(o: PolicySyncOptions<P>) 
     lastProposal = { status: body.status ?? 'unknown', reason: body.reason, at: Date.now() };
     if (body.status === 'created') log('the policy file was sent to the portal and is now version 1 there');
     else if (body.status === 'applied') log('the edited policy file was sent to the portal and applied');
-    else if (body.status === 'pending') log(`the edited policy file is waiting for approval in the portal (${body.reason === 'weakens_protection' ? 'it weakens protection' : 'this key requires approval'}); the current policy stays in force`);
+    else if (body.status === 'pending') log(`the edited policy file is waiting for approval in the portal (${body.reason === 'weakens_protection' ? 'it weakens protection' : body.reason === 'affects_people' ? 'it makes real people confirm or be refused' : 'this key requires approval'}); the current policy stays in force`);
     return body.status === 'created' || body.status === 'applied';
   }
 
