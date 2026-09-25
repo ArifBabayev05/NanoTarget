@@ -210,6 +210,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['POST', '/api/v1/portal/policy', portal.policy.portalSave],
     ['POST', '/api/v1/portal/policy/settings', portal.policy.portalSettings],
     ['POST', '/api/v1/portal/policy/decide', portal.policy.portalDecide],
+    ['POST', '/api/v1/portal/policy/assist', portal.policy.portalAssist],
     ['GET', '/api/v1/apps', appsApi],
     ['GET', '/api/v1/version', async (_req, res) => json(res, 200, { signal: SIGNAL_VERSION, kinematics: KINEMATICS_VERSION, model: model ? { version: model.version, trainedAt: model.trainedAt, humanAbove: model.humanAbove, syntheticBelow: model.syntheticBelow, report: model.report } : null })],
     ['POST', '/api/v1/rooms', lab.createRoom],
