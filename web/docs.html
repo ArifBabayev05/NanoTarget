@@ -216,7 +216,8 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
     <thead><tr><th>Option</th><th></th></tr></thead>
     <tbody>
       <tr><td><code>secret</code></td><td>required, ≥ 32 bytes; signs tokens and derives the tenant. Keep it stable.</td></tr>
-      <tr><td><code>policy</code></td><td>path to the JSON file, or the object.</td></tr>
+      <tr><td><code>policy</code></td><td>path to the JSON file, or the object. With an <code>apiKey</code> it goes to the portal as version 1 on first start; after that the server reads the policy from the portal, and edits to the file are proposed there (applied at once by default, or held for approval — you choose on the Policy page).</td></tr>
+      <tr><td><code>policyFromPortal</code></td><td>default <code>true</code> with an <code>apiKey</code>. <code>false</code> keeps the file as the only source, for servers without internet.</td></tr>
       <tr><td><code>db</code></td><td><code>sqlite:./file</code>, <code>memory</code>, or a libSQL URL for multi-instance and serverless.</td></tr>
       <tr><td><code>identify(req)</code></td><td>your login id, or <code>null</code>. Never a constant.</td></tr>
       <tr><td><code>apiKey</code></td><td>report decisions to the portal. Omit and nothing leaves your server.</td></tr>
@@ -231,7 +232,8 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
       <tr><td><code>nt.protect(resource, { respond })</code></td><td>Decides, then answers 403/428 itself — or sets <code>req.nt</code> and calls <code>next()</code> when <code>respond: false</code>.</td></tr>
       <tr><td><code>nt.send(req, res, full, mask)</code></td><td>Sends <code>full</code>, or <code>mask(full)</code> when the decision says mask.</td></tr>
       <tr><td><code>req.nt</code></td><td><code>{ decision, masked, blocked, stepUp, actor, reasonCodes, session, token(), proof }</code>. <code>proof</code> is the signed record of this decision — server-side only.</td></tr>
-      <tr><td><code>nt.reloadPolicy()</code></td><td>Re-read the policy file without a restart.</td></tr>
+      <tr><td><code>nt.reloadPolicy()</code></td><td>Check the portal (and send the file if it changed) now instead of within the minute; without a portal, re-read the file.</td></tr>
+      <tr><td><code>nt.policySource()</code></td><td>Which policy runs and where it came from: <code>portal</code>, <code>cache</code> (the saved signed copy, portal unreachable) or <code>file</code>.</td></tr>
       <tr><td><code>nt.telemetry?.flush()</code></td><td>Deliver queued reports before exit.</td></tr>
       <tr><td><code>nt.proofBundle(sessionId)</code></td><td>Every signed decision for one session, with the key that verifies them — the file you hand an auditor.</td></tr>
       <tr><td><code>nt.proofFor(decisionId)</code> · <code>nt.verifyProof(jws)</code> · <code>nt.proofKeys()</code></td><td>One proof by decision id; check a proof; the public key set.</td></tr>
