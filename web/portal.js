@@ -85,6 +85,8 @@
     if (view === 'activity') { renderKeyChips(); loadStats(); }
     if (view === 'integrate') renderIntegration();
     if (view === 'settings') renderSettings();
+    if (view === 'weekly') renderWeekly();
+    if (view === 'policy') renderPolicy();
   }
   const currentView = () => (location.hash.replace('#', '') || 'overview');
   addEventListener('hashchange', () => { if (me) show(currentView()); });
@@ -396,10 +398,48 @@
       $('#resources').innerHTML = Object.entries(byRes).slice(0, 12).map(([r, dec]) => `<div class="row"><span class="r" title="${esc(r)}">${esc(r)}</span><span class="chips">${Object.entries(dec).map(([dd, n]) => `<span class="chip ${esc(dd)}">${esc(dd)} ${n}</span>`).join('')}</span></div>`).join('') || '<div class="fine">nothing yet</div>';
       drawChart(d.series, d.range.since, d.range.bucketMs, d.now);
       lastRecent = d.recent; filterLog($('#search').value);
+      loadPeople(keyId, range);
     }
     if (live) timer = setTimeout(loadStats, 10000);
   }
   addEventListener('resize', () => { if (currentView() === 'activity' && !$('#stats').hidden) loadStats(); });
+
+  // the people strip: people blocked (should stay 0), people asked to confirm, agents gated
+  const fmt = (n) => Number(n || 0).toLocaleString('en-US');
+  async function loadPeople(key, r) {
+    let h; try { h = await api(`/api/v1/portal/health?key=${encodeURIComponent(key)}&range=${r}`); } catch { return; }
+    if (key !== keyId) return;
+    const p = h.people;
+    $('#people-stopped').textContent = fmt(p.stopped);
+    $('#people-label').textContent = p.stopped === 1 ? 'person blocked' : 'people blocked';
+    $('#people').classList.toggle('warn', p.stopped > 0);
+    $('#people-stopped').title = p.stopped ? `${p.engineStopped} judged human but still gated by the policy · ${p.gradedWrong} gated decisions you marked wrong. Open the log and filter by human_like.` : 'No decision the engine called human was blocked or masked, and you marked no gated decision wrong.';
+    $('#people-sessions').textContent = fmt(p.sessions);
+    $('#people-asked').textContent = fmt(p.askedToConfirm);
+    $('#people-agents').textContent = fmt(h.agents.gated);
+  }
+
+  // integration check: four lights from what the key reported, plus the self-test command
+  let healthTimer = 0;
+  async function loadChecks() {
+    clearTimeout(healthTimer);
+    if (currentView() !== 'integrate' || !setupKeyId) { $('#checks').innerHTML = '<div class="fine">Create a key first.</div>'; return; }
+    const key = setupKeyId;
+    let h; try { h = await api(`/api/v1/portal/health?key=${encodeURIComponent(key)}&range=7d`); } catch { return; }
+    if (key !== setupKeyId) return;
+    $('#checks').innerHTML = h.checks.map((c) => `<div class="check ${esc(c.status)}"><i class="dot" aria-label="${esc(c.status)}"></i><div><b>${esc(c.title)}</b><span>${esc(c.detail)}</span></div></div>`).join('');
+    const allOk = h.checks.every((c) => c.status === 'ok');
+    $('#health-sub').textContent = allOk ? 'everything works' : 'from what this key reported in the last 7 days';
+    healthTimer = setTimeout(loadChecks, h.events ? 20000 : 5000);
+  }
+  const selftest = () => {
+    const base = ($('#st-base').value.trim() || 'https://app.yourcompany.com').replace(/\s+/g, '');
+    const path = ($('#st-path').value.trim() || '/api/balance').replace(/\s+/g, '');
+    $('#cmd-selftest').textContent = `npx nanotarget verify ${base} ${path.startsWith('/') ? path : '/' + path}`;
+    try { localStorage.setItem('nt-selftest', JSON.stringify({ base: $('#st-base').value, path: $('#st-path').value })); } catch {}
+  };
+  try { const saved = JSON.parse(localStorage.getItem('nt-selftest') || 'null'); if (saved) { $('#st-base').value = saved.base || ''; $('#st-path').value = saved.path || ''; } } catch {}
+  $('#st-base').addEventListener('input', selftest); $('#st-path').addEventListener('input', selftest); selftest();
 
   // ------------------------------------------------------------------ integration + settings
   // ------------------------------------------------------------------ setup wizard
@@ -440,9 +480,165 @@
       }
     };
     check();
+    loadChecks();
   }
   $('#setup-key').addEventListener('change', (e) => { setupKeyId = e.target.value; renderIntegration(); });
   $$('#fw-tabs button').forEach((b) => b.addEventListener('click', () => { fw = b.dataset.fw; renderIntegration(); }));
+
+  // ------------------------------------------------------------------ weekly report
+  const TOOL_NAMES = { 'claude-chrome': 'Claude in Chrome', 'codex-chrome': 'Codex, Chrome extension', 'claude-app': 'Claude app browser', 'codex-app': 'Codex app browser', 'claude-tools': 'Claude agent tools', 'browser-panel': 'Browser side panel agent', 'cdp-reader': 'Automation script', 'unknown-tool': 'Unknown agent tool', operator: 'Signed agent' };
+  const toolName = (t) => TOOL_NAMES[t] || t;
+  let weeklyKey = null;
+  const keySelect = (sel, cur) => { const keys = liveKeys(); if (!keys.length) { sel.innerHTML = '<option>no keys yet</option>'; return null; } const id = cur && keys.some((k) => k.id === cur) ? cur : (keyId && keys.some((k) => k.id === keyId) ? keyId : keys[0].id); sel.innerHTML = keys.map((k) => `<option value="${esc(k.id)}" ${k.id === id ? 'selected' : ''}>${esc(k.name)} · ${esc(k.prefix)}…</option>`).join(''); return id; };
+  const delta = (a, b, unit = '') => { if (!b && !a) return ''; if (!b) return '<em>new this week</em>'; const d = a - b; return `<em>${d === 0 ? 'same as' : d > 0 ? `+${fmt(d)}${unit} vs` : `${fmt(d)}${unit} vs`} last week</em>`; };
+  async function renderWeekly() {
+    weeklyKey = keySelect($('#weekly-key'), weeklyKey);
+    if (!weeklyKey) { $('#weekly-body').innerHTML = '<div class="card"><p class="fine" style="margin:0">Create an API key and connect your server first.</p></div>'; return; }
+    const key = weeklyKey;
+    let w; try { w = await api(`/api/v1/portal/weekly?key=${encodeURIComponent(key)}`); } catch (e) { toast(e.message); return; }
+    if (key !== weeklyKey) return;
+    const c = w.week, p = w.previous;
+    const pct = (x) => (x.sessions ? Math.round((x.agentSessions / x.sessions) * 100) : 0);
+    const period = `${day(w.from)} to ${day(w.now)}`;
+    const newSet = new Set(w.newAgents);
+    const agents = c.tools.length ? `<div class="wk-chips">${c.tools.map((t) => `<span class="${newSet.has(t.tool) ? 'new' : ''}" title="${esc(t.tool)}">${esc(toolName(t.tool))} · ${fmt(t.sessions)} session${t.sessions === 1 ? '' : 's'}${newSet.has(t.tool) ? ' · new' : ''}</span>`).join('')}</div>` : '<p class="fine" style="margin:0">No named agent product was seen this week.</p>';
+    const gone = w.goneAgents.length ? `<p class="fine">Not seen this week, seen last week: ${w.goneAgents.map((t) => esc(toolName(t))).join(', ')}.</p>` : '';
+    const res = c.agentResources.length ? `<div class="res">${c.agentResources.map((r) => `<div class="row"><span class="r">${esc(r.resource)}</span><span class="chips"><span class="chip">${fmt(r.n)} attempt${r.n === 1 ? '' : 's'}</span><span class="chip block">${fmt(r.gated)} stopped</span></span></div>`).join('')}</div>` : '<p class="fine" style="margin:0">Agents did not reach any protected resource this week.</p>';
+    const news = w.news.length ? `<div class="wk-news">${w.news.map((n) => `<article><h4>${esc(n.agent)}<small>${esc(n.date)}</small></h4><p>${esc(n.change)}</p><p>${esc(n.impact)}</p>${n.action ? `<p class="do">What to do: ${esc(n.action)}</p>` : ''}</article>`).join('')}</div>` : '<p class="fine" style="margin:0">No changes in the agents this month.</p>';
+    const summary = !c.decisions ? 'No decisions were reported this week.'
+      : `${fmt(c.sessions)} signed-in session${c.sessions === 1 ? '' : 's'}; ${pct(c)}% had an AI agent in them. ${c.agentGated ? `Agents were stopped or given masked data ${fmt(c.agentGated)} time${c.agentGated === 1 ? '' : 's'}.` : 'No agent was stopped.'} ${c.peopleStopped ? `${fmt(c.peopleStopped)} decision${c.peopleStopped === 1 ? '' : 's'} stopped a person: review them in Activity.` : 'No person was blocked.'}${w.newAgents.length ? ` New on your site: ${w.newAgents.map(toolName).join(', ')}.` : ''}`;
+    $('#weekly-body').innerHTML = `
+      <div class="card"><div class="card-head"><h3>${esc(keyName(key))} · ${esc(period)}</h3></div><p style="margin:0;line-height:1.6">${esc(summary)}</p></div>
+      <div class="wk-kpis">
+        <div class="wk-kpi"><b>${fmt(c.sessions)}</b><span>signed-in sessions</span>${delta(c.sessions, p.sessions)}</div>
+        <div class="wk-kpi"><b>${pct(c)}%</b><span>had an AI agent in them</span>${p.sessions ? `<em>${pct(p)}% last week</em>` : ''}</div>
+        <div class="wk-kpi"><b>${fmt(c.agentGated)}</b><span>times an agent was stopped or got masked data</span>${delta(c.agentGated, p.agentGated)}</div>
+        <div class="wk-kpi good"><b>${fmt(c.peopleStopped)}</b><span>people blocked</span></div>
+        <div class="wk-kpi"><b>${fmt(c.stepUps)}</b><span>passkey confirmations asked</span>${delta(c.stepUps, p.stepUps)}</div>
+        <div class="wk-kpi"><b>${fmt(c.signed)}</b><span>decisions signed, ready for an auditor</span></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><div class="card-head"><h3>Agents seen on your site</h3><span class="sub">new ones marked</span></div>${agents}${gone}</div>
+        <div class="card"><div class="card-head"><h3>What agents reached for</h3></div>${res}</div>
+      </div>
+      <div class="card"><div class="card-head"><h3>What changed in the agents</h3><span class="sub">last 4 weeks · the same for every customer</span></div>${news}</div>`;
+  }
+  $('#weekly-key').addEventListener('change', (e) => { weeklyKey = e.target.value; renderWeekly(); });
+  $('#weekly-print').onclick = () => { document.body.classList.add('print-weekly'); addEventListener('afterprint', () => document.body.classList.remove('print-weekly'), { once: true }); print(); };
+
+  // ------------------------------------------------------------------ policy builder
+  const PRESETS = {
+    open: { label: 'Open to everyone', m: ['allow', 'allow', 'allow', 'allow'], what: 'Agents and people get the full answer. For pages with nothing sensitive.' },
+    mask: { label: 'Agents see it masked', m: ['mask', 'mask', 'allow', 'allow'], what: 'An AI agent gets the page with sensitive fields hidden. People see everything.' },
+    block: { label: 'Block agents', m: ['block', 'mask', 'allow', 'allow'], what: 'An AI agent is refused. A browser with agent tools installed gets it masked. People see everything.' },
+    guard: { label: 'Block agents, passkey when unsure', m: ['block', 'step_up', 'step_up', 'allow'], what: 'An AI agent is refused. When we cannot tell, the person confirms with a passkey and continues. Recommended for exports and downloads.' },
+    passkey: { label: 'Passkey for everyone', m: ['block', 'step_up', 'step_up', 'step_up'], what: 'Everyone confirms with a passkey, agents are refused. For the few critical actions: payouts, changing contact details, bulk export. Stops even scripts built for your site.' },
+    custom: { label: 'Custom (from your file)', m: null, what: 'Kept exactly as in your file.' },
+  };
+  const RES_RE = /^[a-z][a-z0-9_.]{1,60}$/;
+  const presetOf = (r) => Object.entries(PRESETS).find(([, p]) => p.m && p.m.join() === [r.onAgent, r.onArtifact, r.onUnknown, r.onHumanLike].join())?.[0] || 'custom';
+  const titleOf = (res) => res.replace(/[._]/g, ' ').replace(/^./, (c) => c.toUpperCase());
+  const guessPreset = (res) => /export|download|payout|transfer|delete|withdraw|contacts/.test(res) ? 'guard' : /balance|medical|pipeline/.test(res) ? 'block' : 'mask';
+  let pol = null, policyKey = null;
+  async function renderPolicy() {
+    policyKey = keySelect($('#policy-key'), policyKey);
+    if (!pol) {
+      let seen = [];
+      if (policyKey) { try { const d = await api(`/api/v1/portal/stats?key=${encodeURIComponent(policyKey)}&range=30d`); seen = [...new Set(d.resources.map((r) => r.resource))].filter((r) => RES_RE.test(r)); } catch {} }
+      const list = seen.length ? seen : ['profile.read', 'balance.read', 'report.export'];
+      pol = { enforcement: 'observe', rules: list.slice(0, 50).map((r) => ({ resource: r, title: titleOf(r), preset: guessPreset(r) })) };
+      $('#policy-src').textContent = seen.length ? `${seen.length} resource${seen.length === 1 ? '' : 's'} your middleware reported in the last 30 days` : 'an example to start from; rename to match nt.protect() in your code';
+    }
+    drawPolicy();
+  }
+  function drawPolicy() {
+    $('#pol-rows').innerHTML = pol.rules.map((r, i) => `<div class="pol-row" data-i="${i}">
+      <label>Resource<input data-f="resource" value="${esc(r.resource)}" placeholder="report.export" spellcheck="false"></label>
+      <label>Label<input data-f="title" value="${esc(r.title)}" maxlength="80"></label>
+      <label>Protection<select data-f="preset">${Object.entries(PRESETS).filter(([k]) => k !== 'custom' || r.preset === 'custom').map(([k, p]) => `<option value="${k}" ${k === r.preset ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></label>
+      <button class="rm" data-rm="${i}" title="Remove" aria-label="Remove">✕</button>
+      <p class="what">${esc(PRESETS[r.preset].what)}</p></div>`).join('') || '<p class="fine">No resources yet. Add the names you pass to nt.protect().</p>';
+    $$('#pol-mode button').forEach((b) => b.classList.toggle('on', b.dataset.mode === pol.enforcement));
+    $('#pol-mode-hint').textContent = pol.enforcement === 'observe' ? 'Start here. Every decision is recorded in Activity, nobody is blocked. Switch to Enforce when the numbers look right.' : 'Rules apply. Agents get the answer each rule gives them; people are never blocked by a rule that allows them.';
+    writePolicy();
+  }
+  function policyDoc() {
+    const errs = [];
+    const seen = new Set();
+    const rules = pol.rules.map((r) => {
+      if (!RES_RE.test(r.resource)) errs.push(`"${r.resource || '(empty)'}" is not a valid resource name: lowercase letters, digits, dots and underscores, starting with a letter.`);
+      else if (seen.has(r.resource)) errs.push(`"${r.resource}" is listed twice.`);
+      seen.add(r.resource);
+      const m = r.preset === 'custom' ? r.modes : PRESETS[r.preset].m;
+      return { resource: r.resource, title: (r.title || titleOf(r.resource)).slice(0, 80), onAgent: m[0], onArtifact: m[1], onUnknown: m[2], onHumanLike: m[3], actOn: r.actOn || ['verified', 'strong', 'control', 'behavioral'], minScore: r.minScore ?? 65 };
+    });
+    if (!rules.length) errs.push('Add at least one resource.');
+    return { errs, doc: { version: `policy-${new Date().toISOString().slice(0, 10)}`, enforcement: pol.enforcement, rules } };
+  }
+  function writePolicy() { const { errs, doc } = policyDoc(); $('#pol-err').textContent = errs.join(' '); $('#pol-json').textContent = JSON.stringify(doc, null, 2); $('#pol-download').disabled = !!errs.length; }
+  $('#pol-rows').addEventListener('input', (e) => { const row = e.target.closest('.pol-row'); if (!row || !e.target.dataset.f) return; const r = pol.rules[+row.dataset.i]; if (e.target.dataset.f === 'preset') { r.preset = e.target.value; drawPolicy(); return; } r[e.target.dataset.f] = e.target.dataset.f === 'resource' ? e.target.value.trim() : e.target.value; writePolicy(); });
+  $('#pol-rows').addEventListener('click', (e) => { const b = e.target.closest('[data-rm]'); if (!b) return; pol.rules.splice(+b.dataset.rm, 1); drawPolicy(); });
+  $('#pol-add').onclick = () => { pol.rules.push({ resource: '', title: '', preset: 'guard' }); drawPolicy(); const inputs = $$('#pol-rows input[data-f="resource"]'); inputs[inputs.length - 1]?.focus(); };
+  $$('#pol-mode button').forEach((b) => b.addEventListener('click', () => { pol.enforcement = b.dataset.mode; drawPolicy(); }));
+  $('#pol-import-toggle').onclick = () => { $('#pol-import').hidden = !$('#pol-import').hidden; };
+  $('#pol-import-go').onclick = () => {
+    try {
+      const o = JSON.parse($('#pol-import-text').value);
+      if (!o || !Array.isArray(o.rules) || !o.rules.length) throw new Error('No "rules" list in that file.');
+      pol = { enforcement: o.enforcement === 'enforce' ? 'enforce' : 'observe', rules: o.rules.slice(0, 50).map((r) => { const x = { resource: String(r.resource || ''), title: String(r.title || ''), onAgent: r.onAgent, onArtifact: r.onArtifact ?? 'allow', onUnknown: r.onUnknown, onHumanLike: r.onHumanLike }; const preset = presetOf(x); return { resource: x.resource, title: x.title, preset, modes: [x.onAgent, x.onArtifact, x.onUnknown, x.onHumanLike], actOn: Array.isArray(r.actOn) ? r.actOn : undefined, minScore: typeof r.minScore === 'number' ? r.minScore : undefined }; }) };
+      $('#policy-src').textContent = 'loaded from your file';
+      $('#pol-import-msg').textContent = `Loaded ${pol.rules.length} rule${pol.rules.length === 1 ? '' : 's'}.`;
+      drawPolicy();
+    } catch (e) { $('#pol-import-msg').textContent = e.message.startsWith('No') ? e.message : 'That is not valid JSON.'; }
+  };
+  $('#policy-key').addEventListener('change', (e) => { policyKey = e.target.value; pol = null; renderPolicy(); });
+  $('#pol-download').onclick = () => { const { errs, doc } = policyDoc(); if (errs.length) return toast(errs[0]); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2) + '\n'], { type: 'application/json' })); a.download = 'nanotarget.policy.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
+
+  // ------------------------------------------------------------------ auditor report (print → PDF)
+  $('#audit-report').onclick = async () => {
+    if (!keyId) return;
+    const win = open('', '_blank');   // opened inside the click so it is not treated as a pop-up
+    if (!win) return toast('Allow pop-ups for this page to open the report');
+    win.document.write('<p style="font:14px system-ui;padding:24px">Checking every signature…</p>');
+    try {
+      const r = await fetch(`/api/v1/portal/proofs?key=${encodeURIComponent(keyId)}&range=${range}`, { credentials: 'same-origin' });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || String(r.status));
+      const bundle = await r.json();
+      if (!bundle.proofs?.length) { win.close(); return toast('No signed decisions in this range yet'); }
+      const results = [];
+      for (let i = 0; i < bundle.proofs.length; i += 1000) {
+        const v = await api('/api/v1/proof/verify', { method: 'POST', body: JSON.stringify({ keys: bundle.keys, proofs: bundle.proofs.slice(i, i + 1000) }) });
+        results.push(...v.results);
+      }
+      win.document.open(); win.document.write(auditHtml(bundle, results)); win.document.close();
+      setTimeout(() => win.print(), 400);
+    } catch (e) { win.close(); toast(e.message); }
+  };
+  function auditHtml(bundle, results) {
+    const ok = results.filter((x) => x.valid);
+    const count = (f) => ok.reduce((m, x) => ((m[x[f]] = (m[x[f]] || 0) + 1), m), {});
+    const list = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${esc(k)} ${fmt(n)}`).join(' · ') || '–';
+    const kids = [...new Set(bundle.keys.map((k) => k.kid))];
+    const rows = results.map((x, i) => x.valid ? `<tr><td>${esc(x.at.replace('T', ' ').slice(0, 19))}</td><td>${esc(x.resource)}</td><td>${esc(x.verdict)}</td><td>${esc(x.actor)}</td><td>${x.delivered ? 'yes' : 'no'}</td><td class="m">${esc(x.decision)}</td><td>${x.seq ?? ''}</td><td>✓</td></tr>` : `<tr class="bad"><td colspan="7">Proof ${i + 1}: ${esc(x.reason)}</td><td>✗</td></tr>`).join('');
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Decision proof report · ${esc(keyName(keyId))}</title><style>
+      body{font:12px/1.5 -apple-system,system-ui,sans-serif;color:#111;margin:32px}h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;margin:22px 0 6px}
+      .meta{color:#555}.box{border:1px solid #ccc;border-radius:8px;padding:10px 14px;margin:12px 0}.big{font-size:22px;font-weight:600}
+      table{width:100%;border-collapse:collapse;margin-top:8px}th,td{text-align:left;padding:4px 6px;border-bottom:1px solid #e5e5e5;vertical-align:top}th{color:#555;font-weight:500}
+      td.m,code{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;word-break:break-all}tr.bad td{color:#b00}@media print{body{margin:12mm}}</style></head><body>
+      <h1>Decision proof report</h1>
+      <div class="meta">Project: ${esc(keyName(keyId))} · Range: ${esc(bundle.range)} · Generated ${esc(new Date().toISOString().replace('T', ' ').slice(0, 19))} UTC</div>
+      <div class="box"><div class="big">${fmt(ok.length)} of ${fmt(results.length)} decisions verified</div>
+      Every decision below was signed on the company's own server when it was made, with an Ed25519 key only that server holds. Changing any field afterwards breaks the signature.<br>
+      Decisions: ${list(count('verdict'))}<br>Acting party: ${list(count('actor'))}<br>Signing key id: <code>${kids.map(esc).join(', ')}</code></div>
+      <h2>How to check this report yourself</h2>
+      <ol><li>Ask the company for the proof file of this range (the JSON export next to this report in their NanoTarget portal).</li>
+      <li>Get their public key from their own website, not from the file: <code>https://&lt;their-site&gt;/nanotarget/proof-keys</code>.</li>
+      <li>Run <code>npx nanotarget verify-proof proofs.json --keys https://&lt;their-site&gt;/nanotarget/proof-keys</code>. It needs no account and sends nothing anywhere. Any standard JOSE library works too.</li></ol>
+      <p class="meta">Actor values: human_like = acted like a person · agent_likely = an AI agent · unknown = could not tell (the policy decides, often a passkey). Delivered = whether the data was actually returned.</p>
+      <h2>Signed decisions</h2>
+      <table><thead><tr><th>Time (UTC)</th><th>Resource</th><th>Decision</th><th>Actor</th><th>Delivered</th><th>Decision id</th><th>Log #</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      </body></html>`;
+  }
 
   // ------------------------------------------------------------------ settings + management keys
   let adminKeys = [], freshAdmin = null;

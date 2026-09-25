@@ -242,6 +242,27 @@ export type TelemetryStats = {
   recent: { id: number; at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; signed: boolean | null; feedback: string | null }[];
 };
 
+export type TelemetryHealth = {
+  events: number;
+  /** newest reported event, any range */
+  last: number | null;
+  sessions: number;
+  /** sessions whose decisions had browser-SDK signals behind them */
+  sdkSessions: number;
+  proofs: number;
+  proofsOk: number;
+  enforcement: string | null;
+  version: string | null;
+  people: { sessions: number; stopped: number; engineStopped: number; gradedWrong: number; askedToConfirm: number; askedSessions: number };
+  agents: { sessions: number; gated: number };
+};
+
+export type TelemetryWeek = {
+  decisions: number; sessions: number; agentSessions: number; agentGated: number; peopleStopped: number; stepUps: number; signed: number;
+  tools: { tool: string; sessions: number }[];
+  agentResources: { resource: string; n: number; gated: number }[];
+};
+
 export type TelemetryOverview = {
   series: { key: string; t: number; n: number; agent: number; gated: number }[];
   totals: { key: string; n: number; sessions: number; agentSessions: number; gated: number; last: number }[];
@@ -640,6 +661,64 @@ export class Store {
       SUM(CASE WHEN decision IN ('mask','block','step_up') THEN 1 ELSE 0 END) AS gated
       FROM telemetry WHERE key_id = ? AND at >= ?`, [keyId, since])).rows[0] ?? {};
     return { reviewed: Number(r.reviewed ?? 0), falseStops: Number(r.false_stops ?? 0), misses: Number(r.misses ?? 0), gated: Number(r.gated ?? 0) };
+  }
+
+  /**
+   * Integration health for one key: is the server reporting, does the page send browser signals, do the
+   * signatures verify, is the policy enforcing — and the number a bank asks first: how many people were stopped.
+   * "People stopped" counts decisions the engine itself called human-like that were still blocked or masked,
+   * plus gated decisions the customer graded wrong. A person the engine could not tell apart is asked to
+   * confirm with a passkey (step_up) — counted separately, never as blocked.
+   */
+  async telemetryHealth(keyId: string, since: number): Promise<TelemetryHealth> {
+    const [agg, last] = await Promise.all([
+      this.sql.execute(`SELECT COUNT(*) AS n, MAX(at) AS last, COUNT(DISTINCT session) AS sessions,
+        COUNT(DISTINCT CASE WHEN reasons NOT LIKE '%"NO_CLIENT_TELEMETRY"%' THEN session END) AS sdk_sessions,
+        SUM(CASE WHEN proof IS NOT NULL THEN 1 ELSE 0 END) AS proofs,
+        SUM(CASE WHEN proof_ok = 1 THEN 1 ELSE 0 END) AS proofs_ok,
+        COUNT(DISTINCT CASE WHEN actor = 'human_like' THEN session END) AS human_sessions,
+        SUM(CASE WHEN actor = 'human_like' AND decision IN ('block','mask') THEN 1 ELSE 0 END) AS human_gated,
+        SUM(CASE WHEN feedback = 'wrong' AND decision IN ('mask','block','step_up') THEN 1 ELSE 0 END) AS false_stops,
+        SUM(CASE WHEN decision = 'step_up' THEN 1 ELSE 0 END) AS step_ups,
+        COUNT(DISTINCT CASE WHEN decision = 'step_up' THEN session END) AS step_up_sessions,
+        COUNT(DISTINCT CASE WHEN (state IN ('agent_attached','signed_agent') OR actor = 'agent_likely') THEN session END) AS agent_sessions,
+        SUM(CASE WHEN (state IN ('agent_attached','signed_agent') OR actor = 'agent_likely') AND decision IN ('mask','block','step_up') THEN 1 ELSE 0 END) AS agent_gated
+        FROM telemetry WHERE key_id = ? AND at >= ?`, [keyId, since]),
+      this.sql.execute('SELECT at, enforcement, version FROM telemetry WHERE key_id = ? ORDER BY at DESC, id DESC LIMIT 1', [keyId]),
+    ]);
+    const a = agg.rows[0] ?? {};
+    const l = last.rows[0];
+    const n = (v: unknown) => Number(v ?? 0);
+    return {
+      events: n(a.n), last: l ? n(l.at) : null, sessions: n(a.sessions), sdkSessions: n(a.sdk_sessions),
+      proofs: n(a.proofs), proofsOk: n(a.proofs_ok), enforcement: l ? String(l.enforcement) : null, version: l ? String(l.version) : null,
+      people: { sessions: n(a.human_sessions), stopped: n(a.human_gated) + n(a.false_stops), engineStopped: n(a.human_gated), gradedWrong: n(a.false_stops), askedToConfirm: n(a.step_ups), askedSessions: n(a.step_up_sessions) },
+      agents: { sessions: n(a.agent_sessions), gated: n(a.agent_gated) },
+    };
+  }
+
+  /** One week against the week before, for the weekly report. `end` is exclusive. */
+  async telemetryWeek(keyId: string, start: number, end: number): Promise<TelemetryWeek> {
+    const agentCase = "(state IN ('agent_attached','signed_agent') OR actor = 'agent_likely')";
+    const [agg, tools, res] = await Promise.all([
+      this.sql.execute(`SELECT COUNT(*) AS n, COUNT(DISTINCT session) AS sessions, COUNT(DISTINCT CASE WHEN ${agentCase} THEN session END) AS agent_sessions,
+        SUM(CASE WHEN ${agentCase} AND decision IN ('mask','block','step_up') THEN 1 ELSE 0 END) AS agent_gated,
+        SUM(CASE WHEN actor = 'human_like' AND decision IN ('block','mask') THEN 1 ELSE 0 END) + SUM(CASE WHEN feedback = 'wrong' AND decision IN ('mask','block','step_up') THEN 1 ELSE 0 END) AS people_stopped,
+        SUM(CASE WHEN decision = 'step_up' THEN 1 ELSE 0 END) AS step_ups,
+        SUM(CASE WHEN proof_ok = 1 THEN 1 ELSE 0 END) AS signed
+        FROM telemetry WHERE key_id = ? AND at >= ? AND at < ?`, [keyId, start, end]),
+      this.sql.execute("SELECT tools, COUNT(DISTINCT session) AS n FROM telemetry WHERE key_id = ? AND at >= ? AND at < ? AND tools != '[]' GROUP BY tools", [keyId, start, end]),
+      this.sql.execute(`SELECT resource, COUNT(*) AS n, SUM(CASE WHEN decision IN ('mask','block','step_up') THEN 1 ELSE 0 END) AS gated FROM telemetry WHERE key_id = ? AND at >= ? AND at < ? AND ${agentCase} GROUP BY resource ORDER BY n DESC LIMIT 6`, [keyId, start, end]),
+    ]);
+    const a = agg.rows[0] ?? {};
+    const n = (v: unknown) => Number(v ?? 0);
+    const toolCounts: Record<string, number> = {};
+    for (const x of tools.rows) { let arr: unknown = []; try { arr = JSON.parse(String(x.tools)); } catch { /* ignore */ } if (Array.isArray(arr)) for (const t of arr) toolCounts[String(t)] = (toolCounts[String(t)] ?? 0) + n(x.n); }
+    return {
+      decisions: n(a.n), sessions: n(a.sessions), agentSessions: n(a.agent_sessions), agentGated: n(a.agent_gated), peopleStopped: n(a.people_stopped), stepUps: n(a.step_ups), signed: n(a.signed),
+      tools: Object.entries(toolCounts).sort((x, y) => y[1] - x[1]).map(([tool, sessions]) => ({ tool, sessions })),
+      agentResources: res.rows.map((x) => ({ resource: String(x.resource), n: n(x.n), gated: n(x.gated) })),
+    };
   }
 
   /** Signed decisions for one key (optionally one session), oldest first, for a proof bundle. */

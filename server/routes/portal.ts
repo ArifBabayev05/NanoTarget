@@ -10,8 +10,9 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import type { NanoTarget } from '../engine.ts';
 import { cookies, json, readJson, sameOrigin, url, type Req, type Res } from '../http.ts';
-import type { TelemetryEvent } from '../db.ts';
+import type { TelemetryEvent, TelemetryHealth } from '../db.ts';
 import { proofBundle, thumbprint, verifyProof, type ProofJwk } from '../proof.ts';
+import { newsSince } from '../agent-news.ts';
 
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
 const SHORT = /^[a-zA-Z0-9_.:\-\/ ]{1,80}$/;
@@ -267,7 +268,7 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     const results = list.map((p) => {
       const c = verifyProof(typeof p === 'string' ? p : '', keys);
       if (c.valid) valid++;
-      return c.valid ? { valid: true, decision: c.payload.jti, resource: c.payload.resource, verdict: c.payload.decision, actor: c.payload.actor, delivered: c.payload.delivered, at: new Date(c.payload.iat * 1000).toISOString(), kid: c.kid } : { valid: false, reason: c.reason };
+      return c.valid ? { valid: true, decision: c.payload.jti, resource: c.payload.resource, verdict: c.payload.decision, actor: c.payload.actor, delivered: c.payload.delivered, at: new Date(c.payload.iat * 1000).toISOString(), kid: c.kid, seq: c.payload.audit?.seq ?? null } : { valid: false, reason: c.reason };
     });
     json(res, 200, { checked: list.length, valid, invalid: list.length - valid, results });
   };
@@ -289,6 +290,49 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     const now = Date.now();
     json(res, 200, { key, range: { since: now - range.since, bucketMs: range.bucket }, now, ...(await store.telemetryStats(key, now - range.since, range.bucket)), feedback: await store.telemetryFeedback(key, now - range.since) });
   };
+
+  /**
+   * GET /api/v1/portal/health?key=&range=7d — the integration check: four lights (server reporting, browser
+   * signals, signatures verify, policy enforcing) and the "people stopped" counter. Everything comes from what
+   * the key already reported; nothing is sent to the customer's site.
+   */
+  const health = async (req: Req, res: Res) => {
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    const u = url(req);
+    const key = u.searchParams.get('key') ?? '';
+    if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
+    json(res, 200, await healthFor(key, u));
+  };
+  async function healthFor(key: string, u: URL) {
+    const rangeName = RANGES[u.searchParams.get('range') ?? '7d'] ? (u.searchParams.get('range') ?? '7d') : '7d';
+    const now = Date.now();
+    const h = await store.telemetryHealth(key, now - RANGES[rangeName]!.since);
+    return { key, range: rangeName, now, ...h, checks: integrationChecks(h, now) };
+  }
+
+  /**
+   * GET /api/v1/portal/weekly?key= — the weekly report: this week against last week for one key, the agents
+   * that are new on this site, and what changed in the agents themselves (the same for every customer).
+   */
+  const weekly = async (req: Req, res: Res) => {
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    const key = url(req).searchParams.get('key') ?? '';
+    if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
+    json(res, 200, await weeklyFor(key));
+  };
+  async function weeklyFor(key: string, now = Date.now()) {
+    const WEEK = 7 * 24 * 3600e3;
+    const [cur, prev] = await Promise.all([store.telemetryWeek(key, now - WEEK, now + 60_000), store.telemetryWeek(key, now - 2 * WEEK, now - WEEK)]);
+    const seenBefore = new Set(prev.tools.map((t) => t.tool));
+    return {
+      key, now, from: now - WEEK, week: cur, previous: prev,
+      newAgents: cur.tools.filter((t) => !seenBefore.has(t.tool)).map((t) => t.tool),
+      goneAgents: prev.tools.filter((t) => !cur.tools.some((c) => c.tool === t.tool)).map((t) => t.tool),
+      news: newsSince(now - 4 * WEEK, now),
+    };
+  }
 
   /** POST /api/v1/portal/feedback { key, id, verdict: 'correct'|'wrong'|null, note? } — the customer grades one decision. */
   const feedback = async (req: Req, res: Res) => {
@@ -406,6 +450,16 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
       if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
       return json(res, 200, await bundleFor(key, u));
     }
+    if (path === 'health' && method === 'GET') {
+      const key = u.searchParams.get('key') ?? '';
+      if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
+      return json(res, 200, await healthFor(key, u));
+    }
+    if (path === 'weekly' && method === 'GET') {
+      const key = u.searchParams.get('key') ?? '';
+      if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
+      return json(res, 200, await weeklyFor(key));
+    }
     if (path === 'events' && method === 'GET') {
       const key = u.searchParams.get('key') ?? '';
       if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
@@ -415,7 +469,7 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     return json(res, 404, { error: 'unknown_endpoint', endpoints: MANAGE_ENDPOINTS });
   };
 
-  return { signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, proofs, verifyBundle, feedback, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
+  return { signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, proofs, verifyBundle, feedback, health, weekly, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
 }
 
 export const MANAGE_ENDPOINTS = [
@@ -428,8 +482,38 @@ export const MANAGE_ENDPOINTS = [
   'GET    /api/v1/manage/stats?key=:id&range=7d — one key: sessions, agents, resources, recent decisions',
   'GET    /api/v1/manage/events?key=:id&range=7d&before=:id&limit=100 — the decision log, paged',
   'GET    /api/v1/manage/proofs?key=:id&range=30d[&session=:hash] — signed decision proofs + verifying keys (auditor bundle)',
+  'GET    /api/v1/manage/health?key=:id&range=7d — integration check (reporting, browser signals, signatures, enforcement) + people stopped',
+  'GET    /api/v1/manage/weekly?key=:id           — weekly report: this week vs last, new agents, what changed in the agents',
   'POST   /api/v1/manage/feedback                — {key, id, verdict: correct|wrong, note?} grade one reported decision (false-stop rate)',
 ];
+
+export type Check = { id: 'reporting' | 'browser' | 'signed' | 'enforcing'; status: 'ok' | 'warn' | 'off'; title: string; detail: string };
+
+/** Plain-language lights for the integration page. Pure, so it is tested directly. */
+export function integrationChecks(h: TelemetryHealth, now: number): Check[] {
+  const ago = (t: number) => { const s = Math.max(0, Math.round((now - t) / 1000)); return s < 90 ? `${s}s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 129600 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`; };
+  const checks: Check[] = [];
+  if (!h.last) checks.push({ id: 'reporting', status: 'off', title: 'Server reporting', detail: 'No decision from this key yet. Put the key in NT_API_KEY and make one request to a protected endpoint.' });
+  else if (now - h.last > 24 * 3600e3) checks.push({ id: 'reporting', status: 'warn', title: 'Server reporting', detail: `Last decision ${ago(h.last)}. If the app is live, check that NT_API_KEY is still set on the server.` });
+  else checks.push({ id: 'reporting', status: 'ok', title: 'Server reporting', detail: `Last decision ${ago(h.last)} · ${h.events.toLocaleString('en-US')} in range.` });
+
+  if (!h.sessions) checks.push({ id: 'browser', status: 'off', title: 'Browser signals', detail: 'Waits for the first session.' });
+  else if (!h.sdkSessions) checks.push({ id: 'browser', status: 'warn', title: 'Browser signals', detail: 'The server decides, but no page sent browser signals, so agents can only be judged by their requests. Add <script src="/nanotarget/sdk.js"></script> to the signed-in pages.' });
+  else {
+    const share = Math.round((h.sdkSessions / h.sessions) * 100);
+    checks.push({ id: 'browser', status: share >= 50 ? 'ok' : 'warn', title: 'Browser signals', detail: share >= 50 ? `${share}% of sessions sent browser signals.` : `Only ${share}% of sessions sent browser signals. Some signed-in pages are missing the script tag, or API clients call protected endpoints directly.` });
+  }
+
+  if (!h.events) checks.push({ id: 'signed', status: 'off', title: 'Signed decisions', detail: 'Waits for the first decision.' });
+  else if (!h.proofs) checks.push({ id: 'signed', status: 'warn', title: 'Signed decisions', detail: 'Decisions arrive without a signature. Update to the latest nanotarget package.' });
+  else if (h.proofsOk < h.proofs) checks.push({ id: 'signed', status: 'warn', title: 'Signed decisions', detail: `${h.proofs - h.proofsOk} of ${h.proofs} signatures did not verify. Every server instance must use the same NT_SECRET.` });
+  else checks.push({ id: 'signed', status: 'ok', title: 'Signed decisions', detail: `${h.proofsOk.toLocaleString('en-US')} decisions signed and verified. Export them for an auditor from Activity.` });
+
+  if (!h.enforcement) checks.push({ id: 'enforcing', status: 'off', title: 'Policy mode', detail: 'Waits for the first decision.' });
+  else if (h.enforcement === 'observe') checks.push({ id: 'enforcing', status: 'warn', title: 'Policy mode', detail: 'Observe mode: every decision is recorded, nothing is blocked yet. Set "enforcement": "enforce" in the policy when the numbers look right.' });
+  else checks.push({ id: 'enforcing', status: 'ok', title: 'Policy mode', detail: 'Enforcing: agents get the answer your policy gives them.' });
+  return checks;
+}
 
 const DECISIONS = new Set(['allow', 'mask', 'block', 'step_up']);
 const ACTORS = new Set(['human_like', 'agent_likely', 'unknown']);

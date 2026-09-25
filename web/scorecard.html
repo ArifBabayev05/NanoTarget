@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NanoTarget — Agent scorecard</title>
+<meta name="description" content="What happens when today's AI browser agents open a logged-in page protected by NanoTarget. Real agents, real sessions, including what gets through.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/docs.css">
+<script src="/theme-boot.js"></script>
+<style>
+  .sc{max-width:1080px;margin:0 auto;padding:56px 24px 120px}
+  .sc .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:28px 0 8px}
+  .sc .kpi{border:1px solid var(--line);border-radius:14px;padding:16px 18px;background:var(--bg2)}
+  .sc .kpi b{display:block;font-size:30px;letter-spacing:-.035em;font-weight:600;font-variant-numeric:tabular-nums}
+  .sc .kpi span{color:var(--fg3);font-size:13px;line-height:1.45}
+  .sc .kpi.good b{color:var(--accent)}
+  .sc h2{margin-top:44px}
+  .sc table{width:100%;border-collapse:collapse;font-size:14px;margin:16px 0}
+  .sc th{text-align:left;color:var(--fg3);font-weight:500;font-size:12.5px;padding:8px 12px;border-bottom:1px solid var(--line2)}
+  .sc td{padding:13px 12px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.5;color:var(--fg2)}
+  .sc td:first-child{color:var(--fg);font-weight:500}
+  .sc td small{display:block;color:var(--fg3);font-size:12.5px;margin-top:2px;font-weight:400}
+  .sc .res{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12.5px;font-weight:600;white-space:nowrap}
+  .sc .res.caught{background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line)}
+  .sc .res.passes{background:transparent;color:var(--accent2);border:1px solid var(--accent2)}
+  .sc .res.ident{background:transparent;color:var(--blue);border:1px solid var(--blue)}
+  .sc .res.none{background:transparent;color:var(--fg3);border:1px dashed var(--line2)}
+  .sc .num{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .sc .fine{margin-top:6px}
+  @media (max-width:820px){
+    .sc .kpis{grid-template-columns:1fr 1fr}
+    .sc thead{display:none}
+    .sc table,.sc tbody,.sc tr,.sc td{display:block;width:100%}
+    .sc tr{border:1px solid var(--line);border-radius:12px;padding:6px 4px;margin-bottom:10px;background:var(--bg2)}
+    .sc td{border:0;padding:6px 12px}
+    .sc td[data-h]::before{content:attr(data-h);display:block;color:var(--fg3);font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><span class="mark"><span></span></span>NanoTarget <small>scorecard</small></a>
+  <div></div>
+  <nav class="top-links"><a href="/">Home</a><a href="/docs">Docs</a><a href="/trust">Trust</a><a href="/portal">Portal</a></nav>
+  <div class="theme" id="theme" role="group" aria-label="Theme">
+    <button data-theme-set="light" title="Light"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    <button data-theme-set="dark" title="Dark"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    <button data-theme-set="system" title="System"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></button>
+  </div>
+  <a class="btn primary" href="/portal">Try it on your app</a>
+</header>
+
+<main class="sc doc">
+  <span class="eyebrow">Agent scorecard · last run 23 September 2026</span>
+  <h1>What happens when an AI agent opens a protected page.</h1>
+  <p class="lead">We point today's AI browser agents at our own demo bank, CRM and insurance portal, each protected by NanoTarget, and give them a real task inside a signed-in session. This page lists every result, including the one that gets through. We say what happened, not how we detect it.</p>
+
+  <div class="kpis">
+    <div class="kpi good"><b>0</b><span>wrong decisions in 15 full signed-in sessions of people and agents</span></div>
+    <div class="kpi"><b>4 of 4</b><span>AI agent products we tested were caught, before or at their first action</span></div>
+    <div class="kpi"><b>88%</b><span>of people cleared at their very first click, with nothing to confirm</span></div>
+    <div class="kpi"><b>1</b><span>known way through, and what stops it. Listed below.</span></div>
+  </div>
+
+  <h2>AI agents you can use today</h2>
+  <table>
+    <thead><tr><th>Agent</th><th>What we ran</th><th>Result</th><th>When it is caught</th></tr></thead>
+    <tbody>
+      <tr><td>Claude in Chrome<small>Anthropic, browser extension</small></td><td data-h="What we ran">21-task session in a signed-in bank page</td><td data-h="Result"><span class="res caught">Caught</span> <span class="num">37 of 37 steps</span></td><td data-h="When">As it takes over the tab, before its first click</td></tr>
+      <tr><td>Claude desktop app<small>Anthropic, built-in browser</small></td><td data-h="What we ran">Tasks in the demo bank</td><td data-h="Result"><span class="res caught">Caught</span> <span class="num">10 of 10 clicks</span></td><td data-h="When">At its first click</td></tr>
+      <tr><td>Codex, Chrome extension<small>OpenAI</small></td><td data-h="What we ran">21-task session</td><td data-h="Result"><span class="res caught">Caught</span> <span class="num">36 of 36 steps</span></td><td data-h="When">As it takes over the tab, before its first click</td></tr>
+      <tr><td>Codex, built-in browser<small>OpenAI</small></td><td data-h="What we ran">Two 21-task sessions, two app versions</td><td data-h="Result"><span class="res caught">Caught</span> <span class="num">75 of 75 steps</span></td><td data-h="When">At its first click. One version removed every sign of the product; its behaviour still gave it away.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Scripts and bots</h2>
+  <table>
+    <thead><tr><th>Automation</th><th>What we ran</th><th>Result</th><th>When it is caught</th></tr></thead>
+    <tbody>
+      <tr><td>Plain Puppeteer or Playwright<small>the usual scraping script</small></td><td data-h="What we ran">Live runs against the demo bank</td><td data-h="Result"><span class="res caught">Caught</span> <span class="num">12 of 12</span></td><td data-h="When">At its first click</td></tr>
+      <tr><td>Script that reads the page first<small>how general AI agents work</small></td><td data-h="What we ran">Hidden browser, human-like cursor, reads before acting</td><td data-h="Result"><span class="res caught">Caught</span> <span class="num">12 of 12</span></td><td data-h="When">When it reads the page</td></tr>
+      <tr><td>“Human-like cursor” libraries<small>curved, slowed, jittered mouse paths</small></td><td data-h="What we ran">600 generated paths in six styles. A lab simulation, not a live browser.</td><td data-h="Result"><span class="res caught">Caught</span> <span class="num">99% of paths</span></td><td data-h="When">At the click</td></tr>
+      <tr><td>Agents that sign their requests<small>Web Bot Auth standard</small></td><td data-h="What we ran">Signed requests with a test operator key</td><td data-h="Result"><span class="res ident">Identified</span></td><td data-h="When">Every request, by cryptographic signature. No public operator has been tested live yet.</td></tr>
+      <tr><td>Stealth script written for one site<small>knows the layout, never reads the page, imitates hardware input</small></td><td data-h="What we ran">Live runs against the demo bank, visible browser</td><td data-h="Result"><span class="res passes">Gets through</span> <span class="num">16 of 16 passed as a person</span></td><td data-h="When">Behaviour alone cannot separate it from a real person without blocking real people. What stops it: a passkey on the actions you mark as critical, which a script cannot produce.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Not measured yet</h2>
+  <table>
+    <thead><tr><th>Agent</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Perplexity Comet</td><td data-h="Status"><span class="res none">Not tested</span></td></tr>
+      <tr><td>ChatGPT Atlas and ChatGPT agent mode</td><td data-h="Status"><span class="res none">Not tested</span></td></tr>
+      <tr><td>Browser Use cloud</td><td data-h="Status"><span class="res none">Not tested</span></td></tr>
+    </tbody>
+  </table>
+  <p class="fine">We add a row when we have run it, not before. Want your agent or your site tested? Write to the address in <a href="https://github.com/ArifBabayev05/NanoTarget/blob/main/SECURITY.md" target="_blank" rel="noopener">SECURITY.md</a>.</p>
+
+  <h2>People</h2>
+  <table>
+    <thead><tr><th>Who</th><th>What we ran</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>People on Chrome, Safari and Windows<small>mouse, trackpad and touch</small></td><td data-h="What we ran">397 clicks</td><td data-h="Result"><span class="res caught" style="background:var(--accent-soft)">Let through</span> <span class="num">395 of 397 clicks read as human</span>. The other 2 were misread as automated at that click. Where it matters, the policy asks a person for a passkey instead of blocking.</td></tr>
+      <tr><td>Full signed-in sessions<small>people and agents, start to finish</small></td><td data-h="What we ran">15 sessions, 25 to 38 steps each</td><td data-h="Result"><span class="num">0 wrong decisions</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>How to read this</h2>
+  <dl class="defs">
+    <dt>Where does this run?</dt>
+    <dd>On our public demo apps, with the same engine you install from npm. Every agent got a real task inside a signed-in session, like a customer would give it.</dd>
+    <dt>Why publish what gets through?</dt>
+    <dd>Because a security team will find it anyway. A script hand-built for one site can imitate a person closely enough that no behaviour check stops it without also stopping real customers. That is why NanoTarget pairs detection with passkey confirmation on the actions that matter, and signs every decision so you can prove afterwards who did what.</dd>
+    <dt>How fresh is it?</dt>
+    <dd>Agents change every week. One product removed its identifying signs between two of our runs. We re-run this scorecard as agents change and date every run.</dd>
+    <dt>What do you not publish?</dt>
+    <dd>How each agent is recognised. Publishing the signals would help agent authors hide, and would not help you decide.</dd>
+  </dl>
+</main>
+<script src="/trust.js"></script>
+</body>
+</html>

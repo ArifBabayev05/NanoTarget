@@ -4,7 +4,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { createApp } from '../server/app.ts';
-import { parseEvent, hashPassword, verifyPassword, newApiKey, newAdminKey, hashKey } from '../server/routes/portal.ts';
+import { parseEvent, hashPassword, verifyPassword, newApiKey, newAdminKey, hashKey, integrationChecks } from '../server/routes/portal.ts';
 
 let base = '';
 let app: Awaited<ReturnType<typeof createApp>>;
@@ -83,6 +83,29 @@ test('signup → key → ingest → stats', async () => {
   assert.equal(r.status, 200); const ov = await r.json();
   assert.equal(ov.totals.length, 1); assert.equal(ov.totals[0].key, keyId); assert.equal(ov.totals[0].n, 4); assert.equal(ov.totals[0].agentSessions, 1); assert.equal(ov.totals[0].gated, 2);
   assert.ok(ov.series.every((b: { t: number }) => b.t % ov.range.bucketMs === 0));
+
+  // the integration check and the people counter come from the same rows
+  r = await fetch(`${base}/api/v1/portal/health?key=${keyId}&range=24h`, { headers: hdr() });
+  assert.equal(r.status, 200); const h = await r.json();
+  assert.equal(h.events, 4); assert.equal(h.sessions, 2); assert.equal(h.sdkSessions, 2, 'no NO_CLIENT_TELEMETRY reason → browser signals arrived');
+  assert.equal(h.people.stopped, 0, 'nobody the engine called human was gated'); assert.equal(h.people.sessions, 1); assert.equal(h.agents.gated, 2);
+  assert.equal(h.enforcement, 'observe');
+  const byId = Object.fromEntries(h.checks.map((c: { id: string; status: string }) => [c.id, c.status]));
+  assert.deepEqual(byId, { reporting: 'ok', browser: 'ok', signed: 'warn', enforcing: 'warn' }, 'unsigned decisions and observe mode are flagged');
+
+  // a late batch carrying an older event must not make the key look stale
+  r = await fetch(`${base}/api/v1/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${rawKey}` }, body: JSON.stringify({ events: [ev({ at: now - 10 * 86400e3, session: '0123456789abcdef' })] }) });
+  assert.equal(r.status, 202);
+  r = await fetch(`${base}/api/v1/portal/health?key=${keyId}&range=24h`, { headers: hdr() });
+  assert.ok((await r.json()).last >= now - 1000, 'last seen is the newest event time, not the last row written');
+
+  // the weekly report: this week's agents are all new against an empty previous week
+  r = await fetch(`${base}/api/v1/portal/weekly?key=${keyId}`, { headers: hdr() });
+  assert.equal(r.status, 200); const wk = await r.json();
+  assert.equal(wk.week.decisions, 4); assert.equal(wk.week.agentSessions, 1); assert.equal(wk.previous.decisions, 1, 'the 10-day-old event belongs to the week before');
+  assert.deepEqual(wk.newAgents, ['claude-chrome']);
+  assert.deepEqual(wk.week.agentResources.map((x: { resource: string }) => x.resource).sort(), ['balance.read', 'report.export']);
+  assert.ok(Array.isArray(wk.news));
 
   // another account cannot read this key; a revoked key stops ingesting
   const jar2: string[] = [];
@@ -272,4 +295,18 @@ test('changing the password needs the current one and invalidates it', async () 
   assert.equal(r.status, 401, 'the old password is gone');
   r = await fetch(`${base}/api/v1/portal/login`, { method: 'POST', headers: H, body: JSON.stringify({ email: 'pw@corp.example', password: 'secondpassword' }) });
   assert.equal(r.status, 200);
+});
+
+test('integration checks read like a checklist: off before data, warnings name the fix', () => {
+  const now = Date.now();
+  const empty = { events: 0, last: null, sessions: 0, sdkSessions: 0, proofs: 0, proofsOk: 0, enforcement: null, version: null, people: { sessions: 0, stopped: 0, engineStopped: 0, gradedWrong: 0, askedToConfirm: 0, askedSessions: 0 }, agents: { sessions: 0, gated: 0 } };
+  assert.ok(integrationChecks(empty, now).every((c) => c.status === 'off'));
+  const live = { ...empty, events: 50, last: now - 60_000, sessions: 10, sdkSessions: 2, proofs: 50, proofsOk: 48, enforcement: 'enforce' };
+  const c = Object.fromEntries(integrationChecks(live, now).map((x) => [x.id, x]));
+  assert.equal(c.reporting!.status, 'ok');
+  assert.equal(c.browser!.status, 'warn'); assert.match(c.browser!.detail, /20%/);
+  assert.equal(c.signed!.status, 'warn'); assert.match(c.signed!.detail, /NT_SECRET/);
+  assert.equal(c.enforcing!.status, 'ok');
+  const stale = Object.fromEntries(integrationChecks({ ...live, last: now - 3 * 86400e3 }, now).map((x) => [x.id, x]));
+  assert.equal(stale.reporting!.status, 'warn'); assert.match(stale.reporting!.detail, /3 days ago/);
 });

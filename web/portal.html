@@ -53,6 +53,8 @@
       <a href="#overview" data-view="overview"><i>▦</i>Overview</a>
       <a href="#keys" data-view="keys"><i>⚿</i>API Keys</a>
       <a href="#activity" data-view="activity"><i>≣</i>Activity</a>
+      <a href="#weekly" data-view="weekly"><i>☷</i>Weekly report</a>
+      <a href="#policy" data-view="policy"><i>⛨</i>Policy</a>
       <a href="#integrate" data-view="integrate"><i>⇄</i>Integration</a>
       <a href="#settings" data-view="settings"><i>⚙</i>Settings</a>
     </nav>
@@ -101,6 +103,14 @@
         <p class="fine">Or test from the terminal: <code id="curl-hint"></code></p>
       </section>
       <section class="stats" id="stats" hidden>
+        <div class="people" id="people">
+          <div class="people-main"><b id="people-stopped">0</b><span id="people-label">people blocked</span></div>
+          <div class="people-facts">
+            <div><b id="people-sessions">0</b><span>sessions judged human, all let through</span></div>
+            <div><b id="people-asked">0</b><span>times a person was asked to confirm with a passkey, never blocked <i class="hint" title="When the engine cannot tell a person from an agent, your policy can ask for a passkey instead of blocking. A real person taps once and continues.">?</i></span></div>
+            <div><b id="people-agents">0</b><span>agent decisions masked, blocked or stepped up</span></div>
+          </div>
+        </div>
         <div class="hero-stat">
           <div class="big"><b id="pct">0%</b><span>of your sessions had an AI agent in them</span></div>
           <div class="hero-side">
@@ -118,13 +128,51 @@
           <div class="card"><div class="card-head"><h3>Agents seen</h3><span class="sub">distinct sessions</span></div><div class="bars" id="bars-tools"></div></div>
           <div class="card"><div class="card-head"><h3>Resources</h3><span class="sub">what agents reached for</span></div><div class="res" id="resources"></div></div>
         </div>
-        <div class="card"><div class="card-head"><h3>Recent decisions</h3><span class="sub"><button class="linky on" id="live-toggle">live</button> · <button class="linky" id="export-csv">export CSV</button> · <button class="linky" id="export-proofs" title="Every signed decision in range, with the key that verifies it — the file you hand an auditor">export proofs</button></span></div><div class="log" id="log"></div><div class="log-more"><button class="btn ghost" id="log-more">Load older</button></div></div>
+        <div class="card"><div class="card-head"><h3>Recent decisions</h3><span class="sub"><button class="linky on" id="live-toggle">live</button> · <button class="linky" id="export-csv">export CSV</button> · <button class="linky" id="export-proofs" title="Every signed decision in range, with the key that verifies it — the file you hand an auditor">export proofs</button> · <button class="linky" id="audit-report" title="A printable report of every signed decision in range, checked and ready to save as PDF for compliance">auditor report (PDF)</button></span></div><div class="log" id="log"></div><div class="log-more"><button class="btn ghost" id="log-more">Load older</button></div></div>
       </section>
+    </section>
+
+    <!-- weekly report -->
+    <section class="view" id="view-weekly" hidden>
+      <div class="page-head"><div><h1>Weekly report</h1><p>The last 7 days against the 7 before, and what changed in the AI agents themselves. Written to forward to your security lead.</p></div><div class="head-tools"><select id="weekly-key" style="width:auto;min-width:200px"></select><button class="btn" id="weekly-print">Save as PDF</button></div></div>
+      <div id="weekly-body"><div class="fine">Loading…</div></div>
+    </section>
+
+    <!-- policy builder -->
+    <section class="view" id="view-policy" hidden>
+      <div class="page-head"><div><h1>Policy</h1><p>Decide what an AI agent may do with each part of your app, without writing code. The result is the policy file your server reads.</p></div><div class="head-tools"><select id="policy-key" style="width:auto;min-width:200px" title="Resources this key has reported are filled in for you"></select></div></div>
+      <div class="card">
+        <div class="card-head"><h3>Protected resources</h3><span class="sub" id="policy-src"></span></div>
+        <div class="pol-rows" id="pol-rows"></div>
+        <div class="row" style="margin-top:12px"><button class="btn" id="pol-add">+ Add resource</button><button class="btn ghost" id="pol-import-toggle">Import my current file</button></div>
+        <div id="pol-import" hidden style="margin-top:12px"><textarea id="pol-import-text" rows="6" placeholder="Paste the contents of nanotarget.policy.json"></textarea><div class="row" style="margin-top:8px"><button class="btn" id="pol-import-go">Load it</button><span class="fine" id="pol-import-msg"></span></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Mode</h3></div>
+        <div class="tabs" id="pol-mode"><button data-mode="observe" class="on">Observe: record, block nothing</button><button data-mode="enforce">Enforce: apply the rules</button></div>
+        <p class="hint" id="pol-mode-hint">Start here. Every decision is recorded in Activity, nobody is blocked. Switch to Enforce when the numbers look right.</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Your policy file</h3><span class="sub"><button class="linky" id="pol-download">download nanotarget.policy.json</button></span></div>
+        <p class="err" id="pol-err"></p>
+        <div class="copyable"><pre class="code" id="pol-json"></pre><button class="copy" data-copy="#pol-json">Copy</button></div>
+        <p class="hint">Save it as <code>nanotarget.policy.json</code> next to your server. It takes effect on the next restart, or at once if you call <code>nt.reloadPolicy()</code>. Nothing changes for your users until a rule says so.</p>
+      </div>
     </section>
 
     <!-- integrate -->
     <section class="view" id="view-integrate" hidden>
       <div class="page-head"><div><h1>Set up</h1><p>Three lines on the server, one tag on the page. Pick a key and copy — or let your coding agent do the whole thing.</p></div><div class="head-tools"><select id="setup-key" style="width:auto;min-width:200px"></select></div></div>
+      <div class="card" id="health-card">
+        <div class="card-head"><h3>Integration check</h3><span class="sub" id="health-sub">from what this key reported in the last 7 days</span></div>
+        <div class="checks" id="checks"></div>
+        <div class="selftest">
+          <b>Test it yourself</b>
+          <p class="hint">Runs from your own machine against your own app: it asks for a protected endpoint the way an agent would, and the decision appears above within seconds. We never send traffic to your site.</p>
+          <div class="field-row"><label>Your app<input id="st-base" placeholder="https://app.yourcompany.com" autocomplete="off"></label><label>A protected endpoint<input id="st-path" placeholder="/api/balance" autocomplete="off"></label></div>
+          <div class="copyable"><pre class="code" id="cmd-selftest">npx nanotarget verify https://app.yourcompany.com /api/balance</pre><button class="copy" data-copy="#cmd-selftest">Copy</button></div>
+        </div>
+      </div>
       <div class="card">
         <div class="setup">
           <div class="step" id="s1"><span class="n">1</span><div class="body"><b>Install the package</b><div class="copyable"><pre class="code" id="cmd-install">npm i nanotarget</pre><button class="copy" data-copy="#cmd-install">Copy</button></div><p class="hint">One package — the engine (<code>nanotarget-engine</code>) is installed with it. Node ≥ 22.13.</p></div></div>
