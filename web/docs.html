@@ -41,7 +41,29 @@
     <div class="card"><b>Decided on your server</b><span>The decision is made in your process, next to your data. Nothing about it is delegated to the browser.</span></div>
     <div class="card"><b>Yours to run</b><span>Runs on your server. Open SDK, readable engine. Policy is your JSON, masking is your function, storage is your database.</span></div>
   </div>
-  <div class="note">New here? <a href="#quickstart">Quickstart</a> gets a protected endpoint working in about ten minutes; <a href="#how">How it works</a> explains the model behind it.</div>
+  <div class="note">One minute? <a href="#glance">OneHuman in 60 seconds</a>. New here? <a href="#quickstart">Quickstart</a> gets a protected endpoint working in about ten minutes; <a href="#how">How it works</a> explains the model behind it.</div>
+</section>
+
+<section id="glance">
+  <span class="eyebrow">Get started</span>
+  <h1>OneHuman in 60 seconds</h1>
+  <p class="lead">For the security engineer who has one minute. The long protocol is for AI coding agents; this is for you.</p>
+  <dl class="defs">
+    <dt>What it does</dt>
+    <dd>When a customer lets an AI agent act inside their signed-in session on your web app, OneHuman notices, applies your rule for that endpoint — <b>allow</b>, <b>hide the sensitive fields</b>, <b>ask the person for a passkey</b>, or <b>refuse</b> — and signs every decision on your server, so you can later prove who approved what.</dd>
+    <dt>Where it runs</dt>
+    <dd>A Node middleware and a small script your own server serves to your own pages. No proxy, no third-party script, no network call on the request path. <b>It fails open:</b> if it is slow or broken, requests go on as before and the failure is counted in <code>/onehuman/health</code>.</dd>
+    <dt>What it collects</dt>
+    <dd>In the browser: the timing and pointer path of clicks, and the traces agent tools leave in a page. <b>Never</b> page content, typed text, form values, request or response bodies, names, e-mails or IP addresses. Kept in your own database. With an API key, decision metadata goes to the portal — nothing else. Check it yourself: <code>npx onehuman inspect</code>.</dd>
+    <dt>What it does not do</dt>
+    <dd>API keys and server-to-server calls, native mobile apps, backends that are not Node. It does not identify people. A script written for one site can pass the behaviour check — critical actions should ask for a passkey. <a href="/measurements">How we measured</a> · <a href="/trust">Trust &amp; privacy</a></dd>
+  </dl>
+  <h2>Install</h2>
+  <pre class="code">npm i onehuman
+npx onehuman init                          <span class="c"># asks what to protect; shows every change before writing it</span>
+npm start                                  <span class="c"># observe mode: nothing blocked, everything recorded</span>
+npx onehuman verify http://localhost:3000 /api/balance</pre>
+  <p>After a week in observe mode, look at what <i>would</i> have been stopped — <code>npx onehuman report</code> or the portal — then switch the rules to enforce. Security contact: <a href="mailto:security@onehuman.ai">security@onehuman.ai</a>.</p>
 </section>
 
 <section id="concepts">

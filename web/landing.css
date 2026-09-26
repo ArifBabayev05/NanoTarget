@@ -89,7 +89,10 @@ main{max-width:var(--w);margin:0 auto;padding:0 24px}
 .hero::before{content:"";position:absolute;left:50%;top:-60px;width:100vw;height:520px;transform:translateX(-50%);pointer-events:none;z-index:-1;
   background:radial-gradient(60% 55% at 50% 0%,rgba(124,240,192,.10),transparent 70%)}
 .h1{font-size:clamp(33px,5.2vw,62px);line-height:1.05;letter-spacing:-.035em;font-weight:600;margin:26px auto 22px;max-width:900px}
-.h1 .muted{color:var(--fg3)}
+.h1 .muted{color:var(--fg3);font-size:.62em;letter-spacing:-.02em;display:inline-block;margin-top:.3em;line-height:1.15}
+.proof a{color:inherit;text-decoration:none;border-bottom:1px dotted var(--fg3)}.proof a:hover{color:var(--fg2)}
+.feat a{color:var(--fg2);text-decoration:underline;text-underline-offset:3px}
+.limits{padding:40px 0 20px}
 .h1 .proofline{color:var(--accent);font-size:.62em;letter-spacing:-.02em;display:inline-block;margin-top:.35em}
 .h1 .w{display:inline-block;opacity:0;filter:blur(12px);transform:translateY(16px) scale(.98);animation:w-in .9s var(--ease) forwards;animation-delay:calc(.15s + var(--i) * 55ms)}
 @keyframes w-in{to{opacity:1;filter:blur(0);transform:none}}

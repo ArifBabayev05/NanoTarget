@@ -15,6 +15,8 @@
 
 ---
 
+> **Security engineer? Read [QUICKSTART.md](QUICKSTART.md) first** — what it does, what it collects, how it fails and how to install it, in one screen. The long protocol below is written for AI coding agents.
+
 Customers now hand their signed-in banking, CRM and insurance sessions to Claude, ChatGPT, Codex and other agentic browsers. The agent inherits the session — same cookies, same IP, same browser — and nothing on the server can tell. Bot management stops bots at the door; enterprise browser tools watch employees. Neither sees the agent a legitimate customer invited into their own session.
 
 OneHuman works inside the session:

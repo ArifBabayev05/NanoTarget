@@ -31,7 +31,7 @@
     { id: 'agent', label: 'Agent protocol', icon: 'bot' },
   ];
   const NAV = [
-    { tab: 'docs', group: 'Get started', pages: [['overview', 'Overview', 'compass'], ['concepts', 'Concepts', 'book'], ['how', 'How it works', 'flow'], ['quickstart', 'Quickstart', 'rocket']] },
+    { tab: 'docs', group: 'Get started', pages: [['overview', 'Overview', 'compass'], ['glance', 'In 60 seconds', 'alert'], ['concepts', 'Concepts', 'book'], ['how', 'How it works', 'flow'], ['quickstart', 'Quickstart', 'rocket']] },
     { tab: 'docs', group: 'Build', pages: [['policy', 'Policy reference', 'file'], ['masks', 'Masks, blocks, step-up', 'shield'], ['rollout', 'Rollout', 'steps']] },
     { tab: 'docs', group: 'Operate', pages: [['portal', 'Portal & telemetry', 'chart'], ['privacy', 'Privacy & data', 'lock']] },
     { tab: 'docs', group: 'More', pages: [['limits', 'Limits & honest caveats', 'alert'], ['faq', 'FAQ', 'help']] },

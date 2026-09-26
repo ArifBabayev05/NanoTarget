@@ -19,3 +19,6 @@ onehuman.policy.draft.json
 # internal notes: sales, pricing, research — never pushed to the public repo
 internal/
 packages/engine/dist/
+
+# local debug queries against the production database — never commit
+q*.mjs
