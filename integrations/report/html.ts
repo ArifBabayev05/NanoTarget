@@ -44,9 +44,9 @@ export function renderReportHtml(r: Report, opts: { title?: string } = {}): stri
   *{box-sizing:border-box}body{margin:0;background:#f3f4f6;color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif}
   .page{max-width:820px;margin:24px auto;background:#fff;padding:40px 48px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
   header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:22px}
-  header .meta{text-align:right;color:var(--fg3);font-size:12.5px}
+  header .meta{text-align:right;color:var(--fg3);font-size:12.5px;white-space:nowrap}
   h1{font-size:24px;letter-spacing:-.02em;margin:18px 0 4px}h2{font-size:15px;margin:30px 0 10px;letter-spacing:-.01em}
-  .mode{display:inline-block;font-size:12px;padding:3px 9px;border-radius:999px;background:#ecfdf5;color:var(--accent);border:1px solid #a7f3d0}
+  .mode{display:inline-block;font-size:12px;line-height:1.45;padding:5px 10px;border-radius:8px;max-width:520px;background:#ecfdf5;color:var(--accent);border:1px solid #a7f3d0}
   .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0 6px}.kpi{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
   .kpi b{display:block;font-size:24px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.kpi span{color:var(--fg2);font-size:12.5px;line-height:1.35;display:block}
   table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}th{color:var(--fg3);font-weight:500;font-size:12px}
@@ -55,6 +55,7 @@ export function renderReportHtml(r: Report, opts: { title?: string } = {}): stri
   .legend{color:var(--fg3);font-size:12px;margin:4px 0 0}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 5px 0 12px;vertical-align:-1px}.legend i:first-child{margin-left:0}
   .people{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.fine{color:var(--fg3);font-size:12px}
   footer{margin-top:30px;padding-top:14px;border-top:1px solid var(--line);color:var(--fg3);font-size:11.5px}
+  @media (max-width:680px){.page{margin:0;padding:22px 18px;border-radius:0}header{flex-direction:column}header .meta{text-align:left;white-space:normal}.kpis{grid-template-columns:1fr 1fr}.people{grid-template-columns:1fr}table{font-size:12px}th,td{padding:6px 4px}}
   @media print{body{background:#fff}.page{box-shadow:none;margin:0;max-width:none;padding:0}h2{break-after:avoid}table,.kpis,.people{break-inside:avoid}}
 </style></head><body><div class="page">
 <header><div>${LOGO}<h1>${r.period.days}-day report${r.app ? ` — ${esc(r.app)}` : ''}</h1><span class="mode">${esc(modeLine)}</span></div>
