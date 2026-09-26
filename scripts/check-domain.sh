@@ -24,6 +24,7 @@ while true; do
   BODY=$(head -c 200 /tmp/.oh-check 2>/dev/null)
 
   ok_reg=0; ok_dns=0; ok_web=0
+  # either way works: Vercel's nameservers, or the registrar's own DNS with an A record to Vercel
   [[ "$REG" == *vercel-dns* ]] && ok_reg=1
   VERCEL_IP='(76\.76\.21\.|216\.198\.79\.|64\.29\.17\.|66\.33\.60\.)'
   [[ "$A_PUB" =~ $VERCEL_IP && "$A_GOO" =~ $VERCEL_IP ]] && ok_dns=1   # both big resolvers already give Vercel's address
@@ -32,21 +33,21 @@ while true; do
   NOW=$(date +%H:%M:%S); MIN=$(( ($(date +%s) - START) / 60 ))
   clear
   printf "${B}%s — checking every 5 s${N}  ${D}%s · watching for %s min · Ctrl+C to stop${N}\n\n" "$DOMAIN" "$NOW" "$MIN"
-  [[ $ok_reg == 1 ]] && row "${G}●${N}" "Registry (.${TLD})" "${G}${REG}${N}" || row "${R}●${N}" "Registry (.${TLD})" "${REG:-no answer}  ${D}← must become ns1/ns2.vercel-dns.com${N}"
+  if [[ $ok_reg == 1 ]]; then row "${G}●${N}" "Nameservers" "${G}${REG}(Vercel)${N}"
+  elif [[ $ok_dns == 1 ]]; then row "${G}●${N}" "Nameservers" "${G}${REG}(registrar DNS, A record to Vercel)${N}"
+  else row "${Y}●${N}" "Nameservers" "${REG:-no answer}  ${D}← either set ns1/ns2.vercel-dns.com, or add A @ 216.198.79.1 at the registrar${N}"; fi
   [[ $ok_dns == 1 ]] && row "${G}●${N}" "Public DNS (1.1.1.1, 8.8.8.8)" "${G}A ${A_PUB}${N}" || row "${Y}●${N}" "Public DNS (1.1.1.1, 8.8.8.8)" "NS ${NS_PUB:-–}· A ${A_PUB:-–}"
   [[ $ok_web == 1 ]] && row "${G}●${N}" "Portal on https://${DOMAIN}" "${G}answers (HTTP 200)${N}" || row "${R}●${N}" "Portal on https://${DOMAIN}" "HTTP ${CODE:-no answer}"
   echo
 
-  if [[ $ok_reg == 1 && $ok_dns == 1 && $ok_web == 1 ]]; then
+  if [[ $ok_dns == 1 && $ok_web == 1 ]]; then
     printf "  ${G}${B}✅  %s is live on Vercel. OneHuman can be published: npm run release -- current${N}\n" "$DOMAIN"
     [[ $WAS_READY == 0 ]] && printf '\a' && { command -v osascript >/dev/null && osascript -e "display notification \"$DOMAIN is live on Vercel\" with title \"OneHuman\" sound name \"Glass\"" 2>/dev/null; }
     WAS_READY=1
   else
     WAS_READY=0
-    if [[ $ok_reg == 0 ]]; then
-      printf "  ${D}The .%s registry still hands out the old nameservers. Open the domain's own page at the registrar\n  (not Default Preferences), set ns1.vercel-dns.com and ns2.vercel-dns.com, save. Usually minutes, at most 24–48 h.${N}\n" "$TLD"
-    elif [[ $ok_dns == 0 ]]; then
-      printf "  ${D}The registry is right; resolvers still remember the old answer (up to an hour).${N}\n"
+    if [[ $ok_dns == 0 ]]; then
+      printf "  ${D}The domain does not point at Vercel yet (A %s). At the registrar open the domain's OWN page — not\n  Default Preferences — and either add A @ 216.198.79.1 (+ CNAME www) or set the Vercel nameservers.\n  Records: minutes to an hour. Nameservers: minutes, at most 24–48 h.${N}\n" "${A_PUB:-none}"
     else
       printf "  ${D}DNS is right; Vercel is issuing the certificate (a few minutes).${N}\n"
     fi
