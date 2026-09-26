@@ -14,6 +14,8 @@ import type { TelemetryEvent, TelemetryHealth } from '../db.ts';
 import { proofBundle, thumbprint, verifyProof, type ProofJwk } from '../proof.ts';
 import { newsSince } from '../agent-news.ts';
 import { policyRoutes } from './policy-portal.ts';
+import { buildReport } from '../../integrations/report/build.ts';
+import { renderReportHtml } from '../../integrations/report/html.ts';
 
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
 const SHORT = /^[a-zA-Z0-9_.:\-\/ ]{1,80}$/;
@@ -343,6 +345,25 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
     if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
     json(res, 200, await weeklyFor(key));
   };
+  /** The design-partner report for one key, from what its server reported (same builder as `npx onehuman report`). */
+  async function reportFor(key: string, days: number, account: string, now = Date.now()) {
+    const from = now - days * 86_400_000;
+    const name = (await store.apiKeyById(key, account))?.name ?? '';
+    return buildReport(await store.telemetryDecisions(key, from, now), { from, to: now, now, source: 'portal', app: name });
+  }
+  const report = async (req: Req, res: Res) => {
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    const u = url(req);
+    const key = u.searchParams.get('key') ?? '';
+    if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
+    const days = Math.min(90, Math.max(1, Number(u.searchParams.get('days') ?? 30) || 30));
+    const r = await reportFor(key, days, account);
+    if (u.searchParams.get('format') !== 'html') return json(res, 200, r);
+    const html = renderReportHtml(r);
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Length': Buffer.byteLength(html) });
+    res.end(html);
+  };
   async function weeklyFor(key: string, now = Date.now()) {
     const WEEK = 7 * 24 * 3600e3;
     const [cur, prev] = await Promise.all([store.telemetryWeek(key, now - WEEK, now + 60_000), store.telemetryWeek(key, now - 2 * WEEK, now - WEEK)]);
@@ -476,6 +497,11 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
       if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
       return json(res, 200, await healthFor(key, u));
     }
+    if (path === 'report' && method === 'GET') {
+      const key = u.searchParams.get('key') ?? '';
+      if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
+      return json(res, 200, await reportFor(key, Math.min(90, Math.max(1, Number(u.searchParams.get('days') ?? 30) || 30)), account));
+    }
     if (path === 'weekly' && method === 'GET') {
       const key = u.searchParams.get('key') ?? '';
       if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
@@ -492,7 +518,7 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
     return json(res, 404, { error: 'unknown_endpoint', endpoints: MANAGE_ENDPOINTS });
   };
 
-  return { policy: pol, signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, proofs, verifyBundle, feedback, health, weekly, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
+  return { policy: pol, signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, proofs, verifyBundle, feedback, health, weekly, report, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
 }
 
 export const MANAGE_ENDPOINTS = [
@@ -502,6 +528,7 @@ export const MANAGE_ENDPOINTS = [
   'POST   /api/v1/manage/keys/:id/rotate        — new secret for the same key → returns the raw key once',
   'DELETE /api/v1/manage/keys/:id               — revoke one',
   'GET    /api/v1/manage/overview?range=7d      — usage across every key',
+  'GET    /api/v1/manage/report?key=:id&days=30 — the design-partner report: agents, endpoints, what the rules did or would have done',
   'GET    /api/v1/manage/stats?key=:id&range=7d — one key: sessions, agents, resources, recent decisions',
   'GET    /api/v1/manage/events?key=:id&range=7d&before=:id&limit=100 — the decision log, paged',
   'GET    /api/v1/manage/proofs?key=:id&range=30d[&session=:hash] — signed decision proofs + verifying keys (auditor bundle)',
@@ -552,6 +579,7 @@ export function parseEvent(x: unknown, now: number): TelemetryEvent | null {
   const session = typeof o.session === 'string' && /^[a-f0-9]{8,32}$/.test(o.session) ? o.session : null;
   const resource = typeof o.resource === 'string' && SHORT.test(o.resource) ? o.resource : null;
   const decision = typeof o.decision === 'string' && DECISIONS.has(o.decision) ? o.decision : null;
+  const computed = typeof o.computed === 'string' && DECISIONS.has(o.computed) ? o.computed : decision;
   const actor = typeof o.actor === 'string' && ACTORS.has(o.actor) ? o.actor : 'unknown';
   const state = typeof o.state === 'string' && STATES.has(o.state) ? o.state : 'no_indication';
   const enforcement = typeof o.enforcement === 'string' && ENFORCEMENT.has(o.enforcement) ? o.enforcement : 'enforce';
@@ -561,7 +589,7 @@ export function parseEvent(x: unknown, now: number): TelemetryEvent | null {
   if (!session || !resource || !decision) return null;
   const proof = typeof o.proof === 'string' && o.proof.length <= 6000 && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(o.proof) ? o.proof : null;
   const eid = typeof o.eid === 'string' && /^[A-Za-z0-9_-]{8,40}$/.test(o.eid) ? o.eid : null;
-  return { at, session, resource, decision, actor, state, tools, reasons, enforcement, version, proof, eid };
+  return { at, session, resource, decision, computed, actor, state, tools, reasons, enforcement, version, proof, eid };
 }
 
 /** Public keys a deployment reports with its events. The id is recomputed from the key, never trusted. */

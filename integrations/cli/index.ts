@@ -2,6 +2,8 @@
 /**
  * onehuman CLI
  *   npx onehuman init [dir] [--yes] [--no-install]  answer a few questions; OneHuman is set up in this project
+ *   npx onehuman inspect [--sessions] [--session <id>] [--db …]   exactly what the page script collected
+ *   npx onehuman report [--days 30] [--out file.html] [--json]    the 30-day report from your own audit log
  *   npx onehuman scan [dir]                      discover routes, sensitivity, identity; write onehuman.policy.draft.json
  *   npx onehuman scan [dir] --json               same, machine-readable (for AI agents)
  *   npx onehuman scan [dir] --proposal           only the plain-language proposal to show the product owner
@@ -15,6 +17,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderProposal, renderReport, scan } from './scan.ts';
 import { runInit } from './init.ts';
+import { inspect, report } from './data.ts';
 import { thumbprint, verifyProof } from '../proof/verify.ts';
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -23,6 +26,8 @@ const has = (name: string) => rest.includes(name);
 const positional = rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && rest[i - 1] !== '--json'));
 
 async function main() {
+  if (cmd === 'inspect') { await inspect({ flag, has }); return; }
+  if (cmd === 'report') { await report({ flag, has }); return; }
   if (cmd === 'init') { await runInit(positional[0] ?? process.cwd(), { yes: has('--yes'), install: !has('--no-install') }); return; }
   if (cmd === 'scan') {
     const root = resolve(positional[0] ?? process.cwd());
@@ -93,7 +98,7 @@ async function main() {
     process.exit(allOk ? 0 : 1);
   }
   if (cmd === 'secret') { console.log(randomBytes(32).toString('base64url')); return; }
-  console.log('onehuman <init [dir] [--yes] | scan [dir] [--json] | verify <baseUrl> <protectedPath> [--base /onehuman] | verify-proof <bundle.json> [--keys <jwks|url>] | secret>');
+  console.log('onehuman <init [dir] [--yes] | inspect [--sessions] | report [--days 30] | scan [dir] [--json] | verify <baseUrl> <protectedPath> [--base /onehuman] | verify-proof <bundle.json> [--keys <jwks|url>] | secret>');
   process.exit(cmd ? 2 : 0);
 }
 main().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });

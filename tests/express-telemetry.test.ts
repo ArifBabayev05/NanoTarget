@@ -163,3 +163,18 @@ test('health reports the policy and the reporter; a constant identify() flips it
   assert.equal(bad.health().ok, false);
   s.close(); await bad.close();
 });
+
+test('the portal builds the 30-day report from what the server reported, as JSON and as a printable page', async () => {
+  await fetch(`${base}/api/balance`);
+  await new Promise((r) => setTimeout(r, 150)); await nt.telemetry!.flush();
+  let r = await fetch(`${pbase}/api/v1/portal/report?key=${key.id}&days=30`, { headers: { Cookie: cookie } });
+  assert.equal(r.status, 200);
+  const rep = await r.json();
+  assert.equal(rep.source, 'portal');
+  assert.ok(rep.decisions.total > 0);
+  assert.ok(rep.endpoints.some((e: { resource: string }) => e.resource === 'balance.read'));
+  r = await fetch(`${pbase}/api/v1/portal/report?key=${key.id}&days=30&format=html`, { headers: { Cookie: cookie } });
+  assert.match(r.headers.get('content-type') ?? '', /text\/html/);
+  assert.match(await r.text(), /30-day report/);
+  assert.equal((await fetch(`${pbase}/api/v1/portal/report?key=${key.id}`)).status, 401, 'signed-in owners only');
+});

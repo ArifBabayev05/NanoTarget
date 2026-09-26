@@ -195,6 +195,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['POST', '/api/v1/portal/feedback', portal.feedback],
     ['GET', '/api/v1/portal/health', portal.health],
     ['GET', '/api/v1/portal/weekly', portal.weekly],
+    ['GET', '/api/v1/portal/report', portal.report],
     ['POST', '/api/v1/proof/verify', portal.verifyBundle],
     ['GET', '/api/v1/proof-keys', async (_req, res) => json(res, 200, engine.proofKeys())],
     ['GET', '/api/v1/portal/admin-keys', portal.listAdminKeys],

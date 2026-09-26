@@ -47,7 +47,8 @@ export type EventRow = {
   id: number;
   room: string;
   session: string;
-  kind: 'arrival' | 'signal' | 'interaction' | 'attach' | 'seal';
+  /** 'raw': a byte-exact copy of what a page sent, kept only when the server records raw payloads */
+  kind: 'arrival' | 'signal' | 'interaction' | 'attach' | 'seal' | 'raw';
   payload: unknown;
   created: number;
 };
@@ -60,6 +61,9 @@ export type DecisionRow = Decision & {
   /** produced by the lab's own signed-request simulation; excluded from benchmark statistics */
   simulated: boolean;
   assessment: Assessment;
+  /** agent products seen in the session when this decision was made (e.g. claude-chrome), and the connection state */
+  tools?: string[];
+  connection?: string;
   created: number;
   prevHash: string;
   hash: string;
@@ -255,7 +259,7 @@ CREATE TABLE IF NOT EXISTS challenges (
 
 /** additive migrations for databases created by earlier builds */
 /** The newest column of each migrated table. Add a line here whenever MIGRATIONS gains a column. */
-const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash'], ['assist_log', 'at']];
+const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash'], ['assist_log', 'at'], ['telemetry', 'computed']];
 
 const MIGRATIONS = [
   'ALTER TABLE sessions ADD COLUMN agent_attached_at INTEGER',
@@ -275,6 +279,7 @@ const MIGRATIONS = [
   'ALTER TABLE telemetry ADD COLUMN feedback TEXT',
   'ALTER TABLE telemetry ADD COLUMN feedback_note TEXT',
   'ALTER TABLE telemetry ADD COLUMN feedback_at INTEGER',
+  'ALTER TABLE telemetry ADD COLUMN computed TEXT',
 ];
 
 export type KeyPolicyRow = {
@@ -290,7 +295,9 @@ export type ApiKeyRow = { id: string; name: string; prefix: string; created: num
 const safeList = (v: unknown): string[] => { try { const a: unknown = JSON.parse(String(v)); return Array.isArray(a) ? a.map(String) : []; } catch { return []; } };
 const apiKeyRow = (x: Row): ApiKeyRow => ({ id: String(x.id), name: String(x.name), prefix: String(x.prefix), created: Number(x.created), revoked: x.revoked == null ? null : Number(x.revoked), lastSeen: x.last_seen == null ? null : Number(x.last_seen), events: Number(x.events), expires: x.expires == null ? null : Number(x.expires), env: String(x.env ?? 'production') });
 
-export type TelemetryEvent = { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; version: string;
+export type TelemetryEvent = { at: number; session: string; resource: string; decision: string;
+  /** what the rules chose — in observe mode `decision` is allow and this is what protect mode would have done */
+  computed?: string | null; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; version: string;
   /** signed decision proof (compact JWS), its key id, and whether the signature checked out at ingest */
   proof?: string | null; proofKid?: string | null; proofOk?: boolean | null;
   /** the reporter's id for this event: a retried batch carries the same ids, so nothing is counted twice */
@@ -537,6 +544,29 @@ export class Store {
   async sessionProofs(session: string, limit = 5000): Promise<{ id: string; seq: number; proof: string }[]> {
     const r = await this.sql.execute('SELECT id, seq, proof FROM decisions WHERE session = ? AND proof IS NOT NULL ORDER BY created, seq LIMIT ?', [session, limit]);
     return r.rows.map((x) => ({ id: String(x.id), seq: Number(x.seq), proof: String(x.proof) }));
+  }
+
+  /**
+   * The light fields of every real decision in a time range, for reports: read with json_extract so a month of
+   * decisions does not load each assessment. `room` null = every room in this database.
+   */
+  async decisionsBetween(from: number, to: number, room: string | null = null): Promise<{ session: string; created: number; resource: string; decision: string; computed: string; actor: string; enforced: boolean; branch: string; tools: string[]; signed: boolean; policyVersion: string }[]> {
+    const rows = (await this.sql.execute(`SELECT session, created, json_extract(body,'$.resource') AS resource, json_extract(body,'$.decision') AS decision,
+      json_extract(body,'$.computed') AS computed, json_extract(body,'$.actor') AS actor, json_extract(body,'$.enforced') AS enforced, json_extract(body,'$.branch') AS branch,
+      json_extract(body,'$.tools') AS tools, json_extract(body,'$.policyVersion') AS pv, proof IS NOT NULL AS signed
+      FROM decisions WHERE created >= ? AND created < ? AND COALESCE(json_extract(body,'$.simulated'), 0) = 0${room ? ' AND room = ?' : ''} ORDER BY created`, room ? [from, to, room] : [from, to])).rows;
+    return rows.map((r) => ({
+      session: String(r.session), created: Number(r.created), resource: String(r.resource ?? ''), decision: String(r.decision ?? 'allow'),
+      computed: String(r.computed ?? r.decision ?? 'allow'), actor: String(r.actor ?? 'unknown'), enforced: Number(r.enforced) === 1 || r.enforced === true,
+      branch: String(r.branch ?? ''), tools: safeList(r.tools ?? '[]'), signed: Number(r.signed) === 1, policyVersion: String(r.pv ?? ''),
+    }));
+  }
+  /** agent products seen per session from the connection record, for decisions made before tools were stored on them */
+  async attachToolsBetween(from: number, to: number): Promise<Map<string, string[]>> {
+    const rows = (await this.sql.execute("SELECT session, json_extract(payload,'$.tools') AS tools FROM events WHERE kind = 'attach' AND created >= ? AND created < ?", [from, to])).rows;
+    const out = new Map<string, string[]>();
+    for (const r of rows) out.set(String(r.session), [...new Set([...(out.get(String(r.session)) ?? []), ...safeList(r.tools ?? '[]')])]);
+    return out;
   }
 
   async listDecisions(room: string, limit = 300): Promise<(DecisionRow & { seq: number })[]> {
@@ -905,10 +935,15 @@ export class Store {
     }
     if (!events.length) return 0;
     await this.sql.batch([
-      ...events.map((e) => ({ sql: 'INSERT OR IGNORE INTO telemetry (key_id, at, session, resource, decision, actor, state, tools, reasons, enforcement, version, proof, proof_kid, proof_ok, eid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', args: [keyId, e.at, e.session, e.resource, e.decision, e.actor, e.state, JSON.stringify(e.tools), JSON.stringify(e.reasons), e.enforcement, e.version, e.proof ?? null, e.proofKid ?? null, e.proofOk == null ? null : e.proofOk ? 1 : 0, e.eid ?? null] as SqlArg[] })),
+      ...events.map((e) => ({ sql: 'INSERT OR IGNORE INTO telemetry (key_id, at, session, resource, decision, computed, actor, state, tools, reasons, enforcement, version, proof, proof_kid, proof_ok, eid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', args: [keyId, e.at, e.session, e.resource, e.decision, e.computed ?? e.decision, e.actor, e.state, JSON.stringify(e.tools), JSON.stringify(e.reasons), e.enforcement, e.version, e.proof ?? null, e.proofKid ?? null, e.proofOk == null ? null : e.proofOk ? 1 : 0, e.eid ?? null] as SqlArg[] })),
       { sql: 'UPDATE api_keys SET last_seen = ?, events = events + ? WHERE id = ?', args: [now, events.length, keyId] },
     ]);
     return events.length;
+  }
+  /** one key's reported decisions in a range, in the shape the design-partner report is built from */
+  async telemetryDecisions(keyId: string, from: number, to: number): Promise<{ session: string; created: number; resource: string; decision: string; computed: string; actor: string; tools: string[]; signed: boolean; enforced: boolean }[]> {
+    const rows = (await this.sql.execute('SELECT session, at, resource, decision, COALESCE(computed, decision) AS computed, actor, tools, enforcement, proof IS NOT NULL AS signed FROM telemetry WHERE key_id = ? AND at >= ? AND at < ? ORDER BY at', [keyId, from, to])).rows;
+    return rows.map((r) => ({ session: String(r.session), created: Number(r.at), resource: String(r.resource), decision: String(r.decision), computed: String(r.computed), actor: String(r.actor), tools: safeList(r.tools), signed: Number(r.signed) === 1, enforced: r.enforcement === 'enforce' }));
   }
   /** everything the portal shows for one key since `since` */
   async telemetryStats(keyId: string, since: number, bucketMs: number): Promise<TelemetryStats> {

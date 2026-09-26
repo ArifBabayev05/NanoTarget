@@ -526,6 +526,8 @@
       <div class="card"><div class="card-head"><h3>What changed in the agents</h3><span class="sub">last 4 weeks · the same for every customer</span></div>${news}</div>`;
   }
   $('#weekly-key').addEventListener('change', (e) => { weeklyKey = e.target.value; renderWeekly(); });
+  // the design-partner report: 30 days, agents, endpoints, what the rules did or would have done — opens printable
+  $('#weekly-30').onclick = () => { if (weeklyKey) open(`/api/v1/portal/report?key=${encodeURIComponent(weeklyKey)}&days=30&format=html`, '_blank'); };
   $('#weekly-print').onclick = () => { document.body.classList.add('print-weekly'); addEventListener('afterprint', () => document.body.classList.remove('print-weekly'), { once: true }); print(); };
 
   // ------------------------------------------------------------------ policy builder
