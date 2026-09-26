@@ -177,6 +177,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['GET', '/trust', async (_req, res) => page(res, 'trust.html', {})],
     ['GET', '/privacy', async (_req, res) => page(res, 'trust.html', {})],
     ['GET', '/scorecard', async (_req, res) => page(res, 'scorecard.html', {})],
+    ['GET', '/measurements', async (_req, res) => page(res, 'measurements.html', {})],
     ['GET', '/portal', async (_req, res) => page(res, 'portal.html', { 'nt-serverless': serverless ? '1' : '0' })],
     ['POST', '/api/v1/portal/signup', portal.signup],
     ['POST', '/api/v1/portal/login', portal.login],
