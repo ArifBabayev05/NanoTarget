@@ -14,6 +14,7 @@
  * Anything outside the profile is `unsupported`, never `verified`.
  * An absent signature says nothing about the actor: it is not human proof.
  */
+import { extraAppToken } from './signatures.ts';
 import { createHash } from 'node:crypto';
 import type { ServerSignal } from './signals.ts';
 
@@ -148,7 +149,7 @@ export async function observeRequest(req: SignatureRequest, opts: VerifyOptions 
   const major = /(?:Chrome|CriOS|Firefox|Safari|Edg)\/(\d+)/.exec(ua)?.[1];
   // Known agent-application shells that embed Chromium. Observed 2026-09-18: the Claude
   // desktop app's built-in browser sends "Claude/<version>" and no Sec-CH-UA headers.
-  const agentApp = /\b(Claude|Codex|ChatGPT|Atlas|Comet|Electron)\/[\w.]+/.exec(ua)?.[0] ?? null;
+  const agentApp = /\b(Claude|Codex|ChatGPT|Atlas|Comet|Electron)\/[\w.]+/.exec(ua)?.[0] ?? extraAppToken(ua)?.token ?? null;
   return {
     signature,
     secFetch: {

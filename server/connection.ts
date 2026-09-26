@@ -17,7 +17,8 @@
  *                      a person may be operating it, an agent may attach at any moment
  *   no_indication      nothing observed — NOT proof of a person
  */
-import { CONTROL_MARKERS, toolInjectedGlobals, type EarlySignal, type ServerSignal } from './signals.ts';
+import { extraAppToken, extraMarker } from './signatures.ts';
+import { isControlMarker, toolInjectedGlobals, type EarlySignal, type ServerSignal } from './signals.ts';
 
 export type ConnectionState = 'signed_agent' | 'agent_attached' | 'agent_environment' | 'no_indication';
 
@@ -57,9 +58,9 @@ export function classifyConnection(server: ServerSignal | null, early: EarlySign
 
   if (early?.webdriver) attached.push({ code: 'WEBDRIVER_FLAG', atMs: early.startedMs, detail: 'navigator.webdriver=true' });
   for (const m of early?.markers ?? []) {
-    const tool = TOOL_OF_MARKER[m.name];
+    const tool = TOOL_OF_MARKER[m.name] ?? extraMarker(m.name)?.tool;
     if (tool) tools.add(tool);
-    if (CONTROL_MARKERS.includes(m.name)) attached.push({ code: 'AGENT_CONTROL_MARKER', atMs: m.atMs, detail: `${m.name} səhifədə yarandı` });
+    if (isControlMarker(m.name)) attached.push({ code: 'AGENT_CONTROL_MARKER', atMs: m.atMs, detail: `${m.name} səhifədə yarandı` });
     else environment.push({ code: 'DOM_MARKER', atMs: m.atMs, detail: `${m.name} (keçmiş/passiv iz)` });
   }
   if (early?.environment.focusWhileHiddenMs != null) attached.push({ code: 'FOCUS_WHILE_HIDDEN', atMs: early.environment.focusWhileHiddenMs, detail: 'gizli sənəd fokusdadır (focus emulation)' });
@@ -121,7 +122,7 @@ export function classifyConnection(server: ServerSignal | null, early: EarlySign
   const app = appToken;
   if (app) {
     environment.push({ code: 'AGENT_APP_BROWSER', atMs: 0, detail: `${app}${server?.environment?.clientHints === false ? ', Sec-CH-UA yoxdur' : ''}` });
-    tools.add(app.startsWith('Claude') ? 'claude-app' : app.split('/')[0]!.toLowerCase() + '-app');
+    tools.add(extraAppToken(app)?.tool ?? (app.startsWith('Claude') ? 'claude-app' : app.split('/')[0]!.toLowerCase() + '-app'));
   }
   if (early?.environment.codexModelContext) { environment.push({ code: 'CODEX_MODEL_CONTEXT', atMs: early.startedMs, detail: '__codexWebMcpModelContext səhifə qlobalında' }); tools.add('codex-app'); }
   for (const id of early?.environment.extensionsInstalled ?? []) { environment.push({ code: 'AGENT_EXTENSION_INSTALLED', atMs: early?.startedMs ?? 0, detail: `${id} quraşdırılıb` }); tools.add(id); }

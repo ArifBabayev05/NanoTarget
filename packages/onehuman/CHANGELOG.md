@@ -5,6 +5,13 @@
 - **`npx onehuman init`** — answer a few questions (what to protect, how, where the login id is, watch or protect, portal or not); it shows every file it would write or change and applies them on yes. For Express it wires the code itself, ES modules and CommonJS, routes in any file. `--yes` takes the recommended answers.
 - `onehumanDeferred(options)` — the same instance without `await`, for CommonJS and code that cannot wait at the top level.
 - `protect(resource, { mask: 'auto' })` — when the decision is mask and the handler uses `res.json()`, every value is hidden and the shape and ids kept; or pass your own function.
+- **OneHuman never breaks your app.** A protected request waits at most `decisionTimeoutMs` (1000 ms) for a decision; on a timeout or an engine error it goes on as allowed (`req.nt.failedOpen`, header `X-NT-Decision: failed-open:<reason>`, counted in `health().failOpen`). Observe mode always fails open; enforce mode can choose `failOpen: false` (503). OneHuman's own routes no longer hand errors to your error handler.
+- **Fixed: a customer server stopped opening sessions after 400 visitors**, and kept only 2000 events for all visitors together (pruned on every insert). Now: no visitor cap, the newest 300 events per session, a week of history.
+- **Observe mode is counted right.** Reports carry what the rules would have done (`computed`); the portal used to count observe-mode decisions as all "allow".
+- **30-day report.** `npx onehuman report` (from your own audit log, nothing sent anywhere), `nt.report()` / `nt.reportHtml()`, and the portal's "30-day report": sessions with an agent, which agents, which endpoints they touched, what the rules did or would have done, the effect on real people, the signed share. Printable to PDF.
+- **`npx onehuman inspect`** prints what the page script sent in a session, from your own database; byte for byte with `recordRaw: true` / `ONEHUMAN_RECORD_RAW=1`.
+- **Agent signature updates** — signed, versioned, additive bundles fetched from the portal; see the README.
+- Decisions now record the agent tools seen and the connection state.
 
 ## Unreleased (in 0.6.0)
 - **The policy lives in the portal.** With an `apiKey`, the first start sends `onehuman.policy.json` to the portal as version 1 (no approval); the server then reads the policy from there every minute, so portal edits are live without a deploy. Later edits to the file are proposed to the portal: applied at once by default, or held for approval when the owner turns that on. Changes that weaken protection wait for approval and the account password unless the owner switches that check off. Every change is journalled (who, when, what).

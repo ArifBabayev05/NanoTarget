@@ -310,6 +310,10 @@ With an `apiKey`, the portal is where the policy is kept. The first time your se
 - **Where did the policy come from?** Logged on every change (`onehuman: policy portal-v3 (enforce, 4 rules) from the portal`), returned by `nt.policySource()` and `GET <basePath>/health`, and — outside `NODE_ENV=production` — sent as the `X-NT-Policy-Source: portal | cache | file` response header.
 - **Servers without internet:** `policyFromPortal: false` keeps the file as the only source; the portal can still download it.
 
+### Agent signature updates
+
+AI agent products change how they show themselves every few weeks. Installed engines learn the new traces without a package release: with an `apiKey` the server asks the portal for the newest **signature bundle** every six hours (and on requests, on serverless). A bundle is used only if OneHuman's signatures key signed it — a key kept offline, not on the portal — its sequence number is higher than the one in use, and the engine is new enough for it. It only **adds** to the built-in signatures; it can never remove one. The last accepted bundle is kept in your database, so a restart with the portal down keeps it; a saved copy that was altered is refused. `GET /onehuman/health` → `signatures: { seq, source: builtin | cache | portal, issued, lastCheckAt, problem }`. Without an API key the built-in signatures are used, updated with each package release.
+
 ### Decision proofs — the evidence an auditor can check
 
 Every decision is signed on your server when it is made (Ed25519, key derived from `secret`). The proof states what was decided and why — resource, decision, actor, reason codes, policy and engine versions, whether data was delivered, and its place in the hash-chained audit log — with a digest of the session instead of the id. **Your end users see nothing**: no header, no body field, no extra request.

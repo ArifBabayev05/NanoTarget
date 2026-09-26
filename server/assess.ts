@@ -14,7 +14,7 @@
  *  - Scores are explanatory indexes, not calibrated probabilities.
  */
 import { clickFeatures, judgeClick, type Judgement } from './kinematics.ts';
-import { CONTROL_MARKERS, toolInjectedGlobals, type EarlySignal, type InteractionSample, type ServerSignal } from './signals.ts';
+import { isControlMarker, toolInjectedGlobals, type EarlySignal, type InteractionSample, type ServerSignal } from './signals.ts';
 
 export const SIGNAL_VERSION = 'assess-v7';
 
@@ -257,7 +257,7 @@ export function assess(input: AssessInput): Assessment {
   }
 
   // --- control tier: active-control indicators of known agent tools ---------
-  const controlMarkers = markers.filter((m) => CONTROL_MARKERS.includes(m.name));
+  const controlMarkers = markers.filter((m) => isControlMarker(m.name));
   if (controlMarkers.length) {
     tiers.add('control');
     score = Math.max(score, 82);
@@ -337,7 +337,7 @@ export function assess(input: AssessInput): Assessment {
   }
 
   // --- artifact tier (experimental) ---------------------------------------
-  const traceMarkers = markers.filter((m) => !CONTROL_MARKERS.includes(m.name));
+  const traceMarkers = markers.filter((m) => !isControlMarker(m.name));
   if (traceMarkers.length) {
     tiers.add('artifact');
     floor(60);

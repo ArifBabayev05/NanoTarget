@@ -20,12 +20,13 @@ import { fileURLToPath } from 'node:url';
 // The engine is a separate package (onehuman-engine, BUSL-1.1); this adapter talks to it only through its
 // public surface. In this repository that is ../../server/public.ts; the build rewrites it to the package.
 import {
-  ENGINE_VERSION, OneHuman, SERVER_LIMITS, Store, attachModel, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
+  ENGINE_VERSION, OneHuman, SERVER_LIMITS, Store, applySignatures, attachModel, clientSignatureRules, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
   sqliteClient, url, webauthnRoutes,
   type Assessment, type DecideResult, type DecisionRow, type Policy, type SessionRow, type SqlClient,
 } from '../../server/public.ts';
 import { proofBundle, verifyProof, type ProofJwk } from '../proof/verify.ts';
 import { createPolicySync, type PolicyStatus } from './policy-sync.ts';
+import { createSignatureSync } from './signature-sync.ts';
 import { buildReport, type Report } from '../report/build.ts';
 import { renderReportHtml } from '../report/html.ts';
 
@@ -245,6 +246,7 @@ export async function onehuman(opts: OneHumanOptions) {
     if (!parsed) throw new Error('onehuman: policy file is invalid (see docs/INTEGRATION.md for the schema)');
     return parsed;
   }
+  const portalUrl = opts.portalUrl ?? process.env.ONEHUMAN_PORTAL_URL ?? process.env.NT_PORTAL_URL ?? new URL(telemetryUrl).origin;
   const fromPortal = !!apiKey && opts.policyFromPortal !== false;
   if (opts.policy === undefined && !fromPortal) throw new Error('onehuman: give a `policy` file, or an `apiKey` so the policy can come from the portal');
   let filePolicy: Policy | null = opts.policy === undefined ? null : await loadPolicy(opts.policy);
@@ -252,11 +254,14 @@ export async function onehuman(opts: OneHumanOptions) {
   const sync = fromPortal
     ? createPolicySync({
       store, apiKey, filePath: typeof opts.policy === 'string' ? opts.policy : null, initialFile: filePolicy,
-      portalUrl: (opts.portalUrl ?? process.env.ONEHUMAN_PORTAL_URL ?? process.env.NT_PORTAL_URL ?? new URL(telemetryUrl).origin),
+      portalUrl,
       parse: (raw, version) => parsePolicy(raw, version),
     })
     : null;
   if (sync) await sync.init();
+  // agent signature updates: newer detection definitions, signed by OneHuman, without a package release
+  const signatures = createSignatureSync({ store, apiKey: apiKey || null, portalUrl, engineVersion: ENGINE_VERSION, apply: (rules, meta) => applySignatures(rules, meta) });
+  await signatures.init();
   const currentPolicy = (): Policy => (sync ? sync.policy : filePolicy!);
   engine.policyForApp = () => currentPolicy();
   /** Re-read the policy: from the portal (and send the file if it changed), or from the file when there is no portal. */
@@ -340,8 +345,11 @@ export async function onehuman(opts: OneHumanOptions) {
         const sub = u.pathname.slice(basePath.length);
         if (sub === '/sdk.js' && req.method === 'GET') {
           sdkCache ??= await readFile(SDK_PATH);
-          res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'Content-Length': sdkCache.length });
-          res.end(sdkCache);
+          // signatures a verified bundle added travel with the script, so the page looks for them from its first moment
+          const extra = clientSignatureRules();
+          const body = extra ? Buffer.concat([Buffer.from(`window.__ONEHUMAN_RULES__=${extra};\n`), sdkCache]) : sdkCache;
+          res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'Content-Length': body.length });
+          res.end(body);
           return;
         }
         // what an operator's monitoring asks: is it up, which policy, is the reporter healthy, any integration warning
@@ -390,6 +398,7 @@ export async function onehuman(opts: OneHumanOptions) {
     sync?.declare(resource);   // the portal lists endpoints that have no rule yet
     return (req: Req, res: Res, next: Next) => {
       sync?.maybeRefresh();
+      signatures.maybeRefresh();
       let settled = false;
       const timer = setTimeout(() => giveUp('ENGINE_TIMEOUT'), decisionTimeoutMs);
       timer.unref?.();
@@ -473,6 +482,7 @@ export async function onehuman(opts: OneHumanOptions) {
     return {
       ok: !identityWarning,
       policy: { ...policySource(), version: currentPolicy().version, enforcement: currentPolicy().enforcement, resources: currentPolicy().rules.length },
+      signatures: signatures.status(),
       telemetry: reporter ? { enabled: true, pending: reporter.pending, immediate: opts.telemetryImmediate ?? SERVERLESS } : { enabled: false },
       proofKey: engine.proofKeys().keys[0]!.kid,
       failOpen: { timeoutMs: decisionTimeoutMs, enforceFailsOpen: failOpen, ...failures },
@@ -505,7 +515,7 @@ export async function onehuman(opts: OneHumanOptions) {
 
   return { middleware, protect, send, sessionFor, reloadPolicy, get policy() { return currentPolicy(); }, policySource, engine, store, room, basePath, telemetry, health,
     proofKeys, proofFor, proofBundle: proofBundleFor, verifyProof: checkProof, report: localReport, reportHtml,
-    close: async () => { sync?.close(); await reporter?.close(); store.close(); } };
+    close: async () => { sync?.close(); signatures.close(); await reporter?.close(); store.close(); } };
 }
 
 export type OneHumanInstance = Awaited<ReturnType<typeof onehuman>>;
