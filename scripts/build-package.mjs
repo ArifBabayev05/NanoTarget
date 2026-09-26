@@ -85,6 +85,7 @@ for (const f of ['express.js', 'cli.js']) {
   }
 }
 cpSync('sdk/onehuman.js', `${OPEN}/sdk/onehuman.js`);
+cpSync('QUICKSTART.md', `${OPEN}/QUICKSTART.md`);   // the one-screen version for people; README is the agent protocol
 execSync('npx tsc -p tsconfig.build.json', { stdio: 'inherit' });
 // the middleware's declarations point at the engine package, not at files this package does not ship
 const types = `${OPEN}/dist/types`;

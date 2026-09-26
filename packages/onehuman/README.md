@@ -1,7 +1,10 @@
 # OneHuman
+
 **Decide what AI agents may do for your customers — and keep proof that a human agreed.** When a customer sends an AI agent into your product, OneHuman decides what it may do on their behalf and signs every decision on your server, so you can show which actions a person approved.
 
 Customers now hand their logged-in bank, CRM and insurance sessions to Claude, ChatGPT Agent, Codex and other agentic browsers. Bot management stops bots at the door; it does nothing once a legitimate user is inside and an agent is operating their session. OneHuman works *inside* the session: it detects the moment an agent attaches, redacts what is already on screen, and lets each endpoint decide per resource — **allow · mask · step-up · block** — with a human-verified way back.
+
+> **Security engineer? Read [QUICKSTART.md](QUICKSTART.md) first** — what it does, what it collects, how it fails and how to install it, in one screen. The long protocol below is written for AI coding agents.
 
 - **Proof, not a guess.** Every decision — allowed, hidden, refused, or confirmed by the person with a passkey — is signed on your server (Ed25519). An auditor checks it offline with `npx onehuman verify-proof`, without trusting us.
 - **Detects at attach time, before the first click.** Agent-tool DOM markers, injected globals, evaluated-script read bursts, focus emulation, Web Bot Auth signatures. Measured: Claude in Chrome 0.1–0.5 s after attach; Codex 0.14 s; in-app agent browsers at first read.
