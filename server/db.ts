@@ -201,6 +201,12 @@ CREATE TABLE IF NOT EXISTS policy_cache (
   fetched INTEGER NOT NULL,
   pushed_file_hash TEXT
 );
+CREATE TABLE IF NOT EXISTS signature_bundles (
+  seq INTEGER PRIMARY KEY,
+  jws TEXT NOT NULL,
+  issued INTEGER NOT NULL,
+  added INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS assist_log (
   account TEXT NOT NULL,
   at INTEGER NOT NULL
@@ -259,7 +265,7 @@ CREATE TABLE IF NOT EXISTS challenges (
 
 /** additive migrations for databases created by earlier builds */
 /** The newest column of each migrated table. Add a line here whenever MIGRATIONS gains a column. */
-const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash'], ['assist_log', 'at'], ['telemetry', 'computed']];
+const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash'], ['assist_log', 'at'], ['telemetry', 'computed'], ['signature_bundles', 'added']];
 
 const MIGRATIONS = [
   'ALTER TABLE sessions ADD COLUMN agent_attached_at INTEGER',
@@ -811,6 +817,16 @@ export class Store {
   async setPolicyCachePushed(tag: string, fileHash: string, pinnedKey: string) {
     const r = await this.sql.execute('UPDATE policy_cache SET pushed_file_hash = ? WHERE tag = ?', [fileHash, tag]);
     if (!r.rowsAffected) await this.sql.execute('INSERT INTO policy_cache (tag, envelope, pinned_key, fetched, pushed_file_hash) VALUES (?, ?, ?, 0, ?)', [tag, '', pinnedKey, fileHash]);
+  }
+
+  /** Agent signature bundles, newest first. They arrive signed; the portal only stores and serves them. */
+  async latestSignatureBundle(): Promise<{ seq: number; jws: string; issued: number } | null> {
+    const r = (await this.sql.execute('SELECT seq, jws, issued FROM signature_bundles ORDER BY seq DESC LIMIT 1')).rows[0];
+    return r ? { seq: Number(r.seq), jws: String(r.jws), issued: Number(r.issued) } : null;
+  }
+  async addSignatureBundle(seq: number, jws: string, issued: number): Promise<boolean> {
+    const r = await this.sql.execute('INSERT OR IGNORE INTO signature_bundles (seq, jws, issued, added) VALUES (?, ?, ?, ?)', [seq, jws, issued, Date.now()]);
+    return r.rowsAffected > 0;
   }
 
   /** The policy assistant's use per account, for its daily limit. */

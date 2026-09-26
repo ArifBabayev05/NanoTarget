@@ -14,6 +14,8 @@
  *  - trace: shows the extension/agent touched the page at some point (favicon badge,
  *    animation <style> that persists after the agent stops)
  */
+import { extraGlobal, extraMarker, extraMarkerCount } from './signatures.ts';
+
 export type MarkerName =
   | 'codex-overlay'
   | 'codex-badge'
@@ -24,6 +26,8 @@ export type MarkerName =
 
 export const MARKER_NAMES: MarkerName[] = ['codex-overlay', 'codex-badge', 'claude-stop', 'claude-cursor', 'claude-glow', 'claude-styles'];
 export const CONTROL_MARKERS: MarkerName[] = ['codex-overlay', 'claude-stop', 'claude-cursor', 'claude-glow'];
+/** a marker that means an agent is in control now: built-in, or added by a signature bundle */
+export const isControlMarker = (name: string) => CONTROL_MARKERS.includes(name as MarkerName) || extraMarker(name)?.control === true;
 
 /** Known agent browser extensions whose web-accessible resources a page can probe. Installed ≠ active. */
 export type ExtensionId = 'claude-chrome' | 'codex-chrome';
@@ -106,7 +110,7 @@ export const TOOL_INJECTED_GLOBALS: Record<string, string> = {
 };
 export function toolInjectedGlobals(names: string[]): { name: string; tool: string }[] {
   return names.flatMap((n) => {
-    const tool = TOOL_INJECTED_GLOBALS[n] ?? (n.startsWith('__browserUseClipboard') ? 'codex-app' : null);
+    const tool = TOOL_INJECTED_GLOBALS[n] ?? extraGlobal(n)?.tool ?? (n.startsWith('__browserUseClipboard') ? 'codex-app' : null);
     return tool ? [{ name: n, tool }] : [];
   });
 }
@@ -199,12 +203,12 @@ export function parseEarly(input: unknown): EarlySignal | null {
   const firstInteractionMs = numOrNull(o.firstInteractionMs, 0, MAX_MS);
   const dataDomMs = numOrNull(o.dataDomMs, 0, MAX_MS);
   if (startedMs === null || observedMs === null || webdriver === null || firstInteractionMs === undefined || dataDomMs === undefined) return null;
-  if (!Array.isArray(o.markers) || o.markers.length > MARKER_NAMES.length) return null;
+  if (!Array.isArray(o.markers) || o.markers.length > MARKER_NAMES.length + extraMarkerCount()) return null;
   const markers: EarlySignal['markers'] = [];
   for (const m of o.markers) {
     const mo = obj(m);
     const atMs = mo ? num(mo.atMs, 0, MAX_MS) : null;
-    if (!mo || atMs === null || !MARKER_NAMES.includes(mo.name as MarkerName)) return null;
+    if (!mo || atMs === null || !(MARKER_NAMES.includes(mo.name as MarkerName) || (typeof mo.name === 'string' && extraMarker(mo.name)))) return null;
     if (markers.some((x) => x.name === mo.name)) return null;
     markers.push({ name: mo.name as MarkerName, atMs });
   }

@@ -79,6 +79,7 @@
   // globals of an agent *app* are environment, not control, and do not seal.
   const CONTROL_GLOBAL = /^__(claudeElementMap|claudeElementReverseMap|claudeRefCounter|generateAccessibilityTree|browserUseClipboard|codexPlaywrightInjected)/;
   const CONTROL_MARKER = new Set(['claude-stop', 'claude-cursor', 'claude-glow', 'codex-overlay']);
+  if (typeof window !== 'undefined' && window.__ONEHUMAN_RULES__ && Array.isArray(window.__ONEHUMAN_RULES__.control)) for (const n of window.__ONEHUMAN_RULES__.control) if (typeof n === 'string') CONTROL_MARKER.add(n);
 
   // ---------------------------------------------------------------- early
   const PROBES = [
@@ -89,6 +90,11 @@
     ['claude-glow', '#claude-agent-glow-border'],
     ['claude-styles', '#claude-agent-animation-styles'],
   ];
+  // signatures added by a verified signature bundle: the server prepends them when it serves this file
+  const EXTRA = (typeof window !== 'undefined' && window.__ONEHUMAN_RULES__ && typeof window.__ONEHUMAN_RULES__ === 'object') ? window.__ONEHUMAN_RULES__ : null;
+  if (EXTRA && Array.isArray(EXTRA.probes)) for (const p of EXTRA.probes) if (Array.isArray(p) && typeof p[0] === 'string' && typeof p[1] === 'string') PROBES.push([p[0], p[1]]);
+  const EXTRA_GLOBALS = new Set(EXTRA && Array.isArray(EXTRA.globals) ? EXTRA.globals.filter((g) => typeof g === 'string') : []);
+  const EXTRA_PREFIXES = EXTRA && Array.isArray(EXTRA.prefixes) ? EXTRA.prefixes.filter((x) => typeof x === 'string') : [];
   // Web-accessible resources declared for <all_urls> by known agent extensions (Chrome only).
   // Loading one proves the extension is installed in this profile, not that it is driving the page.
   const EXTENSION_PROBES = [
@@ -331,7 +337,7 @@
     if (early.environment.agentGlobals.length < 10) {
       try {
         for (const n of Object.getOwnPropertyNames(window)) {
-          if (GLOBAL_PREFIX.test(n) && !early.environment.agentGlobals.includes(n) && early.environment.agentGlobals.length < 10) early.environment.agentGlobals.push(n.slice(0, 64));
+          if ((GLOBAL_PREFIX.test(n) || EXTRA_GLOBALS.has(n) || EXTRA_PREFIXES.some((x) => n.startsWith(x))) && !early.environment.agentGlobals.includes(n) && early.environment.agentGlobals.length < 10) early.environment.agentGlobals.push(n.slice(0, 64));
         }
       } catch { /* ignore */ }
     }
@@ -346,7 +352,7 @@
     if (!sealed) {
       if (early.webdriver) seal('webdriver');
       else if (early.markers.some((m) => CONTROL_MARKER.has(m.name))) seal('control_marker');
-      else if (early.environment.agentGlobals.some((g) => CONTROL_GLOBAL.test(g))) seal('tool_globals');
+      else if (early.environment.agentGlobals.some((g) => CONTROL_GLOBAL.test(g) || EXTRA_GLOBALS.has(g))) seal('tool_globals');
     } else if (document.querySelector(SEAL_SELECTOR)) {
       // sealed is a state, not an event: anything rendered as "full" while an agent is attached is redacted too
       // (the mutation observer below watches data-nt-sensitive, so this runs right after the render)

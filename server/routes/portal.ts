@@ -15,6 +15,7 @@ import { proofBundle, thumbprint, verifyProof, type ProofJwk } from '../proof.ts
 import { newsSince } from '../agent-news.ts';
 import { policyRoutes } from './policy-portal.ts';
 import { buildReport } from '../../integrations/report/build.ts';
+import { verifySignatureBundle } from '../../integrations/signatures/common.ts';
 import { renderReportHtml } from '../../integrations/report/html.ts';
 
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
@@ -83,6 +84,34 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
       return { id: key.id, account: key.account, tag: hash.slice(0, 16) };
     },
   });
+  // ---------------------------------------------------------------- agent signature bundles
+  // A customer's server asks with its API key; the newest bundle comes back. Plans are where this becomes paid:
+  // signatureBundleFor() is the one place to hand free plans an older bundle (e.g. 30 days behind) once plans exist.
+  const signatureBundleFor = async (_account: string) => store.latestSignatureBundle();
+  const signaturesGet = async (req: Req, res: Res) => {
+    const auth = (req.headers.authorization ?? '').toString();
+    const raw = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+    const key = /^nt_live_[a-f0-9]{40}$/.test(raw) ? await store.apiKeyByHash(hashKey(raw)) : null;
+    if (!key || key.revoked || (key.expires && key.expires < Date.now())) return json(res, 401, { error: 'bad_key' });
+    const b = await signatureBundleFor(key.account);
+    if (!b) return json(res, 404, { error: 'none', message: 'No signature bundle published yet; the built-in signatures are in use.' });
+    const etag = `"sigs-${b.seq}"`;
+    if (req.headers['if-none-match'] === etag) { res.writeHead(304, { ETag: etag }); res.end(); return; }
+    res.setHeader('ETag', etag);
+    json(res, 200, { seq: b.seq, issued: b.issued, envelope: b.jws });
+  };
+  // Publishing needs no account: only a bundle signed with OneHuman's offline signatures key is accepted,
+  // and only one newer than the newest stored. The signature is the permission.
+  const signaturesPost = async (req: Req, res: Res) => {
+    const body = (await readJson(req, 64_000).catch(() => null)) as { envelope?: unknown } | null | undefined;
+    const c = verifySignatureBundle(body?.envelope);
+    if (!c.ok) return json(res, 400, { error: c.reason });
+    const latest = await store.latestSignatureBundle();
+    if (latest && c.bundle.seq <= latest.seq) return json(res, 409, { error: 'not_newer', message: `seq ${c.bundle.seq} is not newer than ${latest.seq}` });
+    await store.addSignatureBundle(c.bundle.seq, body!.envelope as string, c.bundle.issued);
+    json(res, 201, { ok: true, seq: c.bundle.seq });
+  };
+
   // a small in-memory rate limit per key for ingest (serverless instances each have their own; fine)
   const ingestWindow = new Map<string, { n: number; at: number }>();
 
@@ -518,7 +547,7 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
     return json(res, 404, { error: 'unknown_endpoint', endpoints: MANAGE_ENDPOINTS });
   };
 
-  return { policy: pol, signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, proofs, verifyBundle, feedback, health, weekly, report, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
+  return { policy: pol, signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, proofs, verifyBundle, feedback, health, weekly, report, signaturesGet, signaturesPost, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
 }
 
 export const MANAGE_ENDPOINTS = [
