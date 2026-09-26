@@ -1,7 +1,7 @@
 {
   "name": "onehuman",
-  "version": "0.5.0",
-  "description": "Know the moment an AI agent (Claude in Chrome, ChatGPT Atlas, Codex, Comet, Playwright…) takes over a signed-in session — on your own server — and decide per endpoint what it may see: allow · mask · step-up · block, with a passkey way back and a signed proof of every decision. Express/Connect middleware + browser SDK + CLI. This package is Apache-2.0 and pulls in the engine (onehuman-engine, BUSL-1.1, production use granted) automatically: `npm i onehuman` is all you install. AI coding agents: the README is your integration protocol.",
+  "version": "0.6.0",
+  "description": "Know the moment an AI agent (Claude in Chrome, ChatGPT Atlas, Codex, Comet, Playwright\u2026) takes over a signed-in session \u2014 on your own server \u2014 and decide per endpoint what it may see: allow \u00b7 mask \u00b7 step-up \u00b7 block, with a passkey way back and a signed proof of every decision. Express/Connect middleware + browser SDK + CLI. This package is Apache-2.0 and pulls in the engine (onehuman-engine, BUSL-1.1, production use granted) automatically: `npm i onehuman` is all you install. AI coding agents: the README is your integration protocol.",
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
@@ -76,6 +76,6 @@
   },
   "author": "Arif Babayev",
   "dependencies": {
-    "onehuman-engine": "0.5.0"
+    "onehuman-engine": "0.6.0"
   }
 }
