@@ -26,6 +26,8 @@ import {
 } from '../../server/public.ts';
 import { proofBundle, verifyProof, type ProofJwk } from '../proof/verify.ts';
 import { createPolicySync, type PolicyStatus } from './policy-sync.ts';
+import { buildReport, type Report } from '../report/build.ts';
+import { renderReportHtml } from '../report/html.ts';
 
 export type Req = IncomingMessage & { nt?: ProtectResult };
 export type Res = ServerResponse;
@@ -93,6 +95,11 @@ export type OneHumanOptions = {
    * `false` answers 503 so nothing protected is served without a decision. Observe mode always lets it through.
    */
   failOpen?: boolean;
+  /**
+   * Keep a byte-exact copy of everything the page script sends (default false, or ONEHUMAN_RECORD_RAW=1), so
+   * `npx onehuman inspect` can show it as received. Local database only; never sent anywhere.
+   */
+  recordRaw?: boolean;
 };
 
 export type ProtectResult = {
@@ -127,7 +134,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const SDK_PATH = [join(HERE, '..', 'sdk', 'onehuman.js'), join(HERE, '..', '..', 'sdk', 'onehuman.js')].find((p) => existsSync(p)) ?? join(HERE, '..', 'sdk', 'onehuman.js');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function openClient(db: string): Promise<SqlClient> {
+/** open the database named by a `db` option string (also used by `npx onehuman inspect / report`) */
+export async function openClient(db: string): Promise<SqlClient> {
   if (db === 'memory' || db === ':memory:') return sqliteClient(':memory:');
   if (db.startsWith('libsql://') || db.startsWith('https://')) {
     const u = new URL(db);
@@ -213,6 +221,7 @@ export async function onehuman(opts: OneHumanOptions) {
   const respond = opts.respond ?? true;
   const decisionTimeoutMs = opts.decisionTimeoutMs ?? (Number(process.env.ONEHUMAN_TIMEOUT_MS) || 1000);
   const failOpen = opts.failOpen ?? true;
+  const recordRaw = opts.recordRaw ?? process.env.ONEHUMAN_RECORD_RAW === '1';
   const failures = { count: 0, lastReason: null as string | null, lastError: null as string | null, lastAt: null as number | null };
   let lastFailWarn = 0;
   const apiKey = opts.apiKey ?? process.env.ONEHUMAN_API_KEY ?? process.env.NT_API_KEY ?? '';
@@ -348,10 +357,19 @@ export async function onehuman(opts: OneHumanOptions) {
         }
         const handler = api[`${req.method} ${sub}`];
         if (!handler) return next();
+        // raw recording: read the page's body here, keep it as received, hand the parsed JSON to the handler
+        let raw: string | null = null;
+        if (recordRaw && req.method === 'POST' && sub === '/signals' && (req as Req & { body?: unknown }).body === undefined) {
+          const chunks: Buffer[] = []; let size = 0;
+          for await (const c of req) { size += (c as Buffer).length; if (size > 16000) break; chunks.push(c as Buffer); }
+          raw = Buffer.concat(chunks).toString('utf8');
+          try { (req as Req & { body?: unknown }).body = JSON.parse(raw); } catch { (req as Req & { body?: unknown }).body = null; }
+        }
         // the engine's routes resolve the session from the request cookie; with identify() (or on a very first
         // request) that cookie may only exist on the response, so it is made visible on the request too
         const session = await sessionFor(req, res);
         if (cookies(req)[cookieName] !== session.id) req.headers.cookie = `${req.headers.cookie ? req.headers.cookie + '; ' : ''}${cookieName}=${session.id}`;
+        if (raw !== null) await store.addEvent(room, session.id, 'raw', { source: 'POST /signals', body: raw });
         await handler(req, res);
       } catch (e) {
         // these are OneHuman's own routes: answer here, never through the app's error handler
@@ -386,7 +404,7 @@ export async function onehuman(opts: OneHumanOptions) {
         }
         const enforce = currentPolicy().enforcement === 'enforce';
         if (!res.headersSent) res.setHeader('X-NT-Decision', `failed-open:${reason}`);
-        reporter?.push({ at: Date.now(), session: 'failed-open', resource, decision: 'allow', computed: 'allow', actor: 'unknown', state: 'none', tools: [], reasons: [reason], enforcement: currentPolicy().enforcement, version: 'failed-open' });
+        reporter?.push({ at: Date.now(), session: sessionHash(cookies(req)[cookieName] ?? 'failed-open'), resource, decision: 'allow', computed: 'allow', actor: 'unknown', state: 'none', tools: [], reasons: [reason], enforcement: currentPolicy().enforcement, version: 'failed-open' });
         if (enforce && !failOpen) { if (!res.headersSent) json(res, 503, { error: 'onehuman_unavailable', resource }); return; }
         req.nt = {
           decision: 'allow', masked: false, blocked: false, stepUp: null as unknown as DecideResult['stepUp'], actor: 'unknown', score: null,
@@ -397,6 +415,8 @@ export async function onehuman(opts: OneHumanOptions) {
       }
       (async () => {
         const session = await sessionFor(req, res);
+        const sample = req.headers['x-nt-sample'];
+        if (recordRaw && typeof sample === 'string') await store.addEvent(room, session.id, 'raw', { source: `X-NT-Sample header on ${resource}`, body: sample });
         const result = await engine.decide({ room, session, resource, request: req, snapshot: engine.snapshotFrom(req) });
         return { session, result };
       })().then(({ session, result }) => {
@@ -470,11 +490,21 @@ export async function onehuman(opts: OneHumanOptions) {
     const rows = await store.sessionProofs(sessionId);
     return proofBundle(rows.map((r) => r.proof), engine.proofKeys().keys, { session: sessionId, decisions: rows.length });
   }
+  /**
+   * The design-partner report from this server's own audit log: sessions with an agent, which agents, which
+   * endpoints they touched, and what the rules did — or, in observe mode, would have done. Nothing is sent anywhere.
+   */
+  async function localReport(o: { days?: number; from?: number; to?: number; app?: string } = {}): Promise<Report> {
+    const to = o.to ?? Date.now(), from = o.from ?? to - (o.days ?? 30) * 86_400_000;
+    const rows = await store.decisionsBetween(from, to, room);
+    return buildReport(rows, { from, to, source: 'server', app: o.app ?? '', sessionTools: await store.attachToolsBetween(from, to) });
+  }
+  const reportHtml = async (o: Parameters<typeof localReport>[0] = {}) => renderReportHtml(await localReport(o));
   /** check a proof against this deployment's key — or pass `keys` to check one from another deployment */
   const checkProof = (jws: string, keys = engine.proofKeys().keys) => verifyProof(jws, keys);
 
   return { middleware, protect, send, sessionFor, reloadPolicy, get policy() { return currentPolicy(); }, policySource, engine, store, room, basePath, telemetry, health,
-    proofKeys, proofFor, proofBundle: proofBundleFor, verifyProof: checkProof,
+    proofKeys, proofFor, proofBundle: proofBundleFor, verifyProof: checkProof, report: localReport, reportHtml,
     close: async () => { sync?.close(); await reporter?.close(); store.close(); } };
 }
 

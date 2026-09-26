@@ -191,7 +191,7 @@ export class OneHuman {
     if (input.snapshot?.interaction) await this.store.addEvent(input.room, input.session.id, 'interaction', input.snapshot.interaction, now);
     await this.store.touchSession(input.session.id, now);
     const simulated = input.request.headers['x-nt-lab-simulated'] === this.simulationToken;
-    if (!simulated) await this.connectionFor(input.session, now);
+    const conn = simulated ? null : await this.connectionFor(input.session, now);
     // Once an agent has attached to this session, the fact sticks: a control indicator that
     // disappeared (agent paused, or a person took over) does not make the session clean again.
     // The only way back is a WebAuthn user-verified assertion (a person pressed Touch ID / a
@@ -226,6 +226,8 @@ export class OneHuman {
       dataDelivered: decision.decision === 'allow',
       simulated,
       assessment,
+      tools: conn?.tools.slice(0, 8) ?? [],
+      connection: conn?.state ?? 'none',
       created: now,
     }, (r, seq) => this.prover.sign(r, seq));
     if (row.dataDelivered && !simulated) await this.store.markFirstData(input.session.id, now);
