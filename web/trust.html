@@ -139,6 +139,8 @@
     <dd>Until you revoke and delete the API key, which removes its reported decisions. Revoked keys can be deleted at any time from the portal.</dd>
     <dt>Can our auditor verify a decision without trusting you?</dt>
     <dd>Yes. Every decision is signed on your server with a key derived from your secret. The public key is served from your own site; the proof verifies with any standard JOSE library or <code>npx onehuman verify-proof</code>. OneHuman the company is not in that loop.</dd>
+    <dt>What if OneHuman is slow or breaks?</dt>
+    <dd>Your app keeps working. OneHuman fails open: a protected request waits at most one second (you set it) for a decision; if the engine is slower or fails, the request goes on as if allowed, is logged as an unknown visitor and counted in the health endpoint. In observe mode this is always so. In enforce mode you may choose a 503 instead, per deployment. OneHuman's own routes answer their own errors and never reach your error handler.</dd>
     <dt>Does the page script affect our users?</dt>
     <dd>It is first-party, adds no third-party requests, sets one first-party cookie for the session, and changes nothing a person sees — except redacting sensitive fields the moment an agent attaches, which is the point.</dd>
     <dt>Is behavioural data biometric?</dt>

@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 // The engine is a separate package (onehuman-engine, BUSL-1.1); this adapter talks to it only through its
 // public surface. In this repository that is ../../server/public.ts; the build rewrites it to the package.
 import {
-  ENGINE_VERSION, OneHuman, Store, attachModel, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
+  ENGINE_VERSION, OneHuman, SERVER_LIMITS, Store, attachModel, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
   sqliteClient, url, webauthnRoutes,
   type Assessment, type DecideResult, type DecisionRow, type Policy, type SessionRow, type SqlClient,
 } from '../../server/public.ts';
@@ -82,6 +82,17 @@ export type OneHumanOptions = {
   telemetryImmediate?: boolean;
   /** where reports go (default https://onehuman.ai/api/v1/ingest, or ONEHUMAN_TELEMETRY_URL) */
   telemetryUrl?: string;
+  /**
+   * How long a protected request waits for a decision before it goes on without one (default 1000 ms, or
+   * ONEHUMAN_TIMEOUT_MS). OneHuman never makes your app fail: if the engine is slow or throws, the request
+   * continues as if allowed, is logged as `unknown`, and is counted in `health().failOpen`.
+   */
+  decisionTimeoutMs?: number;
+  /**
+   * In enforce mode, what a request does when there is no decision in time: `true` (default) lets it through,
+   * `false` answers 503 so nothing protected is served without a decision. Observe mode always lets it through.
+   */
+  failOpen?: boolean;
 };
 
 export type ProtectResult = {
@@ -104,6 +115,11 @@ export type ProtectResult = {
    * response the end user receives. Keep it with your own records if you want; the engine stores it too.
    */
   proof: string | null;
+  /**
+   * Set when there was no decision in time (`ENGINE_TIMEOUT`) or the engine failed (`ENGINE_ERROR`): the request
+   * went on as allowed. `session`, `full` and `assessment` are then null.
+   */
+  failedOpen?: 'ENGINE_TIMEOUT' | 'ENGINE_ERROR';
 };
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -129,7 +145,8 @@ function derivedUuid(secret: Buffer, kind: string, name: string): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
-type TelemetryEvent = { at: number; session: string; resource: string; decision: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; version: string; proof?: string; eid?: string };
+/** `computed`: what the policy chose — in observe mode `decision` is always allow, `computed` is what protect mode would do */
+type TelemetryEvent = { at: number; session: string; resource: string; decision: string; computed?: string; actor: string; state: string; tools: string[]; reasons: string[]; enforcement: string; version: string; proof?: string; eid?: string };
 
 /** Buffers decision events and posts them to the portal in the background. Drops rather than blocks. */
 /**
@@ -194,10 +211,15 @@ export async function onehuman(opts: OneHumanOptions) {
   const cookieName = opts.cookie ?? 'nt_sid';
   const tenant = opts.tenant ?? 'default';
   const respond = opts.respond ?? true;
+  const decisionTimeoutMs = opts.decisionTimeoutMs ?? (Number(process.env.ONEHUMAN_TIMEOUT_MS) || 1000);
+  const failOpen = opts.failOpen ?? true;
+  const failures = { count: 0, lastReason: null as string | null, lastError: null as string | null, lastAt: null as number | null };
+  let lastFailWarn = 0;
   const apiKey = opts.apiKey ?? process.env.ONEHUMAN_API_KEY ?? process.env.NT_API_KEY ?? '';
   const sessionHash = (id: string) => createHash('sha256').update(apiKey).update('\0').update(id).digest('hex').slice(0, 16);
 
-  const store = await Store.open(await openClient(opts.db ?? 'sqlite:./onehuman.db'));
+  // one room holds every visitor of this app: limits are per session and by age, never a cap on visitors
+  const store = await Store.open(await openClient(opts.db ?? 'sqlite:./onehuman.db'), { limits: SERVER_LIMITS });
   const model = await loadModel();
   attachModel(model ? { predict: (f) => predict(model, f), humanAbove: model.humanAbove, syntheticBelow: model.syntheticBelow } : null);
   const engine = new OneHuman({ store, secret, sessionCookie: cookieName });
@@ -331,7 +353,11 @@ export async function onehuman(opts: OneHumanOptions) {
         const session = await sessionFor(req, res);
         if (cookies(req)[cookieName] !== session.id) req.headers.cookie = `${req.headers.cookie ? req.headers.cookie + '; ' : ''}${cookieName}=${session.id}`;
         await handler(req, res);
-      } catch (e) { next(e); }
+      } catch (e) {
+        // these are OneHuman's own routes: answer here, never through the app's error handler
+        console.warn(`onehuman: ${req.method} ${req.url} failed — ${(e as Error).message}`);
+        if (!res.headersSent) json(res, 503, { error: 'onehuman_unavailable' }); else res.end();
+      }
     };
   }
 
@@ -344,31 +370,60 @@ export async function onehuman(opts: OneHumanOptions) {
   function protect(resource: string, local: { respond?: boolean; mask?: 'auto' | ((body: unknown) => unknown) } = {}) {
     const answer = local.respond ?? respond;
     sync?.declare(resource);   // the portal lists endpoints that have no rule yet
-    return async (req: Req, res: Res, next: Next) => {
-      try {
-        sync?.maybeRefresh();
+    return (req: Req, res: Res, next: Next) => {
+      sync?.maybeRefresh();
+      let settled = false;
+      const timer = setTimeout(() => giveUp('ENGINE_TIMEOUT'), decisionTimeoutMs);
+      timer.unref?.();
+      // No decision in time, or the engine failed: the request goes on as allowed — OneHuman never breaks the app.
+      function giveUp(reason: 'ENGINE_TIMEOUT' | 'ENGINE_ERROR', err?: unknown) {
+        if (settled) return;
+        settled = true; clearTimeout(timer);
+        failures.count++; failures.lastReason = reason; failures.lastAt = Date.now(); failures.lastError = err ? String((err as Error).message ?? err) : null;
+        if (Date.now() - lastFailWarn > 60_000) {
+          lastFailWarn = Date.now();
+          console.warn(`onehuman: ${resource} — ${reason === 'ENGINE_TIMEOUT' ? `no decision within ${decisionTimeoutMs} ms` : `engine error: ${failures.lastError}`}; the request went on without one (${failures.count} so far, see /health).`);
+        }
+        const enforce = currentPolicy().enforcement === 'enforce';
+        if (!res.headersSent) res.setHeader('X-NT-Decision', `failed-open:${reason}`);
+        reporter?.push({ at: Date.now(), session: 'failed-open', resource, decision: 'allow', computed: 'allow', actor: 'unknown', state: 'none', tools: [], reasons: [reason], enforcement: currentPolicy().enforcement, version: 'failed-open' });
+        if (enforce && !failOpen) { if (!res.headersSent) json(res, 503, { error: 'onehuman_unavailable', resource }); return; }
+        req.nt = {
+          decision: 'allow', masked: false, blocked: false, stepUp: null as unknown as DecideResult['stepUp'], actor: 'unknown', score: null,
+          reasonCodes: [reason], session: null as unknown as SessionRow, full: null as unknown as DecisionRow, assessment: null as unknown as Assessment,
+          token: () => '', proof: null, failedOpen: reason,
+        };
+        next();
+      }
+      (async () => {
         const session = await sessionFor(req, res);
         const result = await engine.decide({ room, session, resource, request: req, snapshot: engine.snapshotFrom(req) });
-        const d = result.decision;
-        req.nt = {
-          decision: d.decision, masked: d.decision === 'mask', blocked: d.decision === 'block', stepUp: result.stepUp,
-          actor: d.actor, score: d.score, reasonCodes: d.reasonCodes, session, full: d, assessment: result.assessment,
-          token: () => engine.issueToken(d), proof: result.proof,
-        };
-        res.setHeader('X-NT-Decision', d.id);
-        res.setHeader('X-NT-Policy', d.policyVersion);
-        if (debugPolicyHeader) res.setHeader('X-NT-Policy-Source', sync ? sync.source : 'file');
-        if (reporter) report(session, resource, d, result);
-        if (answer && d.decision === 'block') return json(res, 403, { error: 'blocked', resource, decision: publicDecision(d), stepUp: result.stepUp });
-        if (answer && d.decision === 'step_up') return json(res, 428, { error: 'step_up_required', resource, decision: publicDecision(d), stepUp: result.stepUp });
-        const r = res as Res & { json?: (body: unknown) => unknown };
-        if (d.decision === 'mask' && local.mask && typeof r.json === 'function') {
-          const original = r.json.bind(res);
-          const mask = local.mask === 'auto' ? autoMask : local.mask;
-          r.json = (body: unknown) => original(mask(body));
-        }
+        return { session, result };
+      })().then(({ session, result }) => {
+        if (settled) return;   // too late: the request already went on without a decision
+        settled = true; clearTimeout(timer);
+        try {
+          const d = result.decision;
+          req.nt = {
+            decision: d.decision, masked: d.decision === 'mask', blocked: d.decision === 'block', stepUp: result.stepUp,
+            actor: d.actor, score: d.score, reasonCodes: d.reasonCodes, session, full: d, assessment: result.assessment,
+            token: () => engine.issueToken(d), proof: result.proof,
+          };
+          res.setHeader('X-NT-Decision', d.id);
+          res.setHeader('X-NT-Policy', d.policyVersion);
+          if (debugPolicyHeader) res.setHeader('X-NT-Policy-Source', sync ? sync.source : 'file');
+          if (reporter) report(session, resource, d, result);
+          if (answer && d.decision === 'block') return json(res, 403, { error: 'blocked', resource, decision: publicDecision(d), stepUp: result.stepUp });
+          if (answer && d.decision === 'step_up') return json(res, 428, { error: 'step_up_required', resource, decision: publicDecision(d), stepUp: result.stepUp });
+          const r = res as Res & { json?: (body: unknown) => unknown };
+          if (d.decision === 'mask' && local.mask && typeof r.json === 'function') {
+            const original = r.json.bind(res);
+            const mask = local.mask === 'auto' ? autoMask : local.mask;
+            r.json = (body: unknown) => original(mask(body));
+          }
+        } catch (e) { settled = false; return giveUp('ENGINE_ERROR', e); }
         next();
-      } catch (e) { next(e); }
+      }, (e) => giveUp('ENGINE_ERROR', e));
     };
   }
 
@@ -377,7 +432,7 @@ export async function onehuman(opts: OneHumanOptions) {
     if (!reporter) return;
     engine.connectionFor(session).then((c) => {
       reporter.push({
-        at: Date.now(), session: sessionHash(session.id), resource, decision: d.decision, actor: d.actor, state: c.state,
+        at: Date.now(), session: sessionHash(session.id), resource, decision: d.decision, computed: d.computed, actor: d.actor, state: c.state,
         tools: c.tools.slice(0, 8), reasons: d.reasonCodes.slice(0, 8), enforcement: currentPolicy().enforcement, version: result.assessment.version,
         ...(result.proof ? { proof: result.proof } : {}),
       });
@@ -400,6 +455,7 @@ export async function onehuman(opts: OneHumanOptions) {
       policy: { ...policySource(), version: currentPolicy().version, enforcement: currentPolicy().enforcement, resources: currentPolicy().rules.length },
       telemetry: reporter ? { enabled: true, pending: reporter.pending, immediate: opts.telemetryImmediate ?? SERVERLESS } : { enabled: false },
       proofKey: engine.proofKeys().keys[0]!.kid,
+      failOpen: { timeoutMs: decisionTimeoutMs, enforceFailsOpen: failOpen, ...failures },
       warnings: identityWarning ? [identityWarning] : [],
     };
   }

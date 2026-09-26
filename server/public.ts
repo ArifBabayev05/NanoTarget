@@ -7,7 +7,7 @@
  * as a separate package under its own licence, and no engine code is ever copied into the open one.
  */
 export type { Assessment } from './assess.ts';
-export { Store, type DecisionRow, type SessionRow } from './db.ts';
+export { SERVER_LIMITS, Store, type DecisionRow, type SessionRow, type StoreLimits } from './db.ts';
 export { OneHuman, publicDecision, type DecideResult } from './engine.ts';
 export { attachModel } from './kinematics.ts';
 export { loadModel, predict } from './kinematics-model.ts';

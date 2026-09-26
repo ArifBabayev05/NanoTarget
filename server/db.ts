@@ -15,6 +15,15 @@ export const ROOM_TTL_MS = 7 * 86400000;
 export const MAX_SESSIONS_PER_ROOM = 400;
 export const MAX_EVENTS_PER_ROOM = 2000;
 
+/**
+ * How much the store keeps. The lab and the portal's demo rooms cap a room (a public demo must not grow without
+ * bound). A customer's own server has one room for all its visitors, so there the caps are per session and by age:
+ * no session limit, the newest events of each session, nothing older than a week.
+ */
+export type StoreLimits = { sessionsPerRoom: number | null; eventsPerRoom: number | null; eventsPerSession: number | null; eventMaxAgeMs: number | null };
+export const LAB_LIMITS: StoreLimits = { sessionsPerRoom: MAX_SESSIONS_PER_ROOM, eventsPerRoom: MAX_EVENTS_PER_ROOM, eventsPerSession: null, eventMaxAgeMs: null };
+export const SERVER_LIMITS: StoreLimits = { sessionsPerRoom: null, eventsPerRoom: null, eventsPerSession: 300, eventMaxAgeMs: 7 * 24 * 3600e3 };
+
 export type SessionRow = {
   id: string;
   room: string;
@@ -325,10 +334,12 @@ export type TelemetryOverview = {
 
 export class Store {
   readonly sql: SqlClient;
-  private constructor(sql: SqlClient) { this.sql = sql; }
+  readonly limits: StoreLimits;
+  private inserts = 0;
+  private constructor(sql: SqlClient, limits: StoreLimits) { this.sql = sql; this.limits = limits; }
 
   /** Open a store on a client and make sure the schema exists. */
-  static async open(client?: SqlClient, opts: { migrate?: boolean } = {}): Promise<Store> {
+  static async open(client?: SqlClient, opts: { migrate?: boolean; limits?: StoreLimits } = {}): Promise<Store> {
     const c = client ?? (await sqliteClient(':memory:'));
     // One round trip decides whether the schema exists; cold starts on a ready database then skip
     // the CREATE/ALTER statements (each of which is a network round trip on libSQL).
@@ -342,7 +353,7 @@ export class Store {
       await c.executeMultiple(SCHEMA);
       for (const m of MIGRATIONS) { try { await c.execute(m); } catch { /* column exists */ } }
     }
-    return new Store(c);
+    return new Store(c, opts.limits ?? LAB_LIMITS);
   }
 
   close() {
@@ -381,8 +392,10 @@ export class Store {
 
   // --- sessions ------------------------------------------------------------
   async createSession(room: string, label: SessionRow['label'], arrival: ServerSignal | null, now = Date.now(), scenario = ''): Promise<string | null> {
-    const n = (await this.sql.execute('SELECT COUNT(*) AS n FROM sessions WHERE room = ?', [room])).rows[0]!.n as number;
-    if (n >= MAX_SESSIONS_PER_ROOM) return null;
+    if (this.limits.sessionsPerRoom !== null) {
+      const n = (await this.sql.execute('SELECT COUNT(*) AS n FROM sessions WHERE room = ?', [room])).rows[0]!.n as number;
+      if (n >= this.limits.sessionsPerRoom) return null;
+    }
     const id = crypto.randomUUID();
     await this.sql.execute('INSERT INTO sessions (id, room, label, scenario, created, arrival, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, room, label, scenario, now, arrival ? JSON.stringify(arrival) : null, now]);
     if (arrival) await this.addEvent(room, id, 'arrival', arrival, now);
@@ -452,7 +465,12 @@ export class Store {
   // --- events --------------------------------------------------------------
   async addEvent(room: string, session: string, kind: EventRow['kind'], payload: unknown, now = Date.now()): Promise<number> {
     const res = await this.sql.execute('INSERT INTO events (room, session, kind, payload, created) VALUES (?, ?, ?, ?, ?)', [room, session, kind, JSON.stringify(payload), now]);
-    await this.sql.execute('DELETE FROM events WHERE room = ? AND id NOT IN (SELECT id FROM events WHERE room = ? ORDER BY id DESC LIMIT ?)', [room, room, MAX_EVENTS_PER_ROOM]);
+    const L = this.limits;
+    if (L.eventsPerRoom !== null) await this.sql.execute('DELETE FROM events WHERE room = ? AND id NOT IN (SELECT id FROM events WHERE room = ? ORDER BY id DESC LIMIT ?)', [room, room, L.eventsPerRoom]);
+    // per session: an indexed look at this session only, never a scan of everyone's events
+    if (L.eventsPerSession !== null) await this.sql.execute('DELETE FROM events WHERE session = ? AND id < (SELECT id FROM events WHERE session = ? ORDER BY id DESC LIMIT 1 OFFSET ?)', [session, session, L.eventsPerSession - 1]);
+    // by age: now and then, not on every insert
+    if (L.eventMaxAgeMs !== null && ++this.inserts % 500 === 1) await this.sql.execute('DELETE FROM events WHERE created < ?', [now - L.eventMaxAgeMs]);
     return res.lastInsertRowid ?? 0;
   }
 
