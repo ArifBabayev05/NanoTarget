@@ -1,9 +1,11 @@
-# onehuman
+# OneHuman
+**Decide what AI agents may do for your customers — and keep proof that a human agreed.** When a customer sends an AI agent into your product, OneHuman decides what it may do on their behalf and signs every decision on your server, so you can show which actions a person approved.
 
-**Session-level control for AI browser agents.** Customers now hand their logged-in bank, CRM and insurance sessions to Claude, ChatGPT Agent, Codex and other agentic browsers. Bot management stops bots at the door; it does nothing once a legitimate user is inside and an agent is operating their session. onehuman works *inside* the session: it detects the moment an agent attaches, redacts what is already on screen, and lets each endpoint decide per resource — **allow · mask · step-up · block** — with a human-verified way back.
+Customers now hand their logged-in bank, CRM and insurance sessions to Claude, ChatGPT Agent, Codex and other agentic browsers. Bot management stops bots at the door; it does nothing once a legitimate user is inside and an agent is operating their session. OneHuman works *inside* the session: it detects the moment an agent attaches, redacts what is already on screen, and lets each endpoint decide per resource — **allow · mask · step-up · block** — with a human-verified way back.
 
+- **Proof, not a guess.** Every decision — allowed, hidden, refused, or confirmed by the person with a passkey — is signed on your server (Ed25519). An auditor checks it offline with `npx onehuman verify-proof`, without trusting us.
 - **Detects at attach time, before the first click.** Agent-tool DOM markers, injected globals, evaluated-script read bursts, focus emulation, Web Bot Auth signatures. Measured: Claude in Chrome 0.1–0.5 s after attach; Codex 0.14 s; in-app agent browsers at first read.
-- **Tells hands from programs per click.** Pointer kinematics — trajectory curvature, tremor, sub-movements, deceleration onto the target, hold time, pressure, teleport. Humans hold 83–225 ms with ≥35 trajectory points; agents 1–4 ms with none. 100/100 on the labelled dataset across mouse, trackpad, tap-to-click, Safari and two agent products; **0 false positives**.
+- **Tells hands from programs per click.** Pointer kinematics — trajectory curvature, tremor, sub-movements, deceleration onto the target, hold time, pressure, teleport. Humans hold 83–225 ms with ≥35 trajectory points; agents 1–4 ms with none. Measured on our own set: 397 human clicks from 22 browsers and devices, 2 read as a program; 824 agent clicks, 2 read as human. Not an independent study.
 - **Never treats "unknown" as human.** Decisions need evidence in both directions; a person inside an AI browser is unlocked by their own first click, not by default.
 - **Protects data already on screen.** Elements marked `data-nt-sensitive="full"` are redacted in the browser the instant an indicator appears — a read already in flight sees `••••`.
 - **Session memory with a human exit.** Once an agent attached, the session stays "agent" until a WebAuthn user-verified passkey (Touch ID / Windows Hello) reclaims it for 5 minutes.
@@ -11,15 +13,17 @@
 
 ```bash
 npm i onehuman            # Node ≥ 22.13 · Express 4/5, Connect, Next.js custom server, plain node:http
-npx onehuman scan .       # what an AI agent could reach in this codebase + a draft policy
+npx onehuman init         # asks what to protect and how, shows every change, applies it on yes
 ```
+
+`init` reads your project, lists the routes an AI agent could misuse with a customer's login, and asks: which to protect, how (from "hide details" to "passkey for everyone"), where your login id is, whether to start by only watching, and whether to connect the portal. It then shows each file it would write or change and waits for your yes. For Express it wires the code itself (a small `onehuman.js`, `app.use(onehuman.middleware())`, `onehuman.protect()` on each route); for other servers it writes the rules and `.env` and prints the lines to add. `npx onehuman init --yes` takes the recommended answers (CI, coding agents). `npx onehuman scan .` only reports, and writes a draft policy.
 
 That is the only install. `onehuman` (Apache-2.0) depends on `onehuman-engine` (BUSL-1.1, production use granted), which npm brings in automatically; you never add or import the engine yourself. Everything you use is `onehuman/express` and `npx onehuman`.
 
 ```js
 import { onehuman } from 'onehuman/express';
 
-const nt = await onehuman({ secret: process.env.NT_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db',
+const nt = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db',
                               identify: (req) => req.session?.userId ?? null });
 app.use(nt.middleware());                                                        // serves /onehuman/sdk.js + its API
 app.get('/api/balance', nt.protect('balance.read'), (req, res) => nt.send(req, res, balance, maskBalance));
@@ -123,7 +127,7 @@ Two habits that separate a good integration from a checklist run:
 5. Session identity for `identify(req)`: confirm the expression. It must return the login/user id **or `null`** — never a constant (a constant merges all anonymous visitors into one session).
 6. Storage: `sqlite:./onehuman.db` on the server's disk (default) or a libSQL/Turso URL (multi-instance, serverless, read-only filesystems).
 7. Step-up: built-in challenge + passkey reclaim now, or their OTP/push via `grantStepUp` later.
-8. `NT_SECRET`: generate with `npx onehuman secret`, store in their env/secret manager. Never hardcode, never commit.
+8. `ONEHUMAN_SECRET`: generate with `npx onehuman secret`, store in their env/secret manager. Never hardcode, never commit.
 9. URL prefix `/onehuman` — change only on collision.
 
 ### Step 4 — Implement everything (server, page, policy, masks)
@@ -132,7 +136,7 @@ Two habits that separate a good integration from a checklist run:
 import { onehuman } from 'onehuman/express';
 
 const nt = await onehuman({
-  secret: process.env.NT_SECRET,                    // ≥ 32 bytes, stable across restarts
+  secret: process.env.ONEHUMAN_SECRET,                    // ≥ 32 bytes, stable across restarts
   policy: './onehuman.policy.json',               // the confirmed draft, renamed
   db: 'sqlite:./onehuman.db',                     // or 'libsql://…?authToken=…'
   identify: (req) => req.session?.userId ?? null,   // decision 5 — null when not logged in
@@ -253,7 +257,7 @@ npx onehuman verify http://localhost:3000 /api/balance     # --base /prefix if y
 ```
 Four checks: SDK served · protected endpoint returns a decision (`X-NT-Decision`) · AI-app browser UA reaches the environment branch · a simulated attached agent (control markers posted to `/signals`) changes that session's decision (in `observe` it is recorded, not enforced). Run it for at least one masked, one blocked and one step-up resource. Then open the page in a normal browser and click the real button: data shows, `OneHuman.lastConnection.state` is `no_indication`, the app's own tests still pass.
 
-Report to the user: the exposure map with the final handling per resource, the mask design as implemented, files changed, how to read the decision log and flip `observe` → `enforce`, that `NT_SECRET` must be set in production, and every route deliberately left open.
+Report to the user: the exposure map with the final handling per resource, the mask design as implemented, files changed, how to read the decision log and flip `observe` → `enforce`, that `ONEHUMAN_SECRET` must be set in production, and every route deliberately left open.
 
 ### Do not
 Move the decision into the front end (the SDK is untrusted input) · protect login/logout/static/health routes · treat `actor: "unknown"` as human · return a constant from `identify()` · call `unseal()` without the server proof · send page text, key identities or form values anywhere (the SDK sends metadata only) · hardcode or commit the secret · skip the analysis and ask the user to "configure it themselves" · silently leave a sensitive route unprotected.
@@ -262,22 +266,22 @@ Move the decision into the front end (the SDK is untrusted input) · protect log
 
 ## What it detects (so you can explain it to the user)
 - **Attach time, before the first click:** agent-tool DOM markers (Claude in Chrome / Codex overlays), tool-injected globals, evaluated-script DOM read bursts, focus emulation, Web Bot Auth signatures (verified operators).
-- **Per click:** pointer kinematics — trajectory curvature, tremor, sub-movements, deceleration onto the target, hold time, pressure, teleport. Measured: humans hold 83–225 ms with ≥35 trajectory points; agents 1–4 ms with none. 100/100 on the labelled dataset, 0 false positives.
+- **Per click:** pointer kinematics — trajectory curvature, tremor, sub-movements, deceleration onto the target, hold time, pressure, teleport. Measured: humans hold 83–225 ms with ≥35 trajectory points; agents 1–4 ms with none. Measured on our own set: 397 human clicks from 22 browsers and devices, 2 read as a program; 824 agent clicks, 2 read as human. Not an independent study.
 - **Session memory:** once an agent attached, the session stays "agent" until a WebAuthn user-verified passkey (Touch ID) reclaims it for 5 minutes.
 - **Seal-on-attach:** `data-nt-sensitive="full"` elements are redacted in the browser the instant an indicator appears — even a read that is already in flight sees `••••`.
 
 ## API surface
-`onehuman(options)` → `{ middleware(), protect(resource, {respond?}), send(req,res,full,mask), sessionFor(req,res), reloadPolicy(), policy, policySource(), health(), engine, store, room, basePath, close() }`
+`onehuman(options)` (or `onehumanDeferred(options)` without `await`, for CommonJS) → `{ middleware(), protect(resource, {respond?}), send(req,res,full,mask), sessionFor(req,res), reloadPolicy(), policy, policySource(), health(), engine, store, room, basePath, close() }`
 `req.nt` → `{ decision, masked, blocked, stepUp, actor, score, reasonCodes, session, full, assessment, token() }`
 SDK: `OneHuman.fetch`, `.snapshot(withInteraction)`, `.sessionHeaders()`, `.onAssessment(fn)`, `.seal()`, `.unseal(proof)`, `.sealed`, `.lastConnection`; event `nt:sealed`.
-CLI: `npx onehuman scan [dir] [--json]` · `npx onehuman verify <baseUrl> <protectedPath> [--base /onehuman]` · `npx onehuman secret`.
+CLI: `npx onehuman init [dir] [--yes]` · `npx onehuman scan [dir] [--json]` · `npx onehuman verify <baseUrl> <protectedPath> [--base /onehuman]` · `npx onehuman secret`.
 Routes under `basePath`: `GET /sdk.js`, `POST /signals`, `GET /connection`, `GET /session`, `POST /step-up`, `POST /webauthn/register/options|register|assert/options|assert`, `GET /webauthn/status`.
 
-Options: `secret` (required, ≥32 B) · `policy` (path or object; optional with an `apiKey`, see below) · `policyFromPortal` (`true` with an `apiKey`) · `portalUrl` · `db` (`sqlite:./file` | `memory` | `libsql://…`) · `identify(req)` · `basePath` (`/onehuman`) · `cookie` (`nt_sid`) · `secure` · `tenant` · `respond` (`true`) · `webauthnReclaim` (`true`) · `apiKey` (portal reporting, default `NT_API_KEY`) · `telemetryUrl` · `telemetryImmediate` (send each report at once; automatic on Vercel/Lambda/Netlify/Azure Functions).
+Options: `secret` (required, ≥32 B) · `policy` (path or object; optional with an `apiKey`, see below) · `policyFromPortal` (`true` with an `apiKey`) · `portalUrl` · `db` (`sqlite:./file` | `memory` | `libsql://…`) · `identify(req)` · `basePath` (`/onehuman`) · `cookie` (`nt_sid`) · `secure` · `tenant` · `respond` (`true`) · `webauthnReclaim` (`true`) · `apiKey` (portal reporting, default `ONEHUMAN_API_KEY`) · `telemetryUrl` · `telemetryImmediate` (send each report at once; automatic on Vercel/Lambda/Netlify/Azure Functions).
 
 ## Portal: how many of your sessions had an AI agent in them
 
-Create an account at https://onehuman-mvp.vercel.app/portal, create an API key (one per project) and pass it as `apiKey` (or set `NT_API_KEY`). The middleware then reports every decision in the background — batched (sent at once on serverless platforms), never on the request path, dropped rather than blocking if the portal is unreachable. Each report is metadata only: a hashed session id, resource, decision, actor, connection state, detected tool, reason codes. No payloads, no identities, no IPs. Without a key nothing leaves your server.
+Create an account at https://onehuman.ai/portal, create an API key (one per project) and pass it as `apiKey` (or set `ONEHUMAN_API_KEY`). The middleware then reports every decision in the background — batched (sent at once on serverless platforms), never on the request path, dropped rather than blocking if the portal is unreachable. Each report is metadata only: a hashed session id, resource, decision, actor, connection state, detected tool, reason codes. No payloads, no identities, no IPs. Without a key nothing leaves your server.
 
 The portal shows, per key: the share of sessions with an AI agent, decisions over time, which agents were seen, which resources they reached for, and a live log of recent decisions. Start in `observe` mode and you get the picture before anything is enforced.
 
@@ -320,7 +324,7 @@ A **management key** (`nt_admin_…`, created in the portal under Settings) admi
 
 ```bash
 export NT_ADMIN=nt_admin_…
-BASE=https://onehuman-mvp.vercel.app
+BASE=https://onehuman.ai
 
 curl -H "Authorization: Bearer $NT_ADMIN" $BASE/api/v1/manage/me            # whose account this is + endpoint list
 curl -H "Authorization: Bearer $NT_ADMIN" $BASE/api/v1/manage/keys          # list project keys
@@ -338,10 +342,10 @@ curl -H "Authorization: Bearer $NT_ADMIN" -H 'Content-Type: application/json' \
      -d '{"key":"<id>","policy":{…}}' $BASE/api/v1/manage/policy                                   # propose a change: applied, or held for approval
 ```
 
-`POST /keys` answers with `{ id, name, env, expires, key }` — put `key` into the app's environment as `NT_API_KEY` and it starts reporting. `GET /manage/me` lists every endpoint, so an agent can discover the API from one call. A management key can create and revoke project keys: treat it like a password, and revoke it in the portal when the job is done.
+`POST /keys` answers with `{ id, name, env, expires, key }` — put `key` into the app's environment as `ONEHUMAN_API_KEY` and it starts reporting. `GET /manage/me` lists every endpoint, so an agent can discover the API from one call. A management key can create and revoke project keys: treat it like a password, and revoke it in the portal when the job is done.
 
 ## Licence
 
 `onehuman` (this package: the browser SDK, the Express middleware, the CLI and the proof verifier) is **Apache 2.0**. It depends on `onehuman-engine`, which is **Business Source License 1.1** with a production-use grant: you may run it in production, at any scale, to protect your own applications and the services you provide to your customers. The only use not granted is offering OneHuman itself to third parties as a competing hosted or embedded product. Each engine version converts to Apache 2.0 four years after release. Versions before 0.4.0 were MIT.
 
-Live demo: https://onehuman-mvp.vercel.app · Source and docs: https://github.com/ArifBabayev05/OneHuman (SDK and middleware Apache-2.0; engine BUSL-1.1 — production use granted) · `docs/INTEGRATION.md`, `docs/EVAL.md`.
+Live demo: https://onehuman.ai · Source and docs: https://github.com/ArifBabayev05/OneHuman (SDK and middleware Apache-2.0; engine BUSL-1.1 — production use granted) · `docs/INTEGRATION.md`, `docs/EVAL.md`.

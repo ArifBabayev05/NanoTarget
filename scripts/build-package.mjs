@@ -41,7 +41,7 @@ await build({
   bundle: true, platform: 'node', format: 'esm', target: 'node22', sourcemap: true, legalComments: 'none',
   external: ['@libsql/client', '@libsql/client/*', 'node:*'],
   define: { __ONEHUMAN_ENGINE_VERSION__: JSON.stringify(enginePkg.version) },
-  banner: { js: `// onehuman-engine ${enginePkg.version} — BUSL-1.1 (see LICENSE) — https://onehuman-mvp.vercel.app` },
+  banner: { js: `// onehuman-engine ${enginePkg.version} — BUSL-1.1 (see LICENSE) — https://onehuman.ai` },
 });
 if (existsSync('server/kinematics-model.json')) cpSync('server/kinematics-model.json', `${ENGINE}/dist/kinematics-model.json`);
 execSync('npx tsc -p tsconfig.engine.json', { stdio: 'inherit' });
@@ -68,7 +68,7 @@ await build({
   sourcemap: true,
   external: ['onehuman-engine', '@libsql/client', '@libsql/client/*', 'express', 'node:*'],
   define: { __ONEHUMAN_VERSION__: JSON.stringify(openPkg.version) },
-  banner: { js: `// onehuman ${openPkg.version} — Apache-2.0 — https://onehuman-mvp.vercel.app` },
+  banner: { js: `// onehuman ${openPkg.version} — Apache-2.0 — https://onehuman.ai` },
 });
 await build({
   ...common,

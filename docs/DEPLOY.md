@@ -1,6 +1,6 @@
 # Deploy — Vercel + Turso
 
-Canlı sayt: **https://onehuman-mvp.vercel.app**
+Canlı sayt: **https://onehuman.ai**
 Vercel layihəsi: `arif-babayev-projs/onehuman-mvp`
 
 ## Arxitektura
@@ -30,5 +30,5 @@ npx vercel deploy --prod --yes
 ## Məhdudiyyətlər
 
 - Otaq linki publikdir, dashboard-da auth yoxdur (MVP). Sintetik məlumat.
-- WebAuthn RP id = host (`onehuman-mvp.vercel.app`); passkey bu domenə bağlıdır.
+- WebAuthn RP id = host (`onehuman.ai`); passkey bu domenə bağlıdır.
 - Hobby plan: funksiya 30 s limit, soyuq start ~0.5–1 s.

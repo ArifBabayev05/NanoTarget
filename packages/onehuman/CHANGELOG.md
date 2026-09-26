@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 — OneHuman
+- **OneHuman is now OneHuman.** The packages are `onehuman` and `onehuman-engine` (published as `onehuman` / `onehuman-engine` up to 0.5.0): `npm i onehuman`, `import { onehuman } from 'onehuman/express'`, `npx onehuman …`. The page script is `/onehuman/sdk.js` and its global is `OneHuman`; the default database is `onehuman.db` and the rules file `onehuman.policy.json`. Environment: `ONEHUMAN_SECRET`, `ONEHUMAN_API_KEY` (the old `NT_API_KEY`, `NT_TELEMETRY_URL`, `NT_PORTAL_URL` still work). Proofs and rule envelopes signed before the rename still verify. The portal is https://onehuman.ai.
+- **`npx onehuman init`** — answer a few questions (what to protect, how, where the login id is, watch or protect, portal or not); it shows every file it would write or change and applies them on yes. For Express it wires the code itself, ES modules and CommonJS, routes in any file. `--yes` takes the recommended answers.
+- `onehumanDeferred(options)` — the same instance without `await`, for CommonJS and code that cannot wait at the top level.
+- `protect(resource, { mask: 'auto' })` — when the decision is mask and the handler uses `res.json()`, every value is hidden and the shape and ids kept; or pass your own function.
+
+## Unreleased (in 0.6.0)
 - **The policy lives in the portal.** With an `apiKey`, the first start sends `onehuman.policy.json` to the portal as version 1 (no approval); the server then reads the policy from there every minute, so portal edits are live without a deploy. Later edits to the file are proposed to the portal: applied at once by default, or held for approval when the owner turns that on. Changes that weaken protection wait for approval and the account password unless the owner switches that check off. Every change is journalled (who, when, what).
 - Changes that make real people confirm or be refused are treated like weakening ones: they wait for approval and the password.
 - Portal: the Policy page is now **Rules**, written for non-technical owners, with an assistant that edits existing rules from a plain-language request (never adds or removes one; for a new rule it writes a prompt for the coding agent).
@@ -35,7 +41,7 @@
 
 ## 0.2.2 — 2026-09-23
 - **Management API** for agents and CI: `nt_admin_…` keys administer an account over HTTP — list/create/revoke project keys, read overview and per-key stats; `GET /api/v1/manage/me` describes itself. Project keys gained an environment tag and an optional expiry.
-- `apiKey` option (or `NT_API_KEY`): the middleware reports each decision to the OneHuman portal — batched, off the request path, metadata only — and the portal shows the share of sessions with an AI agent, decisions over time, agents seen, resources reached, and a live log.
+- `apiKey` option (or `ONEHUMAN_API_KEY`): the middleware reports each decision to the OneHuman portal — batched, off the request path, metadata only — and the portal shows the share of sessions with an AI agent, decisions over time, agents seen, resources reached, and a live log.
 - Isolated-world reading detection: a side panel taking viewport width plus main-thread work with no input is an attach indicator (`PANEL_PAGE_READ`); each alone is environment evidence.
 
 ## 0.2.1 — 2026-09-22

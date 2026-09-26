@@ -2,7 +2,7 @@
 
 The engine behind [`onehuman`](https://www.npmjs.com/package/onehuman): AI-agent detection inside signed-in sessions, the per-resource policy (allow · mask · step up · block), the hash-chained audit log and Ed25519-signed decision proofs.
 
-> **Install `onehuman`, not this.** `npm i onehuman` depends on this package and installs it for you. The API you use is `onehuman/express` and `npx onehuman`; nothing here is meant to be imported directly, and its internal exports may change between versions. Documentation: https://onehuman-mvp.vercel.app/docs
+> **Install `onehuman`, not this.** `npm i onehuman` depends on this package and installs it for you. The API you use is `onehuman/express` and `npx onehuman`; nothing here is meant to be imported directly, and its internal exports may change between versions. Documentation: https://onehuman.ai/docs
 
 ## Licence
 

@@ -32,6 +32,12 @@ if (!dry) {
 }
 run('npm run check');
 
+// the package reports to https://onehuman.ai by default: never publish while that address does not answer as the portal
+if (!dry && !args.includes('--skip-portal-check')) {
+  const ok = await fetch('https://onehuman.ai/api/v1/policy-keys', { signal: AbortSignal.timeout(10_000) }).then((r) => r.ok, () => false);
+  if (!ok) { console.error('\nhttps://onehuman.ai portal kimi cavab vermir (DNS hələ Vercel-ə yönəlməyib?). Əvvəl domeni qoş, sonra yenidən `npm run release`.'); process.exit(1); }
+}
+
 // one version for both; the open package pins the engine to it exactly
 const current = read(OPEN).version;
 if (bump !== 'current') run(`npm version ${bump} --no-git-tag-version`, { cwd: OPEN });

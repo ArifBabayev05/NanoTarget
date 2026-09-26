@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
  * onehuman CLI
+ *   npx onehuman init [dir] [--yes] [--no-install]  answer a few questions; OneHuman is set up in this project
  *   npx onehuman scan [dir]                      discover routes, sensitivity, identity; write onehuman.policy.draft.json
  *   npx onehuman scan [dir] --json               same, machine-readable (for AI agents)
  *   npx onehuman scan [dir] --proposal           only the plain-language proposal to show the product owner
  *   npx onehuman verify <baseUrl> <protectedPath> [--base /onehuman]   run the 4 post-integration checks
- *   npx onehuman secret                          print a fresh NT_SECRET
+ *   npx onehuman secret                          print a fresh ONEHUMAN_SECRET
  *   npx onehuman verify-proof <bundle.json> [--keys <jwks.json | https://…/onehuman/proof-keys>]
  *                                                  check signed decision proofs offline (for an auditor)
  */
@@ -13,6 +14,7 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderProposal, renderReport, scan } from './scan.ts';
+import { runInit } from './init.ts';
 import { thumbprint, verifyProof } from '../proof/verify.ts';
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -21,6 +23,7 @@ const has = (name: string) => rest.includes(name);
 const positional = rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && rest[i - 1] !== '--json'));
 
 async function main() {
+  if (cmd === 'init') { await runInit(positional[0] ?? process.cwd(), { yes: has('--yes'), install: !has('--no-install') }); return; }
   if (cmd === 'scan') {
     const root = resolve(positional[0] ?? process.cwd());
     const r = scan(root);
@@ -90,7 +93,7 @@ async function main() {
     process.exit(allOk ? 0 : 1);
   }
   if (cmd === 'secret') { console.log(randomBytes(32).toString('base64url')); return; }
-  console.log('onehuman <scan [dir] [--json] | verify <baseUrl> <protectedPath> [--base /onehuman] | verify-proof <bundle.json> [--keys <jwks|url>] | secret>');
+  console.log('onehuman <init [dir] [--yes] | scan [dir] [--json] | verify <baseUrl> <protectedPath> [--base /onehuman] | verify-proof <bundle.json> [--keys <jwks|url>] | secret>');
   process.exit(cmd ? 2 : 0);
 }
 main().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });

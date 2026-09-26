@@ -34,7 +34,7 @@ const CONFIRM = 'This change lowers protection or affects real people. Confirm w
 
 /** The portal's policy-signing key, derived from the deployment secret: the same on every instance. */
 export function policySigner(secret: Buffer) {
-  const seed = Buffer.from(hkdfSync('sha256', secret, 'onehuman', 'portal-policy-ed25519', 32));
+  const seed = Buffer.from(hkdfSync('sha256', secret, 'onehuman', /* historic label, kept on purpose: changing it changes every derived key */ 'portal-policy-ed25519', 32));
   const priv = createPrivateKey({ key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), seed]), format: 'der', type: 'pkcs8' });
   const x = (createPublicKey(priv).export({ format: 'jwk' }) as { x: string }).x;
   const jwk = { kty: 'OKP' as const, crv: 'Ed25519' as const, x, kid: thumbprint(x), use: 'sig' as const, alg: 'EdDSA' as const };

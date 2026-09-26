@@ -518,8 +518,8 @@ export type Check = { id: 'reporting' | 'browser' | 'signed' | 'enforcing'; stat
 export function integrationChecks(h: TelemetryHealth, now: number): Check[] {
   const ago = (t: number) => { const s = Math.max(0, Math.round((now - t) / 1000)); return s < 90 ? `${s}s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 129600 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`; };
   const checks: Check[] = [];
-  if (!h.last) checks.push({ id: 'reporting', status: 'off', title: 'Server reporting', detail: 'No decision from this key yet. Put the key in NT_API_KEY and make one request to a protected endpoint.' });
-  else if (now - h.last > 24 * 3600e3) checks.push({ id: 'reporting', status: 'warn', title: 'Server reporting', detail: `Last decision ${ago(h.last)}. If the app is live, check that NT_API_KEY is still set on the server.` });
+  if (!h.last) checks.push({ id: 'reporting', status: 'off', title: 'Server reporting', detail: 'No decision from this key yet. Put the key in ONEHUMAN_API_KEY and make one request to a protected endpoint.' });
+  else if (now - h.last > 24 * 3600e3) checks.push({ id: 'reporting', status: 'warn', title: 'Server reporting', detail: `Last decision ${ago(h.last)}. If the app is live, check that ONEHUMAN_API_KEY is still set on the server.` });
   else checks.push({ id: 'reporting', status: 'ok', title: 'Server reporting', detail: `Last decision ${ago(h.last)} · ${h.events.toLocaleString('en-US')} in range.` });
 
   if (!h.sessions) checks.push({ id: 'browser', status: 'off', title: 'Browser signals', detail: 'Waits for the first session.' });
@@ -531,7 +531,7 @@ export function integrationChecks(h: TelemetryHealth, now: number): Check[] {
 
   if (!h.events) checks.push({ id: 'signed', status: 'off', title: 'Signed decisions', detail: 'Waits for the first decision.' });
   else if (!h.proofs) checks.push({ id: 'signed', status: 'warn', title: 'Signed decisions', detail: 'Decisions arrive without a signature. Update to the latest onehuman package.' });
-  else if (h.proofsOk < h.proofs) checks.push({ id: 'signed', status: 'warn', title: 'Signed decisions', detail: `${h.proofs - h.proofsOk} of ${h.proofs} signatures did not verify. Every server instance must use the same NT_SECRET.` });
+  else if (h.proofsOk < h.proofs) checks.push({ id: 'signed', status: 'warn', title: 'Signed decisions', detail: `${h.proofs - h.proofsOk} of ${h.proofs} signatures did not verify. Every server instance must use the same ONEHUMAN_SECRET.` });
   else checks.push({ id: 'signed', status: 'ok', title: 'Signed decisions', detail: `${h.proofsOk.toLocaleString('en-US')} decisions signed and verified. Export them for an auditor from Activity.` });
 
   if (!h.enforcement) checks.push({ id: 'enforcing', status: 'off', title: 'Policy mode', detail: 'Waits for the first decision.' });

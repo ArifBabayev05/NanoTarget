@@ -11,7 +11,7 @@ Bank, CRM və ya sığorta şirkəti OneHuman-i öz backend-inə **middleware** 
 ```js
 import { onehuman } from 'onehuman/express';
 
-const nt = await onehuman({ secret: process.env.NT_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db' });
+const nt = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db' });
 app.use(nt.middleware());                                    // 1. SDK + onun API-si /onehuman altında
 app.get('/api/balance', nt.protect('balance.read'),          // 2. qərar nöqtəsi: məlumatı qaytaran endpoint
   (req, res) => nt.send(req, res, account, maskBalance));    // 3. allow → tam, mask → sizin mask funksiyanız

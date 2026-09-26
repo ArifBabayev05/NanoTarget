@@ -50,7 +50,7 @@ export type Handler = (req: Req, res: Res) => Promise<void>;
  */
 async function labOperatorKeys(secret: Buffer | undefined): Promise<{ privateKey: CryptoKey; publicJwk: OperatorKey }> {
   if (secret) {
-    const seed = Buffer.from(hkdfSync('sha256', secret, 'onehuman', 'lab-operator-ed25519', 32));
+    const seed = Buffer.from(hkdfSync('sha256', secret, 'onehuman', /* historic label, kept on purpose: changing it changes every derived key */ 'lab-operator-ed25519', 32));
     const pkcs8 = Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), seed]);
     const jwk = createPrivateKey({ key: pkcs8, format: 'der', type: 'pkcs8' }).export({ format: 'jwk' }) as { x: string; d: string };
     const privateKey = await crypto.subtle.importKey('jwk', { kty: 'OKP', crv: 'Ed25519', x: jwk.x, d: jwk.d }, { name: 'Ed25519' }, false, ['sign']);

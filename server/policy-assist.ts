@@ -104,7 +104,7 @@ export async function assistPolicy(draft: Policy, message: string): Promise<Assi
   const offline = () => Object.assign(new Error('The assistant could not answer right now. Try again in a minute.'), { code: 'assistant_error' });
   const r = await fetch(process.env.NT_ASSIST_URL || 'https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://onehuman-mvp.vercel.app', 'X-Title': 'OneHuman portal' },
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://onehuman.ai', 'X-Title': 'OneHuman portal' },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(25_000),
   }).catch(() => { throw offline(); });
