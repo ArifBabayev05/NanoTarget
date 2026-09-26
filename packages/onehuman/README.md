@@ -8,7 +8,7 @@ Customers now hand their logged-in bank, CRM and insurance sessions to Claude, C
 
 - **Proof, not a guess.** Every decision — allowed, hidden, refused, or confirmed by the person with a passkey — is signed on your server (Ed25519). An auditor checks it offline with `npx onehuman verify-proof`, without trusting us.
 - **Detects at attach time, before the first click.** Agent-tool DOM markers, injected globals, evaluated-script read bursts, focus emulation, Web Bot Auth signatures. Measured: Claude in Chrome 0.1–0.5 s after attach; Codex 0.14 s; in-app agent browsers at first read.
-- **Tells hands from programs per click.** Pointer kinematics — trajectory curvature, tremor, sub-movements, deceleration onto the target, hold time, pressure, teleport. Humans hold 83–225 ms with ≥35 trajectory points; agents 1–4 ms with none. Measured on our own set: 397 human clicks from 22 browsers and devices, 2 read as a program; 824 agent clicks, 2 read as human. Not an independent study.
+- **Tells hands from programs per click.** Pointer kinematics — trajectory curvature, tremor, sub-movements, deceleration onto the target, hold time, pressure, teleport. Humans hold 83–225 ms with ≥35 trajectory points; agents 1–4 ms with none. Measured on our own set: 397 human clicks from 22 browsers and devices, 2 read as a program; 824 agent clicks, 2 read as human. Not an independent study — method and limits: https://onehuman.ai/measurements
 - **Never treats "unknown" as human.** Decisions need evidence in both directions; a person inside an AI browser is unlocked by their own first click, not by default.
 - **Protects data already on screen.** Elements marked `data-nt-sensitive="full"` are redacted in the browser the instant an indicator appears — a read already in flight sees `••••`.
 - **Session memory with a human exit.** Once an agent attached, the session stays "agent" until a WebAuthn user-verified passkey (Touch ID / Windows Hello) reclaims it for 5 minutes.
@@ -280,7 +280,7 @@ Move the decision into the front end (the SDK is untrusted input) · protect log
 
 ## What it detects (so you can explain it to the user)
 - **Attach time, before the first click:** agent-tool DOM markers (Claude in Chrome / Codex overlays), tool-injected globals, evaluated-script DOM read bursts, focus emulation, Web Bot Auth signatures (verified operators).
-- **Per click:** pointer kinematics — trajectory curvature, tremor, sub-movements, deceleration onto the target, hold time, pressure, teleport. Measured: humans hold 83–225 ms with ≥35 trajectory points; agents 1–4 ms with none. Measured on our own set: 397 human clicks from 22 browsers and devices, 2 read as a program; 824 agent clicks, 2 read as human. Not an independent study.
+- **Per click:** pointer kinematics — trajectory curvature, tremor, sub-movements, deceleration onto the target, hold time, pressure, teleport. Measured: humans hold 83–225 ms with ≥35 trajectory points; agents 1–4 ms with none. Measured on our own set: 397 human clicks from 22 browsers and devices, 2 read as a program; 824 agent clicks, 2 read as human. Not an independent study — method and limits: https://onehuman.ai/measurements
 - **Session memory:** once an agent attached, the session stays "agent" until a WebAuthn user-verified passkey (Touch ID) reclaims it for 5 minutes.
 - **Seal-on-attach:** `data-nt-sensitive="full"` elements are redacted in the browser the instant an indicator appears — even a read that is already in flight sees `••••`.
 

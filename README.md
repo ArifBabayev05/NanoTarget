@@ -22,7 +22,7 @@ Customers now hand their signed-in banking, CRM and insurance sessions to Claude
 OneHuman works inside the session:
 
 - **Attach-time detection** — agent-tool markers, injected globals, evaluated-script reads, focus emulation and Web Bot Auth signatures are seen before the agent's first action (measured 0.1–0.5 s for Claude in Chrome, 0.14 s for Codex).
-- **Pointer physics per click** — a hand's path is curved, its tremor grows with speed and comes in bursts, it slows onto the target and holds 83–225 ms; drivers teleport and release in 1–4 ms; generated curves are parabola-clean. Measured on our own set: 397 human clicks from 22 browsers and devices, 2 read as a program; 824 agent clicks, 2 read as human. Not an independent study.
+- **Pointer physics per click** — a hand's path is curved, its tremor grows with speed and comes in bursts, it slows onto the target and holds 83–225 ms; drivers teleport and release in 1–4 ms; generated curves are parabola-clean. Measured on our own set: 397 human clicks from 22 browsers and devices, 2 read as a program; 824 agent clicks, 2 read as human. Not an independent study — method and limits: https://onehuman.ai/measurements
 - **Per-endpoint policy** — `allow · mask · step_up · block`, in your JSON; masking in your code; decisions on your server.
 - **Seal on attach** — data already on screen is redacted in the browser the instant an indicator appears.
 - **Passkey reclaim** — once an agent attached, the session stays "agent" until the person proves presence with WebAuthn (Touch ID) and takes it back.
