@@ -10,4 +10,4 @@
 ## Contributor License Agreement
 
 <!-- First contribution only. Keep this line, with your name: -->
-I have read the NanoTarget Contributor License Agreement (CLA.md) and I agree to it. — *Your Full Name*
+I have read the OneHuman Contributor License Agreement (CLA.md) and I agree to it. — *Your Full Name*

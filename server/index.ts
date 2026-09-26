@@ -18,5 +18,5 @@ const { server } = await createApp({
 });
 
 server.listen(port, host, () => {
-  console.log(`NanoTarget → http://${host}:${port}/   db=${db.kind}:${db.label}`);
+  console.log(`OneHuman → http://${host}:${port}/   db=${db.kind}:${db.label}`);
 });

@@ -8,13 +8,13 @@ api/
 .vercel
 .env
 .env.*
-packages/nanotarget/dist/
-packages/nanotarget/sdk/
-examples/express-bank/nanotarget.db*
+packages/onehuman/dist/
+packages/onehuman/sdk/
+examples/express-bank/onehuman.db*
 .claude/
 .agents/
 skills-lock.json
-nanotarget.policy.draft.json
+onehuman.policy.draft.json
 
 # internal notes: sales, pricing, research — never pushed to the public repo
 internal/

@@ -28,7 +28,7 @@ export type Prover = {
 
 /** A signer whose key is derived from the engine secret: same secret, same key, on every instance. */
 export function proverFromSecret(secret: Buffer): Prover {
-  const seed = Buffer.from(hkdfSync('sha256', secret, 'nanotarget', 'decision-proof-ed25519', 32));
+  const seed = Buffer.from(hkdfSync('sha256', secret, 'nanotarget', /* historic label, kept on purpose: changing it changes every derived key */ 'decision-proof-ed25519', 32));
   const privateKey = createPrivateKey({ key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), seed]), format: 'der', type: 'pkcs8' });
   const x = (createPublicKey(privateKey).export({ format: 'jwk' }) as { x: string }).x;
   const jwk: ProofJwk = { kty: 'OKP', crv: 'Ed25519', x, kid: thumbprint(x), use: 'sig', alg: 'EdDSA' };
@@ -37,7 +37,7 @@ export function proverFromSecret(secret: Buffer): Prover {
     jwk,
     sign(row, seq) {
       const payload: ProofPayload = {
-        v: PROOF_VERSION, iss: 'nanotarget', iat: Math.floor(row.created / 1000), jti: row.id, sub: sessionDigest(row.session),
+        v: PROOF_VERSION, iss: 'onehuman', iat: Math.floor(row.created / 1000), jti: row.id, sub: sessionDigest(row.session),
         resource: row.resource, decision: row.decision, computed: row.computed, enforced: row.enforced, branch: row.branch,
         actor: row.actor, score: row.score, tiers: row.tiers, reasons: row.reasonCodes, delivered: row.dataDelivered,
         policy: row.policyVersion, engine: row.signalVersion, audit: { seq, hash: row.hash, prev: row.prevHash },

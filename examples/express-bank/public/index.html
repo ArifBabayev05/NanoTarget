@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Acme Bank</title>
-<!-- NanoTarget: one script tag; the endpoint is derived from where the SDK is served -->
-<script src="/nanotarget/sdk.js"></script>
+<!-- OneHuman: one script tag; the endpoint is derived from where the SDK is served -->
+<script src="/onehuman/sdk.js"></script>
 <style>
   body { font: 15px/1.5 -apple-system, Segoe UI, sans-serif; background: #f4f6fa; color: #0f172a; margin: 0; padding: 32px 16px; }
   .card { max-width: 520px; margin: 0 auto 16px; background: #fff; border-radius: 16px; padding: 22px; box-shadow: 0 8px 24px rgba(15,23,42,.06); }
@@ -32,8 +32,8 @@
 <script>
   const $ = (s) => document.querySelector(s);
   async function call(url, init) {
-    // NanoTarget.fetch attaches the click telemetry; decisions arrive as 200 (allow/mask), 403 (block) or 428 (step-up)
-    const r = await NanoTarget.fetch(url, init);
+    // OneHuman.fetch attaches the click telemetry; decisions arrive as 200 (allow/mask), 403 (block) or 428 (step-up)
+    const r = await OneHuman.fetch(url, init);
     return { status: r.status, body: await r.json() };
   }
   $('#show').onclick = async () => {

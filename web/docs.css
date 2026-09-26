@@ -1,4 +1,4 @@
-/* NanoTarget documentation — light and dark */
+/* OneHuman documentation — light and dark */
 :root{
   --bg:#0a0a0b;--bg2:#0f0f11;--bg3:#151517;--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);
   --fg:#f2f2f3;--fg2:#a1a1aa;--fg3:#6b6b74;
@@ -24,6 +24,7 @@ mark{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 2px
 
 .top{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;align-items:center;gap:20px;height:64px;padding:0 24px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(12px);position:sticky;top:0;z-index:30}
 .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px}
+.brand .logo{height:17px;width:auto;display:block;color:var(--fg);flex:none}
 .brand small{color:var(--fg3);font-weight:400}
 .mark{width:24px;height:24px;border-radius:7px;background:var(--fg);display:grid;place-items:center}
 .mark span{width:8px;height:8px;border-radius:50%;background:var(--bg);box-shadow:0 0 0 3px var(--fg),0 0 0 4px var(--bg)}

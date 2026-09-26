@@ -3,7 +3,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import type { AddressInfo } from 'node:net';
-import { nanotarget } from '../integrations/express/index.ts';
+import { onehuman } from '../integrations/express/index.ts';
 import { EMPTY_READING } from '../server/signals.ts';
 
 const policy = {
@@ -17,7 +17,7 @@ const policy = {
 const early = { startedMs: 0, observedMs: 500, webdriver: false, firstInteractionMs: null, dataDomMs: null, markers: [] as { name: string; atMs: number }[], environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: [], focusWhileHiddenMs: null }, focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0, reading: { ...EMPTY_READING } };
 
 const secret = 'test-secret-test-secret-test-secret-1234';
-const nt = await nanotarget({ secret, policy: policy as never, db: 'memory', identify: (req) => (req.headers['x-user'] as string | undefined) || null });
+const nt = await onehuman({ secret, policy: policy as never, db: 'memory', identify: (req) => (req.headers['x-user'] as string | undefined) || null });
 const app = express();
 app.use(express.json());
 app.use(nt.middleware());
@@ -32,7 +32,7 @@ after(() => { server.close(); nt.close(); });
 const cookieOf = (r: Response) => (r.headers.get('set-cookie') ?? '').split(';')[0]!;
 
 test('serves the SDK next to its API and the SDK derives the endpoint from its own URL', async () => {
-  const r = await fetch(`${base}/nanotarget/sdk.js`);
+  const r = await fetch(`${base}/onehuman/sdk.js`);
   assert.equal(r.status, 200);
   const js = await r.text();
   assert.ok(js.includes("'/signals'"));
@@ -54,7 +54,7 @@ test('identify(): two tabs of one login share one session; an agent marker in on
   const a = await fetch(`${base}/api/balance`, { headers: h });
   assert.equal(a.status, 200);
   // tab 2 (no cookie) posts an agent control marker via the SDK endpoint
-  const sig = await fetch(`${base}/nanotarget/signals`, { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ early: { ...early, markers: [{ name: 'claude-stop', atMs: 900 }, { name: 'claude-cursor', atMs: 900 }] }, interaction: null }) });
+  const sig = await fetch(`${base}/onehuman/signals`, { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ early: { ...early, markers: [{ name: 'claude-stop', atMs: 900 }, { name: 'claude-cursor', atMs: 900 }] }, interaction: null }) });
   assert.equal(sig.status, 200);
   assert.equal((await sig.json()).connection.state, 'agent_attached');
   // tab 1 asks again with only its cookie → the login is agent-attached → block with reclaim offer
@@ -87,6 +87,6 @@ test('step_up answers 428 with a challenge; respond:false hands the decision to 
 });
 
 test('policy from a file is validated; a broken file is rejected at start-up', async () => {
-  await assert.rejects(nanotarget({ secret, policy: { version: 'x', enforcement: 'enforce', rules: [{ resource: 'a' }] } as never, db: 'memory' }), /policy file is invalid/);
-  await assert.rejects(nanotarget({ secret: 'short', policy: policy as never, db: 'memory' }), /at least 32 bytes/);
+  await assert.rejects(onehuman({ secret, policy: { version: 'x', enforcement: 'enforce', rules: [{ resource: 'a' }] } as never, db: 'memory' }), /policy file is invalid/);
+  await assert.rejects(onehuman({ secret: 'short', policy: policy as never, db: 'memory' }), /at least 32 bytes/);
 });

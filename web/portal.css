@@ -1,4 +1,4 @@
-/* NanoTarget portal — workspace layout, light and dark */
+/* OneHuman portal — workspace layout, light and dark */
 :root{
   --bg:#0a0a0b;--bg2:#0f0f11;--bg3:#151517;--bg4:#1b1b1f;
   --line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);
@@ -31,6 +31,7 @@ h3{margin:0;font-size:14px;font-weight:600;letter-spacing:-.01em}
 /* top bar */
 .top{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;align-items:center;gap:20px;height:64px;padding:0 24px;border-bottom:1px solid var(--line);background:var(--bg);position:sticky;top:0;z-index:20}
 .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px}
+.brand .logo{height:17px;width:auto;display:block;color:var(--fg);flex:none}
 .mark{width:24px;height:24px;border-radius:7px;background:var(--fg);display:grid;place-items:center}.mark span{width:8px;height:8px;border-radius:50%;background:var(--bg);box-shadow:0 0 0 3px var(--fg),0 0 0 4px var(--bg)}
 .theme{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--bg2)}
 .theme button{background:none;border:0;color:var(--fg3);cursor:pointer;padding:7px 9px;display:grid;place-items:center;transition:color .2s,background .2s}

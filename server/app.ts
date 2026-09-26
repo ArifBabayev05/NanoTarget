@@ -11,7 +11,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { APPS, publicApp } from './apps.ts';
 import { Store } from './db.ts';
-import { NanoTarget } from './engine.ts';
+import { OneHuman } from './engine.ts';
 import { attachModel, KINEMATICS_VERSION } from './kinematics.ts';
 import { SIGNAL_VERSION } from './assess.ts';
 import { loadModel, predict } from './kinematics-model.ts';
@@ -50,7 +50,7 @@ export type Handler = (req: Req, res: Res) => Promise<void>;
  */
 async function labOperatorKeys(secret: Buffer | undefined): Promise<{ privateKey: CryptoKey; publicJwk: OperatorKey }> {
   if (secret) {
-    const seed = Buffer.from(hkdfSync('sha256', secret, 'nanotarget', 'lab-operator-ed25519', 32));
+    const seed = Buffer.from(hkdfSync('sha256', secret, 'nanotarget', /* historic label, kept on purpose: changing it changes every derived key */ 'lab-operator-ed25519', 32));
     const pkcs8 = Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), seed]);
     const jwk = createPrivateKey({ key: pkcs8, format: 'der', type: 'pkcs8' }).export({ format: 'jwk' }) as { x: string; d: string };
     const privateKey = await crypto.subtle.importKey('jwk', { kty: 'OKP', crv: 'Ed25519', x: jwk.x, d: jwk.d }, { name: 'Ed25519' }, false, ['sign']);
@@ -61,7 +61,7 @@ async function labOperatorKeys(secret: Buffer | undefined): Promise<{ privateKey
   return { privateKey: pair.privateKey, publicJwk: { kty: 'OKP', crv: 'Ed25519', x: jwk.x, kid: 'lab-key-1' } };
 }
 
-export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handler; server: Server; engine: NanoTarget; store: Store; labOperator: LabOperator }> {
+export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handler; server: Server; engine: OneHuman; store: Store; labOperator: LabOperator }> {
   const store = await Store.open(opts.client);
   const model = await loadModel();
   attachModel(model ? { predict: (f) => predict(model, f), humanAbove: model.humanAbove, syntheticBelow: model.syntheticBelow } : null);
@@ -75,12 +75,12 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
   let keyLoader: KeyLoader = httpsDirectoryLoader;
   if (opts.labOperator !== false) {
     const keys = await labOperatorKeys(opts.secret);
-    labOperator = { operator: 'https://lab-operator.nanotarget.test', privateKey: keys.privateKey, publicJwk: keys.publicJwk };
+    labOperator = { operator: 'https://lab-operator.onehuman.test', privateKey: keys.privateKey, publicJwk: keys.publicJwk };
     KNOWN_OPERATORS[labOperator.operator] = 'memory://lab';
     keyLoader = async (operator) => (operator === labOperator!.operator ? [keys.publicJwk] : httpsDirectoryLoader(operator));
   }
 
-  const engine = new NanoTarget({ store, secret, keyLoader });
+  const engine = new OneHuman({ store, secret, keyLoader });
   engine.policyForApp = (app) => APPS[app]?.policy ?? null;
   const lab = labRoutes(engine, labOperator);
   const account = accountRoutes(engine);

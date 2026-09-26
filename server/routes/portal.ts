@@ -2,13 +2,13 @@
 /**
  * Customer portal + telemetry ingest.
  *
- * A customer signs up, creates API keys (one per project), puts a key into `nanotarget({ apiKey })`,
+ * A customer signs up, creates API keys (one per project), puts a key into `onehuman({ apiKey })`,
  * and the middleware reports every decision here — metadata only: hashed session, resource, decision,
  * actor, connection state, detected tools, reason codes. The portal turns that into the one number a
  * security team has never had: how many of their logged-in sessions had an AI agent in them.
  */
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
-import type { NanoTarget } from '../engine.ts';
+import type { OneHuman } from '../engine.ts';
 import { cookies, json, readJson, sameOrigin, url, type Req, type Res } from '../http.ts';
 import type { TelemetryEvent, TelemetryHealth } from '../db.ts';
 import { proofBundle, thumbprint, verifyProof, type ProofJwk } from '../proof.ts';
@@ -51,7 +51,7 @@ export function newAdminKey(): { raw: string; prefix: string; hash: string } {
 const EXPIRY_DAYS = new Set([0, 7, 30, 90, 365]);
 const ENVS = new Set(['production', 'staging', 'development']);
 
-export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => boolean }) {
+export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boolean }) {
   const store = engine.store;
   const setSession = (req: Req, res: Res, id: string | null) =>
     res.setHeader('Set-Cookie', id
@@ -163,7 +163,7 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     if (!account) return json(res, 401, { error: 'unauthenticated' });
     const b = (await readJson(req, 4000).catch(() => null)) as Record<string, unknown> | null | undefined;
     const raw = typeof b?.key === 'string' ? b.key.trim() : '';
-    if (!/^nt_(live|admin)_[a-f0-9]{40}$/.test(raw)) return json(res, 400, { error: 'bad_key', message: 'That is not a NanoTarget key.' });
+    if (!/^nt_(live|admin)_[a-f0-9]{40}$/.test(raw)) return json(res, 400, { error: 'bad_key', message: 'That is not a OneHuman key.' });
     json(res, 200, { id: await store.apiKeyIdByHash(hashKey(raw), account) });
   };
 
@@ -266,7 +266,7 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
     const key = u.searchParams.get('key') ?? '';
     if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
     const bundle = await bundleFor(key, u);
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="nanotarget-proofs-${bundle.range}${bundle.session ? '-' + bundle.session : ''}.json"`, 'Cache-Control': 'no-store' });
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="onehuman-proofs-${bundle.range}${bundle.session ? '-' + bundle.session : ''}.json"`, 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(bundle, null, 2));
   };
   async function bundleFor(key: string, u: URL) {
@@ -415,7 +415,7 @@ export function portalRoutes(engine: NanoTarget, opts: { secure: (req: Req) => b
 
   /**
    * Management API — everything the portal can do, over HTTP, with `Authorization: Bearer nt_admin_…`.
-   * This is what lets a coding agent set NanoTarget up end to end without a human opening the portal.
+   * This is what lets a coding agent set OneHuman up end to end without a human opening the portal.
    */
   const manage = async (req: Req, res: Res) => {
     const auth = (req.headers.authorization ?? '').toString();
@@ -518,20 +518,20 @@ export type Check = { id: 'reporting' | 'browser' | 'signed' | 'enforcing'; stat
 export function integrationChecks(h: TelemetryHealth, now: number): Check[] {
   const ago = (t: number) => { const s = Math.max(0, Math.round((now - t) / 1000)); return s < 90 ? `${s}s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 129600 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`; };
   const checks: Check[] = [];
-  if (!h.last) checks.push({ id: 'reporting', status: 'off', title: 'Server reporting', detail: 'No decision from this key yet. Put the key in NT_API_KEY and make one request to a protected endpoint.' });
-  else if (now - h.last > 24 * 3600e3) checks.push({ id: 'reporting', status: 'warn', title: 'Server reporting', detail: `Last decision ${ago(h.last)}. If the app is live, check that NT_API_KEY is still set on the server.` });
+  if (!h.last) checks.push({ id: 'reporting', status: 'off', title: 'Server reporting', detail: 'No decision from this key yet. Put the key in ONEHUMAN_API_KEY and make one request to a protected endpoint.' });
+  else if (now - h.last > 24 * 3600e3) checks.push({ id: 'reporting', status: 'warn', title: 'Server reporting', detail: `Last decision ${ago(h.last)}. If the app is live, check that ONEHUMAN_API_KEY is still set on the server.` });
   else checks.push({ id: 'reporting', status: 'ok', title: 'Server reporting', detail: `Last decision ${ago(h.last)} · ${h.events.toLocaleString('en-US')} in range.` });
 
   if (!h.sessions) checks.push({ id: 'browser', status: 'off', title: 'Browser signals', detail: 'Waits for the first session.' });
-  else if (!h.sdkSessions) checks.push({ id: 'browser', status: 'warn', title: 'Browser signals', detail: 'The server decides, but no page sent browser signals, so agents can only be judged by their requests. Add <script src="/nanotarget/sdk.js"></script> to the signed-in pages.' });
+  else if (!h.sdkSessions) checks.push({ id: 'browser', status: 'warn', title: 'Browser signals', detail: 'The server decides, but no page sent browser signals, so agents can only be judged by their requests. Add <script src="/onehuman/sdk.js"></script> to the signed-in pages.' });
   else {
     const share = Math.round((h.sdkSessions / h.sessions) * 100);
     checks.push({ id: 'browser', status: share >= 50 ? 'ok' : 'warn', title: 'Browser signals', detail: share >= 50 ? `${share}% of sessions sent browser signals.` : `Only ${share}% of sessions sent browser signals. Some signed-in pages are missing the script tag, or API clients call protected endpoints directly.` });
   }
 
   if (!h.events) checks.push({ id: 'signed', status: 'off', title: 'Signed decisions', detail: 'Waits for the first decision.' });
-  else if (!h.proofs) checks.push({ id: 'signed', status: 'warn', title: 'Signed decisions', detail: 'Decisions arrive without a signature. Update to the latest nanotarget package.' });
-  else if (h.proofsOk < h.proofs) checks.push({ id: 'signed', status: 'warn', title: 'Signed decisions', detail: `${h.proofs - h.proofsOk} of ${h.proofs} signatures did not verify. Every server instance must use the same NT_SECRET.` });
+  else if (!h.proofs) checks.push({ id: 'signed', status: 'warn', title: 'Signed decisions', detail: 'Decisions arrive without a signature. Update to the latest onehuman package.' });
+  else if (h.proofsOk < h.proofs) checks.push({ id: 'signed', status: 'warn', title: 'Signed decisions', detail: `${h.proofs - h.proofsOk} of ${h.proofs} signatures did not verify. Every server instance must use the same ONEHUMAN_SECRET.` });
   else checks.push({ id: 'signed', status: 'ok', title: 'Signed decisions', detail: `${h.proofsOk.toLocaleString('en-US')} decisions signed and verified. Export them for an auditor from Activity.` });
 
   if (!h.enforcement) checks.push({ id: 'enforcing', status: 'off', title: 'Policy mode', detail: 'Waits for the first decision.' });

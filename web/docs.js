@@ -81,7 +81,7 @@
     $$('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === page.tab));
     renderSide(page.tab);
     $$('#side a').forEach((a) => a.classList.toggle('on', a.dataset.page === page.id));
-    document.title = `${page.title} — NanoTarget docs`;
+    document.title = `${page.title} — OneHuman docs`;
     buildToc(sections[page.id]);
     buildPager(page);
     closeResults();

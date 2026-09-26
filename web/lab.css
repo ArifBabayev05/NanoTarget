@@ -1,4 +1,4 @@
-/* NanoTarget lab (training + sandbox) — same design language as the landing */
+/* OneHuman lab (training + sandbox) — same design language as the landing */
 :root{
   --bg:#0a0a0b;--bg2:#101013;--bg3:#16161a;--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);
   --ink:#f2f2f3;--ink-dim:#a1a1aa;--ink-faint:#6b6b74;
@@ -19,6 +19,7 @@ button,select,input,textarea{font-family:var(--font)}
 /* header */
 .top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:30px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px;letter-spacing:-.015em}
+.brand .logo{height:17px;width:auto;display:block;color:var(--ink);flex:none}
 .brand .mark{width:22px;height:22px;border-radius:7px;background:var(--ink);display:grid;place-items:center;position:relative}
 .brand .mark::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--bg);box-shadow:0 0 0 3px var(--ink),0 0 0 4px var(--bg)}
 .brand small{color:var(--ink-faint);font-weight:400;margin-left:6px}

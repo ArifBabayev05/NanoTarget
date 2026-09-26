@@ -3,8 +3,8 @@
  * Change the copyright holder / Licensor everywhere it is named — run once the company exists and the
  * copyright has been assigned to it (a signed assignment comes first; this only updates the text).
  *
- *   node scripts/set-licensor.mjs "NanoTarget MMC"
- *   node scripts/set-licensor.mjs "NanoTarget MMC" --dry-run
+ *   node scripts/set-licensor.mjs "OneHuman MMC"
+ *   node scripts/set-licensor.mjs "OneHuman MMC" --dry-run
  *
  * Touches only licence-bearing files: LICENSE, LICENSE-BSL, NOTICE, both packages' LICENSE/NOTICE, and the
  * copyright line in the READMEs. It never edits LICENSE-APACHE (the Apache text names no holder).
@@ -17,7 +17,7 @@ const current = /Licensor:\s+(.+)/.exec(readFileSync('LICENSE-BSL', 'utf8'))?.[1
 if (!current) { console.error('LICENSE-BSL has no Licensor line'); process.exit(1); }
 if (current === to) { console.log(`Licensor is already "${to}".`); process.exit(0); }
 
-const files = ['LICENSE', 'LICENSE-BSL', 'NOTICE', 'packages/engine/LICENSE', 'packages/nanotarget/NOTICE', 'README.md', 'packages/nanotarget/README.md', 'packages/nanotarget/AGENTS.md', 'packages/engine/README.md'];
+const files = ['LICENSE', 'LICENSE-BSL', 'NOTICE', 'packages/engine/LICENSE', 'packages/onehuman/NOTICE', 'README.md', 'packages/onehuman/README.md', 'packages/onehuman/AGENTS.md', 'packages/engine/README.md'];
 let changed = 0;
 for (const f of files) {
   if (!existsSync(f)) continue;

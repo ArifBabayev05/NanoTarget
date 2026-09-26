@@ -1,7 +1,7 @@
 {
-  "name": "nanotarget",
+  "name": "onehuman",
   "version": "0.5.0",
-  "description": "Know the moment an AI agent (Claude in Chrome, ChatGPT Atlas, Codex, Comet, Playwright…) takes over a signed-in session — on your own server — and decide per endpoint what it may see: allow · mask · step-up · block, with a passkey way back and a signed proof of every decision. Express/Connect middleware + browser SDK + CLI. This package is Apache-2.0 and pulls in the engine (nanotarget-engine, BUSL-1.1, production use granted) automatically: `npm i nanotarget` is all you install. AI coding agents: the README is your integration protocol.",
+  "description": "Know the moment an AI agent (Claude in Chrome, ChatGPT Atlas, Codex, Comet, Playwright…) takes over a signed-in session — on your own server — and decide per endpoint what it may see: allow · mask · step-up · block, with a passkey way back and a signed proof of every decision. Express/Connect middleware + browser SDK + CLI. This package is Apache-2.0 and pulls in the engine (onehuman-engine, BUSL-1.1, production use granted) automatically: `npm i onehuman` is all you install. AI coding agents: the README is your integration protocol.",
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
@@ -16,7 +16,7 @@
       "types": "./dist/types/integrations/express/index.d.ts",
       "default": "./dist/express.js"
     },
-    "./sdk": "./sdk/nanotarget.js",
+    "./sdk": "./sdk/onehuman.js",
     "./package.json": "./package.json"
   },
   "types": "./dist/types/integrations/express/index.d.ts",
@@ -64,18 +64,18 @@
   },
   "sideEffects": false,
   "bin": {
-    "nanotarget": "dist/cli.js"
+    "onehuman": "dist/cli.js"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ArifBabayev05/NanoTarget.git"
   },
-  "homepage": "https://nanotarget-mvp.vercel.app",
+  "homepage": "https://onehuman.ai",
   "bugs": {
     "url": "https://github.com/ArifBabayev05/NanoTarget/issues"
   },
   "author": "Arif Babayev",
   "dependencies": {
-    "nanotarget-engine": "0.5.0"
+    "onehuman-engine": "0.5.0"
   }
 }

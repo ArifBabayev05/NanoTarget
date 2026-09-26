@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 /**
  * Local adversarial harness — drives a REAL Chrome through evasion strategies against a running
- * NanoTarget app, and reports whether each one is detected and whether a sensitive resource leaks.
+ * OneHuman app, and reports whether each one is detected and whether a sensitive resource leaks.
  *
  * This is a local red-team and data-collection tool. It is NOT part of the server, is never served,
  * and is never published (scripts/ is excluded from the npm package and the Vercel bundle). Point it
@@ -82,19 +82,19 @@ async function newPage(browser, stealth) {
   // record the pointermoves the page sees, so a captured trajectory can be added to the training corpus
   await page.evaluateOnNewDocument(() => { window.__cap = []; addEventListener('pointermove', (e) => { window.__cap.push([Math.round(performance.now() * 10) / 10, e.clientX, e.clientY, e.pressure]); }, { capture: true, passive: true }); });
   await page.goto(TARGET, { waitUntil: 'networkidle2' });
-  await page.waitForFunction(() => window.NanoTarget && document.querySelector('button[data-res]'), { timeout: 12000 });
+  await page.waitForFunction(() => window.OneHuman && document.querySelector('button[data-res]'), { timeout: 12000 });
   return page;
 }
 
 async function readVerdict(page, resource) {
   await sleep(500);
   return page.evaluate(async (res) => {
-    try { await window.NanoTarget.flush(); } catch {}
-    const r = await window.NanoTarget.fetch(`/api/v1/r/${res}`, { method: 'GET' });
+    try { await window.OneHuman.flush(); } catch {}
+    const r = await window.OneHuman.fetch(`/api/v1/r/${res}`, { method: 'GET' });
     const d = await r.json().catch(() => ({}));
     return { status: r.status, leaked: r.status === 200 && !d.masked, masked: !!d.masked,
-             actor: window.NanoTarget?.lastAssessment?.actor ?? null, conn: window.NanoTarget?.lastConnection?.state ?? null,
-             reasons: (window.NanoTarget?.lastAssessment?.reasons ?? []).map((x) => x.code) };
+             actor: window.OneHuman?.lastAssessment?.actor ?? null, conn: window.OneHuman?.lastConnection?.state ?? null,
+             reasons: (window.OneHuman?.lastAssessment?.reasons ?? []).map((x) => x.code) };
   }, resource);
 }
 

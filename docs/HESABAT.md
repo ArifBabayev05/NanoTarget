@@ -1,8 +1,8 @@
-# NanoTarget — Claude versiyası: nə quruldu, nə ölçüldü, nə sübut olunmadı
+# OneHuman — Claude versiyası: nə quruldu, nə ölçüldü, nə sübut olunmadı
 
 **Tarix:** 18 sentyabr 2026
-**Kod:** `YCombinator/nanotarget-claude`
-**Mənbə:** `NANOTARGET-FULL-REPORT.md`, `research/01…05`, `nanotarget-mvp` kodu, `research/browser-agent-lab/evidence`
+**Kod:** `YCombinator/onehuman-claude`
+**Mənbə:** `ONEHUMAN-FULL-REPORT.md`, `research/01…05`, `onehuman-mvp` kodu, `research/browser-agent-lab/evidence`
 
 ## 1. Məqsəd
 
@@ -27,7 +27,7 @@ Mövcud MVP ölçmə laboratoriyasıdır: siqnal toplayır, izahlı bal verir, j
 ## 3. Arxitektura
 
 ```
-sdk/nanotarget.js  ──► POST /api/v1/signals      (untrusted; validate → events)
+sdk/onehuman.js  ──► POST /api/v1/signals      (untrusted; validate → events)
                     └► X-NT-Sample header        (qərar anında təzə snapshot)
 
 GET /api/v1/account/balance
@@ -39,7 +39,7 @@ GET /api/v1/account/balance
        └─ handler(ctx)       yalnız allow/mask-da işləyir; ctx.masked → maskalanmış data
 ```
 
-Fayllar: `server/assess.ts`, `server/policy.ts`, `server/engine.ts`, `server/web-bot-auth.ts`, `server/tokens.ts`, `server/audit.ts`, `server/db.ts`, `server/routes/*`, `sdk/nanotarget.js`, `public/app.js`, `public/dashboard.js`.
+Fayllar: `server/assess.ts`, `server/policy.ts`, `server/engine.ts`, `server/web-bot-auth.ts`, `server/tokens.ts`, `server/audit.ts`, `server/db.ts`, `server/routes/*`, `sdk/onehuman.js`, `public/app.js`, `public/dashboard.js`.
 
 ## 4. Defolt qayda
 
@@ -397,9 +397,9 @@ Səhv 0/100; agentlərdə maksimum insan xalı 2, insanlarda maksimum agent xal�
 
 **Claude paneli, insan, 2-ci dövrə (10:41, sessiya fe533913).** İlk klik 10/0 → `allow human_like` ✓; sonra eyni düyməyə hərəkətsiz təkrar kliklər (n=0–3) "uncertain" oldu və sessiya yenidən `unknown` → mask. Düzəliş (kin-v4): `held_press` (35–400 ms basma + 0.5 pressure = əl cütü, +2), `repeat_click` (eyni yerə/eyni ölçülü düyməyə hərəkətsiz təkrar, +1), ilk-klik açılışı "hamısı güclü" yox, "biri güclü, heç biri sintetik/agent≤1" qaydası ilə. Dataset: 100/100 düz (insan max agent xalı 1, agent max insan xalı 2). Loglama: `npm run report` (scripts/session-report.mjs) — sessiya vaxt xətti; `seal` ayrıca event kimi saxlanır.
 
-## 8. İnteqrasiya paketi — `nanotarget/express` (21 sentyabr 2026)
+## 8. İnteqrasiya paketi — `onehuman/express` (21 sentyabr 2026)
 
-Biznes üçün seçilən yol: middleware/SDK. `integrations/express/index.ts` — `nanotarget({secret, policy, db, identify})` → `middleware()` (SDK-nı `/nanotarget/sdk.js`-də verir, siqnal/connection/step-up/WebAuthn API-sini yanında açır), `protect(resource)` (qərar `req.nt`-də; block→403, step_up→428), `send(req,res,full,mask)` (şirkətin öz mask funksiyası). Tenant üçün müddətsiz otaq, `identify()` ilə şirkət login sessiyasından deterministik NanoTarget sessiyası (bir loginin bütün tabları bir sessiya — bir tabda agent = bütün login agent). Storage sqlite/libSQL (on-prem). Nümunə: `examples/express-bank` (Express 5, 3 sətir). 6 inteqrasiya testi (96 test cəmi). Canlı yoxlama: Claude paneli nümunə tətbiqdə "Balansı göstər" klikləyəndə → `agent_attached` (alət qlobalları), 403, ekran möhürləndi. Sənəd: `docs/INTEGRATION.md`.
+Biznes üçün seçilən yol: middleware/SDK. `integrations/express/index.ts` — `onehuman({secret, policy, db, identify})` → `middleware()` (SDK-nı `/onehuman/sdk.js`-də verir, siqnal/connection/step-up/WebAuthn API-sini yanında açır), `protect(resource)` (qərar `req.nt`-də; block→403, step_up→428), `send(req,res,full,mask)` (şirkətin öz mask funksiyası). Tenant üçün müddətsiz otaq, `identify()` ilə şirkət login sessiyasından deterministik OneHuman sessiyası (bir loginin bütün tabları bir sessiya — bir tabda agent = bütün login agent). Storage sqlite/libSQL (on-prem). Nümunə: `examples/express-bank` (Express 5, 3 sətir). 6 inteqrasiya testi (96 test cəmi). Canlı yoxlama: Claude paneli nümunə tətbiqdə "Balansı göstər" klikləyəndə → `agent_attached` (alət qlobalları), 403, ekran möhürləndi. Sənəd: `docs/INTEGRATION.md`.
 
 ## 9. Təlim mühiti və ilk tam insan dövrəsi (22 sentyabr 2026)
 

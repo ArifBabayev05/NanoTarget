@@ -305,7 +305,7 @@ test('integration checks read like a checklist: off before data, warnings name t
   const c = Object.fromEntries(integrationChecks(live, now).map((x) => [x.id, x]));
   assert.equal(c.reporting!.status, 'ok');
   assert.equal(c.browser!.status, 'warn'); assert.match(c.browser!.detail, /20%/);
-  assert.equal(c.signed!.status, 'warn'); assert.match(c.signed!.detail, /NT_SECRET/);
+  assert.equal(c.signed!.status, 'warn'); assert.match(c.signed!.detail, /ONEHUMAN_SECRET/);
   assert.equal(c.enforcing!.status, 'ok');
   const stale = Object.fromEntries(integrationChecks({ ...live, last: now - 3 * 86400e3 }, now).map((x) => [x.id, x]));
   assert.equal(stale.reporting!.status, 'warn'); assert.match(stale.reporting!.detail, /3 days ago/);

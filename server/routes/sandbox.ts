@@ -5,7 +5,7 @@
  * Labels are supplied by whoever runs the sandbox and are stored as given — they are
  * training/evaluation data, never classifier input for real sessions.
  */
-import type { NanoTarget } from '../engine.ts';
+import type { OneHuman } from '../engine.ts';
 import { json, readJson, sameOrigin, url, type Req, type Res } from '../http.ts';
 import { clickFeatures, judgeClick, KINEMATICS_VERSION } from '../kinematics.ts';
 import { parseEarly, parseInteraction, type InteractionSample } from '../signals.ts';
@@ -15,7 +15,7 @@ const CLIENT = /^[a-z0-9-]{8,40}$/;
 const LABELS = new Set(['human', 'agent', 'unknown']);
 const SHORT = /^[a-z0-9_.-]{1,40}$/i;
 
-export function sandboxRoutes(engine: NanoTarget) {
+export function sandboxRoutes(engine: OneHuman) {
   const store = engine.store;
 
   const addSample = async (req: Req, res: Res) => {

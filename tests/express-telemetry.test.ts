@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import type { AddressInfo } from 'node:net';
 import { createApp } from '../server/app.ts';
-import { nanotarget } from '../integrations/express/index.ts';
+import { onehuman } from '../integrations/express/index.ts';
 
 const portal = await createApp({ labOperator: false });
 await new Promise<void>((r) => portal.server.listen(0, '127.0.0.1', () => r()));
@@ -18,7 +18,7 @@ const cookie = signup.headers.get('set-cookie')!.split(';')[0]!;
 const key = await (await fetch(`${pbase}/api/v1/portal/keys`, { method: 'POST', headers: { ...H, Cookie: cookie }, body: JSON.stringify({ name: 'staging' }) })).json();
 
 const policy = { version: 'tele-1', enforcement: 'observe', rules: [{ resource: 'balance.read', title: 'Balance', onAgent: 'mask', onArtifact: 'mask', onUnknown: 'allow', onHumanLike: 'allow', actOn: ['verified', 'strong', 'control', 'behavioral'], minScore: 65 }] };
-const nt = await nanotarget({ secret: 'test-secret-test-secret-test-secret-1234', policy: policy as never, db: 'memory', apiKey: key.key, telemetryUrl: `${pbase}/api/v1/ingest` });
+const nt = await onehuman({ secret: 'test-secret-test-secret-test-secret-1234', policy: policy as never, db: 'memory', apiKey: key.key, telemetryUrl: `${pbase}/api/v1/ingest` });
 const app = express();
 app.use(nt.middleware());
 app.get('/api/balance', nt.protect('balance.read'), (req, res) => nt.send(req, res, { balance: 10 }, (a) => ({ ...a, balance: null })));
@@ -44,7 +44,7 @@ test('decisions made by the middleware arrive in the portal under the right key'
 });
 
 test('without an apiKey nothing is reported and no reporter exists', async () => {
-  const quiet = await nanotarget({ secret: 'test-secret-test-secret-test-secret-1234', policy: policy as never, db: 'memory' });
+  const quiet = await onehuman({ secret: 'test-secret-test-secret-test-secret-1234', policy: policy as never, db: 'memory' });
   assert.equal(quiet.telemetry, null);
   await quiet.close();
 });
@@ -57,7 +57,7 @@ test('every decision is signed server-side, reaches the portal verified, and exp
   assert.equal(JSON.stringify(body).includes('eyJ'), false, 'no JWS in the response body');
 
   // the public key is published next to the SDK, for an auditor
-  const jwks = await (await fetch(`${base}/nanotarget/proof-keys`)).json();
+  const jwks = await (await fetch(`${base}/onehuman/proof-keys`)).json();
   assert.equal(jwks.keys.length, 1);
   assert.equal(jwks.keys[0].crv, 'Ed25519');
   assert.equal('d' in jwks.keys[0], false, 'never the private part');
@@ -69,7 +69,7 @@ test('every decision is signed server-side, reaches the portal verified, and exp
 
   // the business downloads the bundle; the portal's stateless verifier (or any JOSE library) accepts it
   const bundle = await (await fetch(`${pbase}/api/v1/portal/proofs?key=${key.id}&range=24h`, { headers: { Cookie: cookie } })).json();
-  assert.equal(bundle.format, 'nanotarget-proof-bundle/1');
+  assert.equal(bundle.format, 'onehuman-proof-bundle/1');
   assert.ok(bundle.proofs.length >= 3);
   assert.equal(bundle.keys[0].x, jwks.keys[0].x, 'the bundle carries the same key the deployment publishes');
   const v = await (await fetch(`${pbase}/api/v1/proof/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bundle) })).json();
@@ -106,7 +106,7 @@ test('a batch sent twice (retry after a timeout) is stored and counted once', as
 });
 
 test('immediate mode (serverless) delivers without waiting for the batch timer', async () => {
-  const quick = await nanotarget({ secret: 'test-secret-test-secret-test-secret-5678', policy: policy as never, db: 'memory', apiKey: key.key, telemetryUrl: `${pbase}/api/v1/ingest`, telemetryImmediate: true });
+  const quick = await onehuman({ secret: 'test-secret-test-secret-test-secret-5678', policy: policy as never, db: 'memory', apiKey: key.key, telemetryUrl: `${pbase}/api/v1/ingest`, telemetryImmediate: true });
   const a = express(); a.use(quick.middleware());
   a.get('/api/balance', quick.protect('balance.read'), (req, res) => quick.send(req, res, { balance: 1 }, (x) => x));
   const s = a.listen(0); const b = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
@@ -143,7 +143,7 @@ test('a customer grades a decision; false stops are counted on the stats', async
 });
 
 test('health reports the policy and the reporter; a constant identify() flips it to 503 with the reason', async () => {
-  let h = await fetch(`${base}/nanotarget/health`);
+  let h = await fetch(`${base}/onehuman/health`);
   assert.equal(h.status, 200);
   const body = await h.json();
   assert.equal(body.ok, true);
@@ -151,11 +151,11 @@ test('health reports the policy and the reporter; a constant identify() flips it
   assert.equal(body.policy.version, 'portal-v1'); assert.equal(body.policy.source, 'portal'); assert.equal(body.telemetry.enabled, true); assert.match(body.proofKey, /^[A-Za-z0-9_-]{43}$/);
 
   // the footgun: identify() returns the same string for everyone
-  const bad = await nanotarget({ secret: 'test-secret-test-secret-test-secret-9999', policy: policy as never, db: 'memory', identify: () => 'tenant-a' });
+  const bad = await onehuman({ secret: 'test-secret-test-secret-test-secret-9999', policy: policy as never, db: 'memory', identify: () => 'tenant-a' });
   const a = express(); a.use(bad.middleware()); a.get('/api/balance', bad.protect('balance.read'), (req, res) => bad.send(req, res, { b: 1 }, (x) => x));
   const s = a.listen(0); const b = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
   for (let i = 0; i < 6; i++) await fetch(`${b}/api/balance`, { headers: { 'x-forwarded-for': `10.0.0.${i}`, 'user-agent': `Browser/${i}` } });
-  h = await fetch(`${b}/nanotarget/health`);
+  h = await fetch(`${b}/onehuman/health`);
   assert.equal(h.status, 503);
   const hb = await h.json();
   assert.equal(hb.ok, false);

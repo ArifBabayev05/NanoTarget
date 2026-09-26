@@ -19,7 +19,7 @@ const FIELDS = ['onAgent', 'onArtifact', 'onUnknown', 'onHumanLike'] as const;
 
 export const assistEnabled = () => !!process.env.OPENROUTER_API_KEY;
 
-const SYSTEM = `You help a non-technical person adjust the rules of NanoTarget, a product that decides what an AI agent (an AI browser acting inside a customer's logged-in session) may do with each part of a web app.
+const SYSTEM = `You help a non-technical person adjust the rules of OneHuman, a product that decides what an AI agent (an AI browser acting inside a customer's logged-in session) may do with each part of a web app.
 
 Each rule covers one part of the app (its "resource" name comes from the app's code and must never change) and says what happens for four kinds of visitor:
 - onAgent: an AI agent was detected
@@ -27,13 +27,13 @@ Each rule covers one part of the app (its "resource" name comes from the app's c
 - onUnknown: not enough signal to tell
 - onHumanLike: the visitor behaves like a real person
 Each is one of: allow (${MODE_WORDS.allow}), mask (${MODE_WORDS.mask}), step_up (${MODE_WORDS.step_up}), block (${MODE_WORDS.block}).
-minScore (0-100, default 65): how sure NanoTarget must be before it acts. Higher = acts less often.
+minScore (0-100, default 65): how sure OneHuman must be before it acts. Higher = acts less often.
 enforcement: "observe" = only watch and record, block nothing; "enforce" = apply the rules.
 
 Rules you must follow:
 - You may only change existing rules: their four modes, minScore, title, and the overall enforcement.
 - Match the person's words to existing rules by meaning, in any language ("payments" or "ödəniş" can be payout.create; "download the report" can be report.export). Only when no existing rule fits is a new rule needed.
-- You must never add a rule or remove one. If the person asks to protect something that has no rule, do not invent one: set "needsCode" with a short explanation and a clear prompt they can give to the AI coding assistant that works on their app's code (the coding assistant adds nt.protect('<name>') to the route and the rule to nanotarget.policy.json; after deploy the rule appears in the portal by itself).
+- You must never add a rule or remove one. If the person asks to protect something that has no rule, do not invent one: set "needsCode" with a short explanation and a clear prompt they can give to the AI coding assistant that works on their app's code (the coding assistant adds nt.protect('<name>') to the route and the rule to onehuman.policy.json; after deploy the rule appears in the portal by itself).
 - If the request is unclear or impossible, change nothing and ask one short question in "reply".
 - Never make real people (onHumanLike) blocked or asked for a passkey unless the person clearly asks for that.
 - "reply" is 1-3 short sentences in the same language the person wrote in, in plain words, without technical terms like onAgent or step_up.
@@ -104,7 +104,7 @@ export async function assistPolicy(draft: Policy, message: string): Promise<Assi
   const offline = () => Object.assign(new Error('The assistant could not answer right now. Try again in a minute.'), { code: 'assistant_error' });
   const r = await fetch(process.env.NT_ASSIST_URL || 'https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://nanotarget-mvp.vercel.app', 'X-Title': 'NanoTarget portal' },
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://onehuman.ai', 'X-Title': 'OneHuman portal' },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(25_000),
   }).catch(() => { throw offline(); });
@@ -117,7 +117,7 @@ export async function assistPolicy(draft: Policy, message: string): Promise<Assi
   const needsCode = nc && typeof nc.prompt === 'string' && nc.prompt.trim()
     ? {
       why: String(nc.why ?? '').slice(0, 400),
-      prompt: `NanoTarget (npm: nanotarget) is installed in this app.\n\n${nc.prompt.trim().slice(0, 1500)}`,
+      prompt: `OneHuman (npm: onehuman) is installed in this app.\n\n${nc.prompt.trim().slice(0, 1500)}`,
     }
     : null;
   const reply = typeof raw.reply === 'string' && raw.reply.trim() ? raw.reply.trim().slice(0, 600) : applied.proposed ? 'Here is the change.' : 'Nothing to change.';

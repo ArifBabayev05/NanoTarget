@@ -1,9 +1,9 @@
-NanoTarget
+OneHuman
 Copyright 2026 Arif Babayev
 
-This product includes software developed by Arif Babayev (https://nanotarget-mvp.vercel.app).
+This product includes software developed by Arif Babayev (https://onehuman.ai).
 
 The browser SDK, the Express/Connect middleware, the command-line tool and the
 decision-proof verifier are licensed under the Apache License, Version 2.0.
-They depend on nanotarget-engine, which is licensed separately under the
+They depend on onehuman-engine, which is licensed separately under the
 Business Source License 1.1 (production use is granted; see its LICENSE).

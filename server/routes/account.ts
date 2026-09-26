@@ -4,12 +4,12 @@
  * sensitive data is wrapped by `engine.protect(resource, …)` — the decision
  * happens here, before any data leaves the server.
  */
-import type { NanoTarget } from '../engine.ts';
+import type { OneHuman } from '../engine.ts';
 import { publicDecision } from '../engine.ts';
 import { json, url, type Req, type Res } from '../http.ts';
 import { demoAccount, maskProfile, maskTransactions, toCsv } from '../demo-data.ts';
 
-export function accountRoutes(engine: NanoTarget) {
+export function accountRoutes(engine: OneHuman) {
   const profile = engine.protect('profile.read', (_req, res, ctx) => {
     const { profile } = demoAccount(ctx.session.id);
     json(res, 200, { profile: ctx.masked ? maskProfile(profile) : profile, masked: ctx.masked, decision: publicDecision(ctx.decision), assessment: ctx.assessment });
@@ -54,7 +54,7 @@ export function accountRoutes(engine: NanoTarget) {
     const csv = toCsv(profile, balance, transactions);
     res.writeHead(200, {
       'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': 'attachment; filename="nanotarget-demo-hesabat.csv"',
+      'Content-Disposition': 'attachment; filename="onehuman-demo-hesabat.csv"',
       'Cache-Control': 'no-store',
       'X-NT-Decision': check.claims.decisionId,
     });

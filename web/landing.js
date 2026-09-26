@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-/* NanoTarget landing */
+/* OneHuman landing */
 (async () => {
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -10,7 +10,7 @@
   const toastEl = $('#toast'); let toastT;
   const toast = (m) => { toastEl.textContent = m; toastEl.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('show'), 1800); };
   async function copy(text, msg = 'Copied') { try { await navigator.clipboard.writeText(text); toast(msg); } catch { toast('Could not copy'); } }
-  $('#copy-npm').addEventListener('click', () => copy('npm i nanotarget'));
+  $('#copy-npm').addEventListener('click', () => copy('npm i onehuman'));
   $$('[data-copy]').forEach((b) => b.addEventListener('click', () => copy(b.dataset.copy)));
 
   // ---------------------------------------------------------------- signed in? the nav becomes a way back to the portal

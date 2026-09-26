@@ -25,12 +25,12 @@ test('every source file names its licence, and the open directories are Apache-2
 });
 
 test('the packages declare the licence their files carry', () => {
-  const open = JSON.parse(readFileSync('packages/nanotarget/package.json', 'utf8'));
+  const open = JSON.parse(readFileSync('packages/onehuman/package.json', 'utf8'));
   const engine = JSON.parse(readFileSync('packages/engine/package.json', 'utf8'));
   assert.equal(open.license, 'Apache-2.0');
   assert.equal(engine.license, 'BUSL-1.1');
-  assert.equal(open.dependencies['nanotarget-engine'], engine.version, 'released in lockstep');
-  assert.match(readFileSync('packages/nanotarget/LICENSE', 'utf8'), /Apache License\s+Version 2\.0, January 2004/);
+  assert.equal(open.dependencies['onehuman-engine'], engine.version, 'released in lockstep');
+  assert.match(readFileSync('packages/onehuman/LICENSE', 'utf8'), /Apache License\s+Version 2\.0, January 2004/);
   assert.match(readFileSync('packages/engine/LICENSE', 'utf8'), /Business Source License 1\.1/);
   assert.match(readFileSync('packages/engine/LICENSE', 'utf8'), /Additional Use Grant: You may make production use/);
 });
@@ -39,10 +39,10 @@ test('the middleware refuses an engine of a different version with an actionable
   // simulate the built packages: stamp both sides, then let them disagree
   const src = readFileSync('integrations/express/index.ts', 'utf8');
   assert.match(src, /PACKAGE_VERSION !== ENGINE_VERSION/, 'the startup check exists');
-  assert.match(src, /npm i nanotarget@\$\{PACKAGE_VERSION\}/, 'and tells the user the exact fix');
-  // from source both read 0.0.0-dev and the check is skipped, so nanotarget() still works here
-  const { nanotarget } = await import('../integrations/express/index.ts');
-  const nt = await nanotarget({ secret: 'a-long-enough-secret-for-tests-0000000000', policy: { version: 'v', enforcement: 'observe', rules: [{ resource: 'x.read', title: 'x', onAgent: 'mask', onArtifact: 'allow', onUnknown: 'allow', onHumanLike: 'allow', actOn: ['strong'], minScore: 65 }] } as never, db: 'memory' });
+  assert.match(src, /npm i onehuman@\$\{PACKAGE_VERSION\}/, 'and tells the user the exact fix');
+  // from source both read 0.0.0-dev and the check is skipped, so onehuman() still works here
+  const { onehuman } = await import('../integrations/express/index.ts');
+  const nt = await onehuman({ secret: 'a-long-enough-secret-for-tests-0000000000', policy: { version: 'v', enforcement: 'observe', rules: [{ resource: 'x.read', title: 'x', onAgent: 'mask', onArtifact: 'allow', onUnknown: 'allow', onHumanLike: 'allow', actOn: ['strong'], minScore: 65 }] } as never, db: 'memory' });
   assert.equal(nt.health().ok, true);
   await nt.close();
 });

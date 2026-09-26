@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * NanoTarget decision proofs — the open half: the format, and how to check one.
+ * OneHuman decision proofs — the open half: the format, and how to check one.
  *
  * A proof is a compact JWS (EdDSA / Ed25519), header { alg: "EdDSA", typ: "nt-proof", kid }, whose payload
  * states one decision: what was decided and why, whether data was delivered, and its place in the
  * hash-chained audit log. Anyone can verify a proof with this file, any JOSE library, or
- * `npx nanotarget verify-proof`. The signing side lives in the engine; checking needs nothing from it.
+ * `npx onehuman verify-proof`. The signing side lives in the engine; checking needs nothing from it.
  */
 import { createHash, createPublicKey, verify, type KeyObject } from 'node:crypto';
 
@@ -16,7 +16,8 @@ export type ProofJwk = { kty: 'OKP'; crv: 'Ed25519'; x: string; kid: string; use
 
 export type ProofPayload = {
   v: number;
-  iss: 'nanotarget';
+  /** 'nanotarget' on proofs signed before the rename to OneHuman */
+  iss: 'onehuman' | 'nanotarget';
   /** issued at, seconds */
   iat: number;
   /** the decision id — unique, the handle an auditor asks about */
@@ -67,7 +68,7 @@ export function verifyProof(jws: string, keys: { x: string; kid?: string }[]): P
   let header: { alg?: string; typ?: string; kid?: string };
   let payload: ProofPayload;
   try { header = JSON.parse(fromB64u(h).toString('utf8')); payload = JSON.parse(fromB64u(p).toString('utf8')); } catch { return { valid: false, reason: 'malformed' }; }
-  if (header.alg !== 'EdDSA' || header.typ !== PROOF_TYP || payload?.iss !== 'nanotarget') return { valid: false, reason: 'wrong_type' };
+  if (header.alg !== 'EdDSA' || header.typ !== PROOF_TYP || (payload?.iss !== 'onehuman' && payload?.iss !== 'nanotarget')) return { valid: false, reason: 'wrong_type' };
   const key = keys.find((k) => (k.kid ?? thumbprint(k.x)) === header.kid && thumbprint(k.x) === header.kid);
   if (!key) return { valid: false, reason: 'unknown_key' };
   let pub = keyCache.get(key.x);
@@ -88,11 +89,11 @@ export function peekProof(jws: string): ProofPayload | null {
 /** The file a business hands an auditor: the proofs, the key that signed them, and how to check them. */
 export function proofBundle<M extends Record<string, unknown>>(proofs: string[], keys: ProofJwk[], meta: M = {} as M) {
   return {
-    format: 'nanotarget-proof-bundle/1',
+    format: 'onehuman-proof-bundle/1',
     created: new Date().toISOString(),
     ...meta,
     keys,
     proofs,
-    verify: 'Each proof is a compact JWS (EdDSA / Ed25519). Check it with the matching key in `keys` using any JOSE library, or run: npx nanotarget verify-proof <this file>',
+    verify: 'Each proof is a compact JWS (EdDSA / Ed25519). Check it with the matching key in `keys` using any JOSE library, or run: npx onehuman verify-proof <this file>',
   };
 }

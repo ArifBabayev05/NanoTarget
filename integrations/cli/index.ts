@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * nanotarget CLI
- *   npx nanotarget scan [dir]                      discover routes, sensitivity, identity; write nanotarget.policy.draft.json
- *   npx nanotarget scan [dir] --json               same, machine-readable (for AI agents)
- *   npx nanotarget scan [dir] --proposal           only the plain-language proposal to show the product owner
- *   npx nanotarget verify <baseUrl> <protectedPath> [--base /nanotarget]   run the 4 post-integration checks
- *   npx nanotarget secret                          print a fresh NT_SECRET
- *   npx nanotarget verify-proof <bundle.json> [--keys <jwks.json | https://…/nanotarget/proof-keys>]
+ * onehuman CLI
+ *   npx onehuman init [dir] [--yes] [--no-install]  answer a few questions; OneHuman is set up in this project
+ *   npx onehuman scan [dir]                      discover routes, sensitivity, identity; write onehuman.policy.draft.json
+ *   npx onehuman scan [dir] --json               same, machine-readable (for AI agents)
+ *   npx onehuman scan [dir] --proposal           only the plain-language proposal to show the product owner
+ *   npx onehuman verify <baseUrl> <protectedPath> [--base /onehuman]   run the 4 post-integration checks
+ *   npx onehuman secret                          print a fresh ONEHUMAN_SECRET
+ *   npx onehuman verify-proof <bundle.json> [--keys <jwks.json | https://…/onehuman/proof-keys>]
  *                                                  check signed decision proofs offline (for an auditor)
  */
 import { randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderProposal, renderReport, scan } from './scan.ts';
+import { runInit } from './init.ts';
 import { thumbprint, verifyProof } from '../proof/verify.ts';
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -21,10 +23,11 @@ const has = (name: string) => rest.includes(name);
 const positional = rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && rest[i - 1] !== '--json'));
 
 async function main() {
+  if (cmd === 'init') { await runInit(positional[0] ?? process.cwd(), { yes: has('--yes'), install: !has('--no-install') }); return; }
   if (cmd === 'scan') {
     const root = resolve(positional[0] ?? process.cwd());
     const r = scan(root);
-    writeFileSync(resolve(root, 'nanotarget.policy.draft.json'), JSON.stringify(r.policyDraft, null, 2) + '\n');
+    writeFileSync(resolve(root, 'onehuman.policy.draft.json'), JSON.stringify(r.policyDraft, null, 2) + '\n');
     if (has('--json')) console.log(JSON.stringify({ ...r, proposalText: renderProposal(r) }, null, 2));
     else if (has('--proposal')) console.log(renderProposal(r));
     else console.log(renderReport(r));
@@ -34,7 +37,7 @@ async function main() {
     // An auditor's check. Nothing is sent anywhere; the only input is the file (and, better, a key you got
     // yourself from the business's own site — the key inside a bundle proves consistency, not origin).
     const file = positional[0];
-    if (!file) { console.error('usage: nanotarget verify-proof <bundle.json> [--keys <jwks.json | https://…/nanotarget/proof-keys>]'); process.exit(2); }
+    if (!file) { console.error('usage: onehuman verify-proof <bundle.json> [--keys <jwks.json | https://…/onehuman/proof-keys>]'); process.exit(2); }
     const bundle = JSON.parse(readFileSync(resolve(file), 'utf8')) as { keys?: { x: string; kid?: string }[]; proofs?: string[] };
     const keySrc = flag('--keys');
     let keys = bundle.keys ?? [];
@@ -53,12 +56,12 @@ async function main() {
         console.log(`✓ ${new Date(p.iat * 1000).toISOString()}  ${p.resource.padEnd(22)} ${p.decision.padEnd(8)} actor=${p.actor.padEnd(13)} delivered=${p.delivered ? 'yes' : 'no '}  decision ${p.jti}  chain #${p.audit.seq}`);
       } else console.log(`✗ proof ${i + 1}: ${c.reason}`);
     }
-    console.log(`\n${ok}/${proofs.length} proofs valid, signed by ${[...new Set(keys.map((k) => thumbprint(k.x)))].join(', ')}${keySrc ? '' : '\nKeys came from the bundle itself. For an independent check pass --keys https://<their-site>/nanotarget/proof-keys'}`);
+    console.log(`\n${ok}/${proofs.length} proofs valid, signed by ${[...new Set(keys.map((k) => thumbprint(k.x)))].join(', ')}${keySrc ? '' : '\nKeys came from the bundle itself. For an independent check pass --keys https://<their-site>/onehuman/proof-keys'}`);
     process.exit(ok === proofs.length ? 0 : 1);
   }
   if (cmd === 'verify') {
-    const base = positional[0]; const path = positional[1]; const ntBase = flag('--base') ?? '/nanotarget';
-    if (!base || !path) { console.error('usage: nanotarget verify <baseUrl> <protectedPath> [--base /nanotarget]'); process.exit(2); }
+    const base = positional[0]; const path = positional[1]; const ntBase = flag('--base') ?? '/onehuman';
+    if (!base || !path) { console.error('usage: onehuman verify <baseUrl> <protectedPath> [--base /onehuman]'); process.exit(2); }
     const results: { name: string; ok: boolean; detail: string }[] = [];
     const u = (p: string) => new URL(p, base).toString();
     // 1. SDK is served
@@ -90,7 +93,7 @@ async function main() {
     process.exit(allOk ? 0 : 1);
   }
   if (cmd === 'secret') { console.log(randomBytes(32).toString('base64url')); return; }
-  console.log('nanotarget <scan [dir] [--json] | verify <baseUrl> <protectedPath> [--base /nanotarget] | verify-proof <bundle.json> [--keys <jwks|url>] | secret>');
+  console.log('onehuman <init [dir] [--yes] | scan [dir] [--json] | verify <baseUrl> <protectedPath> [--base /onehuman] | verify-proof <bundle.json> [--keys <jwks|url>] | secret>');
   process.exit(cmd ? 2 : 0);
 }
 main().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });

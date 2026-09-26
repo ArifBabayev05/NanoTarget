@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * NanoTarget for Express / Connect / plain Node http.
+ * OneHuman for Express / Connect / plain Node http.
  *
- *   import { nanotarget } from 'nanotarget/express';
- *   const nt = await nanotarget({ secret: process.env.NT_SECRET, policy: './nanotarget.policy.json', db: 'sqlite:./nanotarget.db' });
- *   app.use(nt.middleware());                       // serves /nanotarget/sdk.js + the SDK's API
+ *   import { onehuman } from 'onehuman/express';
+ *   const nt = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db' });
+ *   app.use(nt.middleware());                       // serves /onehuman/sdk.js + the SDK's API
  *   app.get('/api/balance', nt.protect('balance.read'), (req, res) => nt.send(req, res, balance, maskBalance));
  *
  * The company keeps full control: the policy is its JSON file, `mask` is its own function, the decision
@@ -17,10 +17,10 @@ import { readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-// The engine is a separate package (nanotarget-engine, BUSL-1.1); this adapter talks to it only through its
+// The engine is a separate package (onehuman-engine, BUSL-1.1); this adapter talks to it only through its
 // public surface. In this repository that is ../../server/public.ts; the build rewrites it to the package.
 import {
-  ENGINE_VERSION, NanoTarget, Store, attachModel, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
+  ENGINE_VERSION, OneHuman, Store, attachModel, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
   sqliteClient, url, webauthnRoutes,
   type Assessment, type DecideResult, type DecisionRow, type Policy, type SessionRow, type SqlClient,
 } from '../../server/public.ts';
@@ -31,7 +31,7 @@ export type Req = IncomingMessage & { nt?: ProtectResult };
 export type Res = ServerResponse;
 export type Next = (err?: unknown) => void;
 
-export type NanoTargetOptions = {
+export type OneHumanOptions = {
   /**
    * The policy file (path) or object. With an `apiKey` the portal is where the policy lives: on the first start this
    * file is sent there and becomes version 1; after that the server reads the policy from the portal and sends this
@@ -43,17 +43,17 @@ export type NanoTargetOptions = {
    * source — for servers that cannot reach the internet.
    */
   policyFromPortal?: boolean;
-  /** the portal's address (default: NT_PORTAL_URL, or the origin of `telemetryUrl`) */
+  /** the portal's address (default: ONEHUMAN_PORTAL_URL, or the origin of `telemetryUrl`) */
   portalUrl?: string;
   /** ≥ 32 bytes; signs single-use tokens and derives the tenant room id — keep it stable across restarts */
   secret: string | Buffer;
-  /** 'memory' | 'sqlite:./nanotarget.db' | 'file:./nanotarget.db' | 'libsql://host?authToken=…'  (default sqlite:./nanotarget.db) */
+  /** 'memory' | 'sqlite:./onehuman.db' | 'file:./onehuman.db' | 'libsql://host?authToken=…'  (default sqlite:./onehuman.db) */
   db?: string;
-  /** where the SDK and its API live (default '/nanotarget') */
+  /** where the SDK and its API live (default '/onehuman') */
   basePath?: string;
   /**
    * Map a request to the company's own authenticated session / user id. When given, every tab of one
-   * login shares one NanoTarget session (an agent in one tab marks the whole login). When omitted, a
+   * login shares one OneHuman session (an agent in one tab marks the whole login). When omitted, a
    * first-party cookie identifies the browser.
    */
   identify?: (req: IncomingMessage) => string | null | undefined | Promise<string | null | undefined>;
@@ -68,10 +68,10 @@ export type NanoTargetOptions = {
   /** show the WebAuthn "I am human" reclaim path on agent blocks (default true) */
   webauthnReclaim?: boolean;
   /**
-   * Report decisions to your NanoTarget portal (https://nanotarget-mvp.vercel.app/portal) so you can see how
+   * Report decisions to your OneHuman portal (https://onehuman.ai/portal) so you can see how
    * many of your sessions had an AI agent in them. Metadata only — hashed session id, resource, decision,
    * actor, connection state, detected tools, reason codes. Never payloads, identities or IPs.
-   * Default: process.env.NT_API_KEY. Without a key nothing leaves your server.
+   * Default: process.env.ONEHUMAN_API_KEY (the old NT_API_KEY still works). Without a key nothing leaves your server.
    */
   apiKey?: string;
   /**
@@ -80,7 +80,7 @@ export type NanoTargetOptions = {
    * platform that suspends the process between requests.
    */
   telemetryImmediate?: boolean;
-  /** where reports go (default https://nanotarget-mvp.vercel.app/api/v1/ingest, or NT_TELEMETRY_URL) */
+  /** where reports go (default https://onehuman.ai/api/v1/ingest, or ONEHUMAN_TELEMETRY_URL) */
   telemetryUrl?: string;
 };
 
@@ -108,7 +108,7 @@ export type ProtectResult = {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // repo layout: integrations/express/index.ts → ../../sdk ; published layout: dist/express.js → ../sdk
-const SDK_PATH = [join(HERE, '..', 'sdk', 'nanotarget.js'), join(HERE, '..', '..', 'sdk', 'nanotarget.js')].find((p) => existsSync(p)) ?? join(HERE, '..', 'sdk', 'nanotarget.js');
+const SDK_PATH = [join(HERE, '..', 'sdk', 'onehuman.js'), join(HERE, '..', '..', 'sdk', 'onehuman.js')].find((p) => existsSync(p)) ?? join(HERE, '..', 'sdk', 'onehuman.js');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function openClient(db: string): Promise<SqlClient> {
@@ -159,7 +159,7 @@ function createReporter(apiKey: string, endpoint: string, keys: ProofJwk[], eage
     const batch = queue.splice(0, 100);   // a signed event is ~1 KB; 100 stays well under the ingest limit
     try {
       const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ events: batch, keys }), signal: AbortSignal.timeout(10000) });
-      if (r.status === 401) { failures = 999; console.warn('nanotarget: telemetry API key rejected — check apiKey / NT_API_KEY'); queue = []; }
+      if (r.status === 401) { failures = 999; console.warn('onehuman: telemetry API key rejected — check apiKey / ONEHUMAN_API_KEY'); queue = []; }
       else if (!r.ok) throw new Error(String(r.status));
       else { failures = 0; if (eager && queue.length) setTimeout(() => { keepAlive(flush()); }, 0); }
     } catch {
@@ -178,30 +178,30 @@ function createReporter(apiKey: string, endpoint: string, keys: ProofJwk[], eage
   return { push, flush, get pending() { return queue.length; }, close() { if (timer) clearInterval(timer); timer = null; return flush(); } };
 }
 
-declare const __NANOTARGET_VERSION__: string | undefined;
+declare const __ONEHUMAN_VERSION__: string | undefined;
 /** this package's version, stamped by the build; from source both sides read 0.0.0-dev and the check is skipped */
-const PACKAGE_VERSION: string = typeof __NANOTARGET_VERSION__ === 'string' ? __NANOTARGET_VERSION__ : '0.0.0-dev';
+const PACKAGE_VERSION: string = typeof __ONEHUMAN_VERSION__ === 'string' ? __ONEHUMAN_VERSION__ : '0.0.0-dev';
 
-export async function nanotarget(opts: NanoTargetOptions) {
-  // `nanotarget` and `nanotarget-engine` ship together at one version. A lockfile that pins an older engine, or an
+export async function onehuman(opts: OneHumanOptions) {
+  // `onehuman` and `onehuman-engine` ship together at one version. A lockfile that pins an older engine, or an
   // engine added by hand, is the one install mistake that would fail somewhere deep and late — fail here instead.
   if (PACKAGE_VERSION !== '0.0.0-dev' && ENGINE_VERSION !== '0.0.0-dev' && PACKAGE_VERSION !== ENGINE_VERSION) {
-    throw new Error(`nanotarget ${PACKAGE_VERSION} found nanotarget-engine ${ENGINE_VERSION}. The two are released together at the same version — run \`npm i nanotarget@${PACKAGE_VERSION}\` (it installs the matching engine) and do not add nanotarget-engine to your dependencies yourself.`);
+    throw new Error(`onehuman ${PACKAGE_VERSION} found onehuman-engine ${ENGINE_VERSION}. The two are released together at the same version — run \`npm i onehuman@${PACKAGE_VERSION}\` (it installs the matching engine) and do not add onehuman-engine to your dependencies yourself.`);
   }
   const secret = Buffer.isBuffer(opts.secret) ? opts.secret : Buffer.from(opts.secret, 'utf8');
-  if (secret.length < 32) throw new Error('nanotarget: secret must be at least 32 bytes');
-  const basePath = (opts.basePath ?? '/nanotarget').replace(/\/$/, '');
+  if (secret.length < 32) throw new Error('onehuman: secret must be at least 32 bytes');
+  const basePath = (opts.basePath ?? '/onehuman').replace(/\/$/, '');
   const cookieName = opts.cookie ?? 'nt_sid';
   const tenant = opts.tenant ?? 'default';
   const respond = opts.respond ?? true;
-  const apiKey = opts.apiKey ?? process.env.NT_API_KEY ?? '';
+  const apiKey = opts.apiKey ?? process.env.ONEHUMAN_API_KEY ?? process.env.NT_API_KEY ?? '';
   const sessionHash = (id: string) => createHash('sha256').update(apiKey).update('\0').update(id).digest('hex').slice(0, 16);
 
-  const store = await Store.open(await openClient(opts.db ?? 'sqlite:./nanotarget.db'));
+  const store = await Store.open(await openClient(opts.db ?? 'sqlite:./onehuman.db'));
   const model = await loadModel();
   attachModel(model ? { predict: (f) => predict(model, f), humanAbove: model.humanAbove, syntheticBelow: model.syntheticBelow } : null);
-  const engine = new NanoTarget({ store, secret, sessionCookie: cookieName });
-  const telemetryUrl = opts.telemetryUrl ?? process.env.NT_TELEMETRY_URL ?? 'https://nanotarget-mvp.vercel.app/api/v1/ingest';
+  const engine = new OneHuman({ store, secret, sessionCookie: cookieName });
+  const telemetryUrl = opts.telemetryUrl ?? process.env.ONEHUMAN_TELEMETRY_URL ?? process.env.NT_TELEMETRY_URL ?? 'https://onehuman.ai/api/v1/ingest';
   const reporter = apiKey ? createReporter(apiKey, telemetryUrl, engine.proofKeys().keys, opts.telemetryImmediate ?? SERVERLESS) : null;
   engine.webauthnReclaimEnabled = opts.webauthnReclaim ?? true;
   const room = derivedUuid(secret, 'room', tenant);
@@ -211,17 +211,17 @@ export async function nanotarget(opts: NanoTargetOptions) {
     const raw = typeof src === 'string' ? JSON.parse(await readFile(src, 'utf8')) : src;
     const version = typeof raw?.version === 'string' ? raw.version : `policy-${tenant}-${Date.now()}`;
     const parsed = parsePolicy(raw, version);
-    if (!parsed) throw new Error('nanotarget: policy file is invalid (see docs/INTEGRATION.md for the schema)');
+    if (!parsed) throw new Error('onehuman: policy file is invalid (see docs/INTEGRATION.md for the schema)');
     return parsed;
   }
   const fromPortal = !!apiKey && opts.policyFromPortal !== false;
-  if (opts.policy === undefined && !fromPortal) throw new Error('nanotarget: give a `policy` file, or an `apiKey` so the policy can come from the portal');
+  if (opts.policy === undefined && !fromPortal) throw new Error('onehuman: give a `policy` file, or an `apiKey` so the policy can come from the portal');
   let filePolicy: Policy | null = opts.policy === undefined ? null : await loadPolicy(opts.policy);
   // With an API key the portal holds the policy; this server keeps a signed copy for when the portal is unreachable.
   const sync = fromPortal
     ? createPolicySync({
       store, apiKey, filePath: typeof opts.policy === 'string' ? opts.policy : null, initialFile: filePolicy,
-      portalUrl: (opts.portalUrl ?? process.env.NT_PORTAL_URL ?? new URL(telemetryUrl).origin),
+      portalUrl: (opts.portalUrl ?? process.env.ONEHUMAN_PORTAL_URL ?? process.env.NT_PORTAL_URL ?? new URL(telemetryUrl).origin),
       parse: (raw, version) => parsePolicy(raw, version),
     })
     : null;
@@ -247,7 +247,7 @@ export async function nanotarget(opts: NanoTargetOptions) {
   };
 
   // The one integration mistake that has bitten a real deployment: `identify()` returning a constant
-  // ("user", the tenant name, a hard-coded id). Every visitor then shares one NanoTarget session, and a single
+  // ("user", the tenant name, a hard-coded id). Every visitor then shares one OneHuman session, and a single
   // agent test marks the whole site "agent" for everyone. The engine cannot tell a constant from a real id,
   // but it can see the symptom: one identity arriving from many different clients. Warn loudly, once.
   const clientsByIdentity = new Map<string, Set<string>>();
@@ -261,11 +261,11 @@ export async function nanotarget(opts: NanoTargetOptions) {
     seen.add(`${ip}|${ua}`);
     if (seen.size >= 5) {
       identityWarning = `identify() returned "${identity.slice(0, 40)}" for ${seen.size} different clients (distinct IP or browser). That is a constant, not a login id: every visitor is sharing one session and one agent will mark them all. Return req.session.userId / req.user.id, or null.`;
-      console.error(`nanotarget: ${identityWarning}`);
+      console.error(`onehuman: ${identityWarning}`);
     }
   }
 
-  /** The NanoTarget session for this request: derived from `identify()` or from the first-party cookie. Creates it on first sight. */
+  /** The OneHuman session for this request: derived from `identify()` or from the first-party cookie. Creates it on first sight. */
   async function sessionFor(req: IncomingMessage, res: ServerResponse): Promise<SessionRow> {
     const identity = opts.identify ? await opts.identify(req) : null;
     if (identity) {
@@ -280,7 +280,7 @@ export async function nanotarget(opts: NanoTargetOptions) {
     const fromCookie = cookies(req)[cookieName];
     if (fromCookie && UUID.test(fromCookie)) { const s = await store.getSession(fromCookie); if (s && s.room === room) return s; }
     const id = await store.createSession(room, 'unlabelled', await engine.observe(req));
-    if (!id) throw new Error('nanotarget: session limit reached');
+    if (!id) throw new Error('onehuman: session limit reached');
     setCookie(req, res, id);
     return (await store.getSession(id))!;
   }
@@ -335,8 +335,13 @@ export async function nanotarget(opts: NanoTargetOptions) {
     };
   }
 
-  /** Decide for `resource`; the result is on `req.nt`. Block → 403, step-up → 428 (unless `respond: false`). */
-  function protect(resource: string, local: { respond?: boolean } = {}) {
+  /**
+   * Decide for `resource`; the result is on `req.nt`. Block → 403, step-up → 428 (unless `respond: false`).
+   * `mask`: what to send when the decision is mask and the handler answers with Express's `res.json()` —
+   * `'auto'` hides every value and keeps the shape and ids, or pass your own function. Without it, the
+   * handler decides (check `req.nt.masked`, or use `nt.send()`).
+   */
+  function protect(resource: string, local: { respond?: boolean; mask?: 'auto' | ((body: unknown) => unknown) } = {}) {
     const answer = local.respond ?? respond;
     sync?.declare(resource);   // the portal lists endpoints that have no rule yet
     return async (req: Req, res: Res, next: Next) => {
@@ -356,6 +361,12 @@ export async function nanotarget(opts: NanoTargetOptions) {
         if (reporter) report(session, resource, d, result);
         if (answer && d.decision === 'block') return json(res, 403, { error: 'blocked', resource, decision: publicDecision(d), stepUp: result.stepUp });
         if (answer && d.decision === 'step_up') return json(res, 428, { error: 'step_up_required', resource, decision: publicDecision(d), stepUp: result.stepUp });
+        const r = res as Res & { json?: (body: unknown) => unknown };
+        if (d.decision === 'mask' && local.mask && typeof r.json === 'function') {
+          const original = r.json.bind(res);
+          const mask = local.mask === 'auto' ? autoMask : local.mask;
+          r.json = (body: unknown) => original(mask(body));
+        }
         next();
       } catch (e) { next(e); }
     };
@@ -411,7 +422,39 @@ export async function nanotarget(opts: NanoTargetOptions) {
     close: async () => { sync?.close(); await reporter?.close(); store.close(); } };
 }
 
-export type NanoTargetInstance = Awaited<ReturnType<typeof nanotarget>>;
+export type OneHumanInstance = Awaited<ReturnType<typeof onehuman>>;
+
+const KEEP_KEYS = new Set(['id', '_id']);
+/** The `mask: 'auto'` variant: every value hidden, the shape and ids kept, so the page still renders. */
+export function autoMask(value: unknown, key = ''): unknown {
+  if (Array.isArray(value)) return value.map((v) => autoMask(v));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, autoMask(v, k)]));
+  if (KEEP_KEYS.has(key) || value === null || typeof value === 'boolean') return value;
+  return typeof value === 'number' ? null : '••••';
+}
+
+/**
+ * The same instance without `await`: for CommonJS, or code that cannot wait at the top level. It returns at
+ * once and starts in the background; the first request waits for the start. `ready` resolves to the full
+ * instance (or rejects with the reason it could not start, e.g. a missing secret).
+ */
+export function onehumanDeferred(opts: OneHumanOptions) {
+  const ready = onehuman(opts);
+  ready.catch((e: unknown) => console.error(`onehuman: could not start — ${(e as Error).message}`));
+  let mw: ((req: Req, res: Res, next: Next) => void) | null = null;
+  return {
+    ready,
+    middleware() {
+      return (req: Req, res: Res, next: Next) => { ready.then((nt) => { mw ??= nt.middleware(); mw(req, res, next); }, next); };
+    },
+    protect(resource: string, local?: Parameters<OneHumanInstance['protect']>[1]) {
+      let h: ReturnType<OneHumanInstance['protect']> | null = null;
+      return (req: Req, res: Res, next: Next) => { ready.then((nt) => { h ??= nt.protect(resource, local); return h(req, res, next); }, next); };
+    },
+    send<T>(req: Req, res: Res, full: T, mask: (full: T) => unknown) { ready.then((nt) => nt.send(req, res, full, mask), (e) => json(res, 500, { error: 'onehuman_not_started', message: String((e as Error).message) })); },
+    close: () => ready.then((nt) => nt.close(), () => {}),
+  };
+}
 
 // Express users get `req.nt` typed without importing anything else.
 declare global {

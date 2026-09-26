@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * NanoTarget browser SDK (v4: pointer trajectories, seal-on-attach). Include in <head>, before app code:
+ * OneHuman browser SDK (v4: pointer trajectories, seal-on-attach). Include in <head>, before app code:
  *
- *   <script src="/sdk/nanotarget.js" data-endpoint="/api/v1/signals" data-zone="[data-nt-zone]"></script>
+ *   <script src="/sdk/onehuman.js" data-endpoint="/api/v1/signals" data-zone="[data-nt-zone]"></script>
  *
  * Collects ONLY interaction metadata and known page artifacts:
  *   - navigator.webdriver, known agent DOM markers, model-context globals,
@@ -72,7 +72,7 @@
    */
   function unseal(proof) {
     const until = proof && typeof proof === 'object' && typeof proof.until === 'number' ? proof.until : null;
-    if (until === null) { try { console.warn('NanoTarget.unseal ignored: pass the reclaim proof returned by /webauthn/assert'); } catch { /* ignore */ } return false; }
+    if (until === null) { try { console.warn('OneHuman.unseal ignored: pass the reclaim proof returned by /webauthn/assert'); } catch { /* ignore */ } return false; }
     sealSuspendedUntil = Math.min(until, Date.now() + 10 * 60 * 1000); sealed = false; sealReason = null; return true;
   }
   // Names that only agent tooling injects (see server/signals.ts TOOL_INJECTED_GLOBALS); model-context
@@ -146,7 +146,7 @@
     //    reads within one window whose frames are all <anonymous> is an evaluated script walking the DOM.
     let winStart = 0, winCount = 0, winAnon = 0, winSampled = 0;
     // Frames of an evaluated script carry no URL: "<anonymous>", "eval at", or bare "at <anonymous>:line:col".
-    const selfUrl = (script && script.src) || '/sdk/nanotarget.js';
+    const selfUrl = (script && script.src) || '/sdk/onehuman.js';
     const anonymousCaller = () => {
       try {
         // Drop the Error line and this SDK's own wrapper frames, then judge the next callers.
@@ -476,7 +476,7 @@
   // sides focused for ≥300 ms, three consecutive hits from the same peer.
   if (focusProbe && 'BroadcastChannel' in window && window === window.top) {
     const id = Math.random().toString(36).slice(2);
-    const ch = new BroadcastChannel('nanotarget-focus-probe');
+    const ch = new BroadcastChannel('onehuman-focus-probe');
     const peers = new Map();
     let focusedSince = document.hasFocus() ? Date.now() : null;
     window.addEventListener('focus', () => { focusedSince = Date.now(); });
@@ -583,7 +583,7 @@
     }
   }
 
-  window.NanoTarget = {
+  window.OneHuman = {
     version: 'sdk-v4',
     sessionId,
     sessionHeaders,

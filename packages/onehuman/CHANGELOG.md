@@ -1,7 +1,13 @@
 # Changelog
 
-## Unreleased
-- **The policy lives in the portal.** With an `apiKey`, the first start sends `nanotarget.policy.json` to the portal as version 1 (no approval); the server then reads the policy from there every minute, so portal edits are live without a deploy. Later edits to the file are proposed to the portal: applied at once by default, or held for approval when the owner turns that on. Changes that weaken protection wait for approval and the account password unless the owner switches that check off. Every change is journalled (who, when, what).
+## 0.6.0 — OneHuman
+- **NanoTarget is now OneHuman.** The packages are `onehuman` and `onehuman-engine` (published as `nanotarget` / `nanotarget-engine` up to 0.5.0): `npm i onehuman`, `import { onehuman } from 'onehuman/express'`, `npx onehuman …`. The page script is `/onehuman/sdk.js` and its global is `OneHuman`; the default database is `onehuman.db` and the rules file `onehuman.policy.json`. Environment: `ONEHUMAN_SECRET`, `ONEHUMAN_API_KEY` (the old `NT_API_KEY`, `NT_TELEMETRY_URL`, `NT_PORTAL_URL` still work). Proofs and rule envelopes signed before the rename still verify. The portal is https://onehuman.ai.
+- **`npx onehuman init`** — answer a few questions (what to protect, how, where the login id is, watch or protect, portal or not); it shows every file it would write or change and applies them on yes. For Express it wires the code itself, ES modules and CommonJS, routes in any file. `--yes` takes the recommended answers.
+- `onehumanDeferred(options)` — the same instance without `await`, for CommonJS and code that cannot wait at the top level.
+- `protect(resource, { mask: 'auto' })` — when the decision is mask and the handler uses `res.json()`, every value is hidden and the shape and ids kept; or pass your own function.
+
+## Unreleased (in 0.6.0)
+- **The policy lives in the portal.** With an `apiKey`, the first start sends `onehuman.policy.json` to the portal as version 1 (no approval); the server then reads the policy from there every minute, so portal edits are live without a deploy. Later edits to the file are proposed to the portal: applied at once by default, or held for approval when the owner turns that on. Changes that weaken protection wait for approval and the account password unless the owner switches that check off. Every change is journalled (who, when, what).
 - Changes that make real people confirm or be refused are treated like weakening ones: they wait for approval and the password.
 - Portal: the Policy page is now **Rules**, written for non-technical owners, with an assistant that edits existing rules from a plain-language request (never adds or removes one; for a new rule it writes a prompt for the coding agent).
 - The portal signs each version (Ed25519) for one API key; the server pins the portal key on first use, refuses unsigned or altered policies, and runs on its saved signed copy when the portal is unreachable.
@@ -11,12 +17,12 @@
 - Management API: `GET /api/v1/manage/policy?key=`, `POST /api/v1/manage/policy {key, policy}`.
 
 ## 0.5.0 — 2026-09-24
-- Package descriptions, landing, docs and portal wizard rewritten around one message: `npm i nanotarget` is the only install; the engine comes with it and is never imported. Startup now refuses a mismatched `nanotarget-engine` version with the exact command to fix it.
+- Package descriptions, landing, docs and portal wizard rewritten around one message: `npm i onehuman` is the only install; the engine comes with it and is never imported. Startup now refuses a mismatched `onehuman-engine` version with the exact command to fix it.
 
 ## 0.4.0 — 2026-09-24 (identical content also published as 0.5.0)
-- **Licence split.** `nanotarget` (browser SDK, Express middleware, CLI, proof verifier) is now **Apache 2.0**. The engine moves to its own package, **`nanotarget-engine`**, under the **Business Source License 1.1** with a production-use grant: run it in production, at any scale, to protect your own applications and the services you provide to your customers; offering NanoTarget itself as a competing hosted or embedded product is not granted. Each engine version converts to Apache 2.0 four years after release. Versions up to 0.3.x remain MIT.
-- **Nothing changes in your code.** `npm i nanotarget` installs the engine as a dependency; `import { nanotarget } from 'nanotarget/express'` and every option, method and endpoint are the same.
-- The proof verifier (`npx nanotarget verify-proof`) is entirely Apache 2.0 and contains no engine code: an auditor needs nothing under the BSL to check a proof.
+- **Licence split.** `onehuman` (browser SDK, Express middleware, CLI, proof verifier) is now **Apache 2.0**. The engine moves to its own package, **`onehuman-engine`**, under the **Business Source License 1.1** with a production-use grant: run it in production, at any scale, to protect your own applications and the services you provide to your customers; offering OneHuman itself as a competing hosted or embedded product is not granted. Each engine version converts to Apache 2.0 four years after release. Versions up to 0.3.x remain MIT.
+- **Nothing changes in your code.** `npm i onehuman` installs the engine as a dependency; `import { onehuman } from 'onehuman/express'` and every option, method and endpoint are the same.
+- The proof verifier (`npx onehuman verify-proof`) is entirely Apache 2.0 and contains no engine code: an auditor needs nothing under the BSL to check a proof.
 - **Grade decisions.** In the portal's Activity each decision has right/wrong marks; gated decisions marked wrong count as false stops, allows marked wrong as misses, both shown for the range. `POST /api/v1/manage/feedback` for agents.
 - **`GET <basePath>/health`** and `nt.health()`: policy version, reporter state, proof key id, and integration warnings — 503 while one stands.
 - **`identify()` guard.** When the same identity arrives from five different clients the middleware logs once, loudly, that it is a constant (every visitor would share one session) and flips health to 503.
@@ -29,13 +35,13 @@
 
 ## 0.3.0 — 2026-09-24
 - **Decision proofs.** Every decision is signed server-side (Ed25519, compact JWS, key derived from `secret`) and stored with its audit row; the proof covers the decision, its reasons and its place in the hash chain, never the raw session id. `req.nt.proof`, `nt.proofBundle(sessionId)`, `nt.proofFor(id)`, `nt.verifyProof(jws)`, `nt.proofKeys()`; public key at `<basePath>/proof-keys`. Nothing changes for end users.
-- Telemetry carries the proof; the portal verifies each one at ingest (and that it belongs to its event), marks it ✓ in Activity, and exports an auditor bundle. `npx nanotarget verify-proof <bundle> [--keys <url>]` checks one offline.
+- Telemetry carries the proof; the portal verifies each one at ingest (and that it belongs to its event), marks it ✓ in Activity, and exports an auditor bundle. `npx onehuman verify-proof <bundle> [--keys <url>]` checks one offline.
 - Portal: key rotation, revoked-key history and deletion, password change, paged log with CSV export.
 - A single click unlocks a session only with the learned model's agreement, not on rule points alone.
 
 ## 0.2.2 — 2026-09-23
 - **Management API** for agents and CI: `nt_admin_…` keys administer an account over HTTP — list/create/revoke project keys, read overview and per-key stats; `GET /api/v1/manage/me` describes itself. Project keys gained an environment tag and an optional expiry.
-- `apiKey` option (or `NT_API_KEY`): the middleware reports each decision to the NanoTarget portal — batched, off the request path, metadata only — and the portal shows the share of sessions with an AI agent, decisions over time, agents seen, resources reached, and a live log.
+- `apiKey` option (or `ONEHUMAN_API_KEY`): the middleware reports each decision to the OneHuman portal — batched, off the request path, metadata only — and the portal shows the share of sessions with an AI agent, decisions over time, agents seen, resources reached, and a live log.
 - Isolated-world reading detection: a side panel taking viewport width plus main-thread work with no input is an attach indicator (`PANEL_PAGE_READ`); each alone is environment evidence.
 
 ## 0.2.1 — 2026-09-22
@@ -53,7 +59,7 @@
 
 ## 0.1.3 — 2026-09-21
 - `scan --proposal`: plain-language security proposal (what each route exposes, why it matters with an agent in the session, proposed handling) for the product owner; README opens with the agent protocol (install → scan → propose → ask → implement → verify).
-- CLI: `npx nanotarget scan` (route discovery, sensitivity scoring, identity detection, draft policy), `npx nanotarget verify` (4 post-integration checks), `npx nanotarget secret`.
+- CLI: `npx onehuman scan` (route discovery, sensitivity scoring, identity detection, draft policy), `npx onehuman verify` (4 post-integration checks), `npx onehuman secret`.
 - `unseal()` now requires the server's reclaim proof (from `/webauthn/assert`); a plain call is ignored.
 - A request from an AI app's built-in browser counts as environment evidence even when the session was opened from a normal browser.
 - README rewritten as instructions for AI coding agents: decision questions to ask the user, exact code, policy schema, verification steps. Added AGENTS.md and llms.txt (same guidance) so Claude Code / Cursor / Codex find it.
@@ -62,6 +68,6 @@
 - Same content as 0.1.0 (release-process runs).
 
 ## 0.1.0 — 2026-09-21
-- First public build: Express/Connect middleware (`nanotarget/express`), browser SDK (`/nanotarget/sdk.js`).
+- First public build: Express/Connect middleware (`onehuman/express`), browser SDK (`/onehuman/sdk.js`).
 - Attach-time detection (control markers, tool globals, main-world read traps, focus-while-hidden), pointer kinematics (kin-v4), seal-on-attach for on-screen data, WebAuthn "I am human" reclaim, single-use download tokens, hash-chained audit.
 - Storage: node:sqlite (built in) or libSQL/Turso (optional dependency).

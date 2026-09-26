@@ -391,7 +391,7 @@ export class Store {
 
   /**
    * Integration package: a session whose id the caller derives from its own authenticated session, so
-   * every tab of one login reports under one NanoTarget session. Idempotent; no per-room limit.
+   * every tab of one login reports under one OneHuman session. Idempotent; no per-room limit.
    */
   async ensureSession(id: string, room: string, arrival: ServerSignal | null, now = Date.now()): Promise<SessionRow> {
     const existing = await this.getSession(id);

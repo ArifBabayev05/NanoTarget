@@ -9,10 +9,10 @@
  * before any data function runs.
  */
 import { APPS, type ResourceDef } from '../apps.ts';
-import { publicDecision, type NanoTarget } from '../engine.ts';
+import { publicDecision, type OneHuman } from '../engine.ts';
 import { json, url, type Req, type Res } from '../http.ts';
 
-export function resourceRoutes(engine: NanoTarget) {
+export function resourceRoutes(engine: OneHuman) {
   const RESOURCE = /^\/api\/v1\/r\/([a-z][a-z0-9_.]{1,60})(\/file)?$/;
 
   async function lookup(req: Req): Promise<{ def: ResourceDef; file: boolean } | null> {

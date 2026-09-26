@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 /** Dashboard routes: policy read/write per room. No auth in the lab — the room link is the scope. */
-import type { NanoTarget } from '../engine.ts';
+import type { OneHuman } from '../engine.ts';
 import { json, readJson, sameOrigin, url, UUID, type Req, type Res } from '../http.ts';
 import { parsePolicy } from '../policy.ts';
 
-export function adminRoutes(engine: NanoTarget) {
+export function adminRoutes(engine: OneHuman) {
   const store = engine.store;
 
   const getPolicy = async (req: Req, res: Res) => {

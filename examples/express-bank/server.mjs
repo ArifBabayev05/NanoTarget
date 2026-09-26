@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
-// Acme Bank — the smallest possible NanoTarget integration (Express 5).
+// Acme Bank — the smallest possible OneHuman integration (Express 5).
 //   node examples/express-bank/server.mjs   →  http://localhost:3000
 import express from 'express';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { nanotarget } from '../../integrations/express/index.ts';
+import { onehuman } from '../../integrations/express/index.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(express.json());
 
-// --- 1. one line: SDK + its API under /nanotarget, policy from your file, storage on your disk ---
-const nt = await nanotarget({ secret: process.env.NT_SECRET ?? 'dev-secret-change-me-dev-secret-change-me', policy: join(here, 'nanotarget.policy.json'), db: 'sqlite:./examples/express-bank/nanotarget.db' });
+// --- 1. one line: SDK + its API under /onehuman, policy from your file, storage on your disk ---
+const nt = await onehuman({ secret: process.env.ONEHUMAN_SECRET ?? 'dev-secret-change-me-dev-secret-change-me', policy: join(here, 'onehuman.policy.json'), db: 'sqlite:./examples/express-bank/onehuman.db' });
 app.use(nt.middleware());
 
 // --- 2. your data and your own mask functions ---
@@ -28,4 +28,4 @@ app.post('/api/transfer', nt.protect('transfer.make'), (req, res) => {
 });
 
 app.use(express.static(join(here, 'public')));
-app.listen(3000, () => console.log('Acme Bank on http://localhost:3000  (NanoTarget at', nt.basePath + ')'));
+app.listen(3000, () => console.log('Acme Bank on http://localhost:3000  (OneHuman at', nt.basePath + ')'));

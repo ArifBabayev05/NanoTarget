@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 /* Product-style demo apps (bank / CRM / insurance). User-facing only: no scores,
-   no reason codes. Every sensitive card is fetched through NanoTarget.fetch and the
+   no reason codes. Every sensitive card is fetched through OneHuman.fetch and the
    server decides what comes back. */
 (() => {
   const $ = (s) => document.querySelector(s);
@@ -9,7 +9,7 @@
   const room = new URL(location.href).searchParams.get('room');
   const q = `?room=${encodeURIComponent(room)}`;
   const appId = (document.querySelector('meta[name="nt-app"]') || {}).content || 'bank';
-  const SH = () => (window.NanoTarget && window.NanoTarget.sessionHeaders ? window.NanoTarget.sessionHeaders() : {});
+  const SH = () => (window.OneHuman && window.OneHuman.sessionHeaders ? window.OneHuman.sessionHeaders() : {});
   let app = null;
   let me = null;
   let passkeys = [];
@@ -91,7 +91,7 @@
   // ------------------------------------------------------------ protected call
   /** returns {ok, data, masked, decision} or {ok:false, blocked:true, reclaim} */
   async function load(resource, extraQuery, method, retried) {
-    const r = await window.NanoTarget.fetch(`/api/v1/r/${resource}${q}${extraQuery || ''}`, { method: method || 'GET' });
+    const r = await window.OneHuman.fetch(`/api/v1/r/${resource}${q}${extraQuery || ''}`, { method: method || 'GET' });
     const d = await r.json();
     if (r.status === 428 && !retried) {
       const ok = await stepUpDialog(d.stepUp || {}, resource);
@@ -111,7 +111,7 @@
       const can = res.reclaim && passkeys.length && webauthnAvailable();
       body.insertAdjacentHTML('beforeend', `<div class="notice block"><span class="ico">■</span><div><strong>This information is protected.</strong> An AI agent is operating this session; the action was blocked.${can ? '' : passkeys.length ? '' : ' If this is you, register a passkey first (bottom right).'}<div class="actions">${can ? `<button class="primary" data-reclaim="${esc(resource)}">I\'m a person — confirm with Touch ID</button>` : ''}</div></div></div>`);
       const b = body.querySelector('[data-reclaim]');
-      if (b) b.onclick = async () => { b.disabled = true; try { const v = await verifyWithPasskey(resource); if (window.NanoTarget) window.NanoTarget.unseal(v.reclaim); toast('Verified'); await retry(); } catch (e) { toast(e.message); b.disabled = false; } };
+      if (b) b.onclick = async () => { b.disabled = true; try { const v = await verifyWithPasskey(resource); if (window.OneHuman) window.OneHuman.unseal(v.reclaim); toast('Verified'); await retry(); } catch (e) { toast(e.message); b.disabled = false; } };
     }
     if (res.error) body.insertAdjacentHTML('beforeend', `<div class="notice block"><span class="ico">!</span><div>${esc(res.error)}</div></div>`);
     if (res.cancelled) body.insertAdjacentHTML('beforeend', `<div class="notice info"><span class="ico">i</span><div>Confirmation cancelled.</div></div>`);
@@ -283,7 +283,7 @@ At the end, write briefly what you saw at each step (data shown / hidden / block
     const pk = document.createElement('button'); pk.className = 'ghost'; pk.textContent = passkeys.length ? 'Passkey registered ✓' : 'Register passkey (Touch ID)'; pk.disabled = !webauthnAvailable();
     pk.onclick = async () => { pk.disabled = true; try { await registerPasskey(); pk.textContent = 'Passkey registered ✓'; toast('Passkey registered'); } catch (e) { toast(e.message); pk.disabled = false; } };
     row.appendChild(pk);
-    if (window.NanoTarget) { window.NanoTarget.flush(); window.NanoTarget.onAssessment((_a, _s, c) => { if (c) renderGuard(c); }); }
+    if (window.OneHuman) { window.OneHuman.flush(); window.OneHuman.onAssessment((_a, _s, c) => { if (c) renderGuard(c); }); }
     setInterval(refreshGuard, 3000);
     // The SDK sealed on-screen data because an agent attached: show it, then re-fetch what was open so the
     // server's masked/blocked variant replaces the placeholders.

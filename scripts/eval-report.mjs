@@ -23,7 +23,7 @@ const pct = (a, b) => (b ? `${(100 * a / b).toFixed(1)}%` : '–');
 const feat = (c) => clickFeatures(c.traj ?? [], { holdMs: c.holdMs, pressure: c.pressure, pointer: c.pointer, target: c.target ?? null, downMs: c.downMs ?? null, coalesced: c.coalesced ?? 0, at: c.at ?? null });
 
 const out = [];
-out.push(`# NanoTarget — qiymətləndirmə hesabatı (avtomatik)`, ``, `Yaradılma: ${new Date().toISOString()} · assess ${SIGNAL_VERSION} · kinematics ${KINEMATICS_VERSION} · model ${model?.version ?? 'yox'}`, ``);
+out.push(`# OneHuman — qiymətləndirmə hesabatı (avtomatik)`, ``, `Yaradılma: ${new Date().toISOString()} · assess ${SIGNAL_VERSION} · kinematics ${KINEMATICS_VERSION} · model ${model?.version ?? 'yox'}`, ``);
 out.push(`## 1. Dataset`, ``, `| Etiket | Mənbə | Klik | Müştəri id |`, `| --- | --- | ---: | ---: |`);
 const groups = new Map();
 for (const s of samples) { const k = `${s.label}|${s.source}`; const g = groups.get(k) ?? { n: 0, clients: new Set() }; g.n++; g.clients.add(s.client); groups.set(k, g); }

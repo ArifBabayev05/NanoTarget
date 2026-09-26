@@ -2,7 +2,7 @@
 /**
  * What changed in the AI agents themselves — the part of the weekly report that is the same for every
  * customer. Written for a security lead, not an engineer: what the agent did differently and what it meant
- * for NanoTarget customers. Never names the signals we use (they would help agent authors hide).
+ * for OneHuman customers. Never names the signals we use (they would help agent authors hide).
  * Newest first. Add an entry whenever a scorecard run or a field report shows a change.
  */
 export type AgentNews = { date: string; agent: string; change: string; impact: string; action: string | null };

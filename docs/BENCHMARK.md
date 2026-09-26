@@ -1,4 +1,4 @@
-# NanoTarget benchmark — insan ssenariləri üzrə təlimat
+# OneHuman benchmark — insan ssenariləri üzrə təlimat
 
 **Otaq:** `8de313b7-ef12-4623-b310-e5fe0d7b1910`
 **Server:** `http://127.0.0.1:8787` (yalnız bu Mac-də)
@@ -80,7 +80,7 @@ Hər biri üçün promptu Claude in Chrome-a və ya Codex ekstenşnına ver. Pro
 | F1 | `ext-claude-full-flow` | `http://127.0.0.1:8787/?room=8de313b7-ef12-4623-b310-e5fe0d7b1910&as=agent&scenario=ext-claude-full-flow` | Səhifədəki standart prompt (S5). 2 dəfə. |
 | F2 | `ext-codex-full-flow` | `http://127.0.0.1:8787/?room=8de313b7-ef12-4623-b310-e5fe0d7b1910&as=agent&scenario=ext-codex-full-flow` | Eyni, Codex ekstenşnı ilə, Claude ekstenşnı söndürülmüş. 2 dəfə. |
 | F3 | `ext-claude-read-only` | `http://127.0.0.1:8787/?room=8de313b7-ef12-4623-b310-e5fe0d7b1910&as=agent&scenario=ext-claude-read-only` | "Bu səhifəni aç, məzmununu oxuyub mənə xülasə yaz. Heç nəyə klikləmə." |
-| F4 | `ext-claude-attach-open-tab` | `http://127.0.0.1:8787/?room=8de313b7-ef12-4623-b310-e5fe0d7b1910&as=agent&scenario=ext-claude-attach-open-tab` | Linki **özün** aç, 30 saniyə heç nə etmə, sonra agentə de: "Açıq olan NanoTarget tabında balansı göstər." Gözlənilən: qoşulma anı ~30 s, ilk əməliyyatdan əvvəl. |
+| F4 | `ext-claude-attach-open-tab` | `http://127.0.0.1:8787/?room=8de313b7-ef12-4623-b310-e5fe0d7b1910&as=agent&scenario=ext-claude-attach-open-tab` | Linki **özün** aç, 30 saniyə heç nə etmə, sonra agentə de: "Açıq olan OneHuman tabında balansı göstər." Gözlənilən: qoşulma anı ~30 s, ilk əməliyyatdan əvvəl. |
 | F5 | `codex-pane-full-flow` | `http://127.0.0.1:8787/?room=8de313b7-ef12-4623-b310-e5fe0d7b1910&as=agent&scenario=codex-pane-full-flow` | Codex daxili brauzerində standart prompt. 2 dəfə. |
 | F6 | `claude-pane-full-flow` | `http://127.0.0.1:8787/?room=8de313b7-ef12-4623-b310-e5fe0d7b1910&as=agent&scenario=claude-pane-full-flow` | Claude desktop tətbiqinə standart prompt. 2 dəfə. |
 
@@ -89,14 +89,14 @@ Hər biri üçün promptu Claude in Chrome-a və ya Codex ekstenşnına ver. Pro
 Bütün ssenarilər bitəndə hesabatı çıxar:
 
 ```bash
-cd /Users/arif/Documents/ChatGPT/YCombinator/nanotarget-claude && node scripts/benchmark-report.mjs 8de313b7-ef12-4623-b310-e5fe0d7b1910
+cd /Users/arif/Documents/ChatGPT/YCombinator/onehuman-claude && node scripts/benchmark-report.mjs 8de313b7-ef12-4623-b310-e5fe0d7b1910
 ```
 
 Vacib sütunlar: insan sətirlərində **Qoşulub = 0** və **Yanlış blok = 0** olmalıdır; agent sətirlərində **Əməliyyatdan əvvəl** sessiya sayına bərabər olmalıdır və **Data verildi = 0**.
 
 ## Kursor sandbox (21.09.2026)
 
-Canlı: **https://nanotarget-mvp.vercel.app/sandbox**
+Canlı: **https://onehuman.ai/sandbox**
 
 İnsan testi: linki aç → "Mən insanam" → mənbəni seç → 10 nömrəli düyməyə kliklə → sonda çıxan kodu göndər.
 Agent testi: səhifədəki promptu kopyala, agentə ver; agent `?as=agent` ilə açır və 10 düyməyə klikləyir → kodu göndər.

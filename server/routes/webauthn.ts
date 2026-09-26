@@ -11,12 +11,12 @@
  * A successful assertion marks the session human-verified for HUMAN_RECLAIM_TTL_MS
  * and grants the requested resource once.
  */
-import { CHALLENGE_TTL_MS, HUMAN_RECLAIM_TTL_MS, STEP_UP_TTL_MS, type NanoTarget } from '../engine.ts';
+import { CHALLENGE_TTL_MS, HUMAN_RECLAIM_TTL_MS, STEP_UP_TTL_MS, type OneHuman } from '../engine.ts';
 import { json, readJson, sameOrigin, url, type Req, type Res } from '../http.ts';
 import { newChallenge, rpFromUrl, verifyAssertion, verifyRegistration, type StoredCredential } from '../webauthn.ts';
 import { bus } from '../bus.ts';
 
-export function webauthnRoutes(engine: NanoTarget) {
+export function webauthnRoutes(engine: OneHuman) {
   const store = engine.store;
 
   const registerOptions = async (req: Req, res: Res) => {
@@ -31,8 +31,8 @@ export function webauthnRoutes(engine: NanoTarget) {
       challengeId: challenge,
       publicKey: {
         challenge,
-        rp: { id: rpId, name: 'NanoTarget Lab' },
-        user: { id: Buffer.from(r.room).toString('base64url'), name: `lab-${r.room.slice(0, 8)}`, displayName: 'NanoTarget demo istifadəçisi' },
+        rp: { id: rpId, name: 'OneHuman Lab' },
+        user: { id: Buffer.from(r.room).toString('base64url'), name: `lab-${r.room.slice(0, 8)}`, displayName: 'OneHuman demo istifadəçisi' },
         pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }, { type: 'public-key', alg: -8 }],
         authenticatorSelection: { residentKey: 'preferred', userVerification: 'required' },
         excludeCredentials: existing.map((c) => ({ type: 'public-key', id: c.id })),

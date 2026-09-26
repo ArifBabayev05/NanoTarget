@@ -79,7 +79,7 @@
       coalesced, at: [Math.round(e.clientX), Math.round(e.clientY)],
     };
     // context: everything else the page can see about this moment (never used by the judge; for learning)
-    const early = window.NanoTarget ? window.NanoTarget.snapshot(false).early : null;
+    const early = window.OneHuman ? window.OneHuman.snapshot(false).early : null;
     const context = {
       atMs: now(), sinceLastClickMs: lastClickAt ? Math.round(t - lastClickAt) : null,
       hoverMs: hoverEl && hoverSince && el === hoverEl ? Math.round(t - hoverSince) : null,
@@ -207,7 +207,7 @@
     $('#stepper').innerHTML = TASKS.map(() => '<i class="done"></i>').join('');
     const ring = $('#ring'); if (ring) { ring.style.strokeDashoffset = '0'; $('#ring-label').textContent = '100%'; }
     stage.innerHTML = '<div class="hint">Hesablanır…</div>';
-    const early = window.NanoTarget ? window.NanoTarget.snapshot(false).early : null;
+    const early = window.OneHuman ? window.OneHuman.snapshot(false).early : null;
     let d = null;
     try { const r = await fetch('/api/v1/sandbox/assess-run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client, label, source: $('#source').value, early, steps }) }); d = await r.json(); } catch {}
     scene.hidden = true;

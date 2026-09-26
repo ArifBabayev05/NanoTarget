@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { proverFromSecret, verifyProof, sessionDigest, thumbprint, peekProof } from '../server/proof.ts';
 import { Store } from '../server/db.ts';
 import { sqliteClient } from '../server/sql.ts';
-import { NanoTarget } from '../server/engine.ts';
+import { OneHuman } from '../server/engine.ts';
 import { verifyChain } from '../server/audit.ts';
 import { parseEvent, parseProofKeys } from '../server/routes/portal.ts';
 import type { Req } from '../server/http.ts';
@@ -57,7 +57,7 @@ test('forgeries fail: edited payload, swapped signature, wrong key, wrong type, 
 
 test('the engine signs every decision in the same insert, and the hash chain still verifies', async () => {
   const store = await Store.open(await sqliteClient(':memory:'));
-  const engine = new NanoTarget({ store, secret });
+  const engine = new OneHuman({ store, secret });
   const room = await store.createRoom(Date.now(), 'bank');
   const session = (await store.getSession((await store.createSession(room, 'unlabelled', null))!))!;
   const req = { method: 'GET', url: '/api/v1/r/balance.read', headers: { host: 'x' }, socket: {} } as unknown as Req;

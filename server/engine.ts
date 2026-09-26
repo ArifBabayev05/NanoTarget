@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 /**
- * The NanoTarget engine: everything a company's backend needs to make and
+ * The OneHuman engine: everything a company's backend needs to make and
  * record a decision for one protected resource.
  *
  *   signals (untrusted, from SDK) + server observations (trusted)
@@ -66,7 +66,7 @@ export type ProtectContext = {
   token(): string;
 };
 
-export class NanoTarget {
+export class OneHuman {
   readonly store: Store;
   readonly secret: Buffer;
   readonly defaultPolicy: Policy;

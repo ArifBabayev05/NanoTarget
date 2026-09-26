@@ -18,7 +18,7 @@
  * For the portal (cookie): GET/POST /api/v1/portal/policy, POST …/policy/settings, POST …/policy/decide.
  */
 import { createPrivateKey, createPublicKey, hkdfSync, sign } from 'node:crypto';
-import type { NanoTarget } from '../engine.ts';
+import type { OneHuman } from '../engine.ts';
 import { json, readJson, sameOrigin, url, type Req, type Res } from '../http.ts';
 import { parsePolicy, type Policy } from '../policy.ts';
 import { thumbprint } from '../proof.ts';
@@ -34,7 +34,7 @@ const CONFIRM = 'This change lowers protection or affects real people. Confirm w
 
 /** The portal's policy-signing key, derived from the deployment secret: the same on every instance. */
 export function policySigner(secret: Buffer) {
-  const seed = Buffer.from(hkdfSync('sha256', secret, 'nanotarget', 'portal-policy-ed25519', 32));
+  const seed = Buffer.from(hkdfSync('sha256', secret, 'nanotarget', /* historic label, kept on purpose: changing it changes every derived key */ 'portal-policy-ed25519', 32));
   const priv = createPrivateKey({ key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), seed]), format: 'der', type: 'pkcs8' });
   const x = (createPublicKey(priv).export({ format: 'jwk' }) as { x: string }).x;
   const jwk = { kty: 'OKP' as const, crv: 'Ed25519' as const, x, kid: thumbprint(x), use: 'sig' as const, alg: 'EdDSA' as const };
@@ -42,7 +42,7 @@ export function policySigner(secret: Buffer) {
   return {
     jwk,
     envelope(kh: string, n: number, policy: PolicyLike): string {
-      const payload: PolicyEnvelopePayload = { v: 1, iss: 'nanotarget-portal', kh, n, iat: Math.floor(Date.now() / 1000), policy };
+      const payload: PolicyEnvelopePayload = { v: 1, iss: 'onehuman-portal', kh, n, iat: Math.floor(Date.now() / 1000), policy };
       const input = `${header}.${b64u(JSON.stringify(payload))}`;
       return `${input}.${b64u(sign(null, Buffer.from(input), priv))}`;
     },
@@ -57,7 +57,7 @@ type Deps = {
   serverKey: (req: Req, res: Res) => Promise<{ id: string; account: string; tag: string } | null>;
 };
 
-export function policyRoutes(engine: NanoTarget, deps: Deps) {
+export function policyRoutes(engine: OneHuman, deps: Deps) {
   const store = engine.store;
   const signer = policySigner(engine.secret);
 

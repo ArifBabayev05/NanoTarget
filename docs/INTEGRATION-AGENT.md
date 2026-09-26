@@ -1,29 +1,33 @@
-# nanotarget
+# OneHuman
+**Decide what AI agents may do for your customers — and keep proof that a human agreed.** When a customer sends an AI agent into your product, OneHuman decides what it may do on their behalf and signs every decision on your server, so you can show which actions a person approved.
 
-**Session-level control for AI browser agents.** Customers now hand their logged-in bank, CRM and insurance sessions to Claude, ChatGPT Agent, Codex and other agentic browsers. Bot management stops bots at the door; it does nothing once a legitimate user is inside and an agent is operating their session. nanotarget works *inside* the session: it detects the moment an agent attaches, redacts what is already on screen, and lets each endpoint decide per resource — **allow · mask · step-up · block** — with a human-verified way back.
+Customers now hand their logged-in bank, CRM and insurance sessions to Claude, ChatGPT Agent, Codex and other agentic browsers. Bot management stops bots at the door; it does nothing once a legitimate user is inside and an agent is operating their session. OneHuman works *inside* the session: it detects the moment an agent attaches, redacts what is already on screen, and lets each endpoint decide per resource — **allow · mask · step-up · block** — with a human-verified way back.
 
+- **Proof, not a guess.** Every decision — allowed, hidden, refused, or confirmed by the person with a passkey — is signed on your server (Ed25519). An auditor checks it offline with `npx onehuman verify-proof`, without trusting us.
 - **Detects at attach time, before the first click.** Agent-tool DOM markers, injected globals, evaluated-script read bursts, focus emulation, Web Bot Auth signatures. Measured: Claude in Chrome 0.1–0.5 s after attach; Codex 0.14 s; in-app agent browsers at first read.
-- **Tells hands from programs per click.** Pointer kinematics — trajectory curvature, tremor, sub-movements, deceleration onto the target, hold time, pressure, teleport. Humans hold 83–225 ms with ≥35 trajectory points; agents 1–4 ms with none. 100/100 on the labelled dataset across mouse, trackpad, tap-to-click, Safari and two agent products; **0 false positives**.
+- **Tells hands from programs per click.** Pointer kinematics — trajectory curvature, tremor, sub-movements, deceleration onto the target, hold time, pressure, teleport. Humans hold 83–225 ms with ≥35 trajectory points; agents 1–4 ms with none. Measured on our own set: 397 human clicks from 22 browsers and devices, 2 read as a program; 824 agent clicks, 2 read as human. Not an independent study.
 - **Never treats "unknown" as human.** Decisions need evidence in both directions; a person inside an AI browser is unlocked by their own first click, not by default.
 - **Protects data already on screen.** Elements marked `data-nt-sensitive="full"` are redacted in the browser the instant an indicator appears — a read already in flight sees `••••`.
 - **Session memory with a human exit.** Once an agent attached, the session stays "agent" until a WebAuthn user-verified passkey (Touch ID / Windows Hello) reclaims it for 5 minutes.
 - **Yours to run.** Express middleware + browser SDK; policy is your JSON, masking is your function, storage is `node:sqlite` on your disk (or libSQL). Telemetry is metadata only and never has to leave your network. Start in `observe` mode: nothing is blocked, every decision is recorded with what *would* have happened.
 
 ```bash
-npm i nanotarget            # Node ≥ 22.13 · Express 4/5, Connect, Next.js custom server, plain node:http
-npx nanotarget scan .       # what an AI agent could reach in this codebase + a draft policy
+npm i onehuman            # Node ≥ 22.13 · Express 4/5, Connect, Next.js custom server, plain node:http
+npx onehuman init         # asks what to protect and how, shows every change, applies it on yes
 ```
 
-```js
-import { nanotarget } from 'nanotarget/express';
+`init` reads your project, lists the routes an AI agent could misuse with a customer's login, and asks: which to protect, how (from "hide details" to "passkey for everyone"), where your login id is, whether to start by only watching, and whether to connect the portal. It then shows each file it would write or change and waits for your yes. For Express it wires the code itself (a small `onehuman.js`, `app.use(onehuman.middleware())`, `onehuman.protect()` on each route); for other servers it writes the rules and `.env` and prints the lines to add. `npx onehuman init --yes` takes the recommended answers (CI, coding agents). `npx onehuman scan .` only reports, and writes a draft policy.
 
-const nt = await nanotarget({ secret: process.env.NT_SECRET, policy: './nanotarget.policy.json', db: 'sqlite:./nanotarget.db',
+```js
+import { onehuman } from 'onehuman/express';
+
+const nt = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db',
                               identify: (req) => req.session?.userId ?? null });
-app.use(nt.middleware());                                                        // serves /nanotarget/sdk.js + its API
+app.use(nt.middleware());                                                        // serves /onehuman/sdk.js + its API
 app.get('/api/balance', nt.protect('balance.read'), (req, res) => nt.send(req, res, balance, maskBalance));
 ```
 ```html
-<script src="/nanotarget/sdk.js"></script>   <!-- then call protected endpoints with NanoTarget.fetch(url) -->
+<script src="/onehuman/sdk.js"></script>   <!-- then call protected endpoints with OneHuman.fetch(url) -->
 ```
 
 Three lines on the server, one tag on the page, one policy file. **Integration is designed to be done by an AI coding agent**: hand it this link and say "install this" — the next section is its protocol (analyse → propose → ask → implement → verify).
@@ -37,14 +41,14 @@ Read this section first; it is the whole task. The user handed you a link and on
 ### Step 0 — Threat model you are working against (read, then explain it in their words)
 A customer logs into this application, then tells an AI browser agent (Claude in Chrome, Claude/ChatGPT desktop browsers, Codex, Comet, Atlas, a Playwright bot) what to do. The agent inherits the session: same cookies, same IP, same browser. Three things go wrong: (1) **exfiltration** — personal and financial data flows into a third-party model and its logs; (2) **unintended actions** — the agent misreads or is prompt-injected and moves money, deletes, changes settings; (3) **no accountability** — afterwards nobody can say whether the customer or the agent acted. Existing controls (bot management at the edge, MFA at login, enterprise browser policies) do not see this: the session is legitimate and already inside.
 
-NanoTarget answers it at the endpoint: attach-time detection (agent-tool markers, injected globals, evaluated-script reads, signed requests), pointer physics per click, on-screen redaction the instant an agent attaches, a policy per resource (`allow · mask · step_up · block`), and a passkey path for the human to take the session back.
+OneHuman answers it at the endpoint: attach-time detection (agent-tool markers, injected globals, evaluated-script reads, signed requests), pointer physics per click, on-screen redaction the instant an agent attaches, a policy per resource (`allow · mask · step_up · block`), and a passkey path for the human to take the session back.
 
 ### Step 1 — Install and scan (no questions yet)
 ```bash
-npm i nanotarget
-npx nanotarget scan .              # full report + nanotarget.policy.draft.json (observe mode)
-npx nanotarget scan . --proposal   # plain-language proposal for the product owner
-npx nanotarget scan . --json       # machine-readable, if you prefer to parse
+npm i onehuman
+npx onehuman scan .              # full report + onehuman.policy.draft.json (observe mode)
+npx onehuman scan . --proposal   # plain-language proposal for the product owner
+npx onehuman scan . --json       # machine-readable, if you prefer to parse
 ```
 The scanner finds every HTTP route an agent could call with the user's session (Express, Fastify, Koa, NestJS, Next.js), scores sensitivity (money, financial identifiers, personal data, health, HR, credentials, exports, state-changing writes), proposes a mode per route, locates the login identity on a request (`req.session.userId`, `req.user.id`, JWT, Auth.js, Clerk, Supabase, cookies), detects SPA vs SSR and axios, and writes a draft policy. **If it finds no routes, the server is not Node**: stop, say that only the Node middleware exists today and the engine can run as a Node sidecar in front of the data endpoints, and ask whether to proceed that way.
 
@@ -78,26 +82,26 @@ Send the user a short document, in their language and with their route names, st
 ### Step 3 — Ask the nine decisions (each with your recommended default)
 1. Confirm/edit the resource list from the exposure map.
 2. Per resource, `onAgent` — default from the matrix.
-3. Per resource, `onArtifact` (environment only) — default from the matrix. Explain: a person browsing inside Claude/ChatGPT is unlocked by their own first click through pointer physics, *provided the page calls protected endpoints through `NanoTarget.fetch`*.
+3. Per resource, `onArtifact` (environment only) — default from the matrix. Explain: a person browsing inside Claude/ChatGPT is unlocked by their own first click through pointer physics, *provided the page calls protected endpoints through `OneHuman.fetch`*.
 4. `observe` (recommended, 1–2 weeks) or `enforce`.
 5. Session identity for `identify(req)`: confirm the expression. It must return the login/user id **or `null`** — never a constant (a constant merges all anonymous visitors into one session).
-6. Storage: `sqlite:./nanotarget.db` on the server's disk (default) or a libSQL/Turso URL (multi-instance, serverless, read-only filesystems).
+6. Storage: `sqlite:./onehuman.db` on the server's disk (default) or a libSQL/Turso URL (multi-instance, serverless, read-only filesystems).
 7. Step-up: built-in challenge + passkey reclaim now, or their OTP/push via `grantStepUp` later.
-8. `NT_SECRET`: generate with `npx nanotarget secret`, store in their env/secret manager. Never hardcode, never commit.
-9. URL prefix `/nanotarget` — change only on collision.
+8. `ONEHUMAN_SECRET`: generate with `npx onehuman secret`, store in their env/secret manager. Never hardcode, never commit.
+9. URL prefix `/onehuman` — change only on collision.
 
 ### Step 4 — Implement everything (server, page, policy, masks)
 **Server**
 ```js
-import { nanotarget } from 'nanotarget/express';
+import { onehuman } from 'onehuman/express';
 
-const nt = await nanotarget({
-  secret: process.env.NT_SECRET,                    // ≥ 32 bytes, stable across restarts
-  policy: './nanotarget.policy.json',               // the confirmed draft, renamed
-  db: 'sqlite:./nanotarget.db',                     // or 'libsql://…?authToken=…'
+const nt = await onehuman({
+  secret: process.env.ONEHUMAN_SECRET,                    // ≥ 32 bytes, stable across restarts
+  policy: './onehuman.policy.json',               // the confirmed draft, renamed
+  db: 'sqlite:./onehuman.db',                     // or 'libsql://…?authToken=…'
   identify: (req) => req.session?.userId ?? null,   // decision 5 — null when not logged in
 });
-app.use(nt.middleware());                           // before your routes: serves /nanotarget/sdk.js + the SDK API
+app.use(nt.middleware());                           // before your routes: serves /onehuman/sdk.js + the SDK API
 
 app.get('/api/balance', nt.protect('balance.read'), (req, res) =>
   nt.send(req, res, fullBalance, (full) => ({ ...full, amount: null, iban: full.iban.slice(0, 4) + ' •••• ' + full.iban.slice(-4) })));
@@ -110,23 +114,23 @@ app.get('/api/balance', nt.protect('balance.read'), (req, res) =>
 
 **Front end** (every page that shows or requests protected data)
 ```html
-<script src="/nanotarget/sdk.js"></script>
+<script src="/onehuman/sdk.js"></script>
 ```
-- **Call protected endpoints with `NanoTarget.fetch(url, init)`** (same signature as `fetch`). It carries the click's pointer trajectory; without it human evidence never reaches the server and a person inside an AI browser stays masked. axios/ky: add `NanoTarget.sessionHeaders()` and `'X-NT-Sample': JSON.stringify(NanoTarget.snapshot(true))` in a request interceptor. React/Next: guard with `window.NanoTarget?.fetch ?? fetch`.
+- **Call protected endpoints with `OneHuman.fetch(url, init)`** (same signature as `fetch`). It carries the click's pointer trajectory; without it human evidence never reaches the server and a person inside an AI browser stays masked. axios/ky: add `OneHuman.sessionHeaders()` and `'X-NT-Sample': JSON.stringify(OneHuman.snapshot(true))` in a request interceptor. React/Next: guard with `window.OneHuman?.fetch ?? fetch`.
 - Mark every rendered sensitive element `data-nt-sensitive="full"` (real values) or `"masked"` (placeholders). The SDK redacts every `"full"` element the instant an agent attaches and dispatches the `document` event `nt:sealed` → show a notice and re-fetch.
-- **403**: show "protected — an AI agent is operating this session"; if `body.stepUp?.reclaim`, offer "I'm human — verify with passkey": `POST /nanotarget/webauthn/assert/options` → `navigator.credentials.get` → `POST /nanotarget/webauthn/assert` → `NanoTarget.unseal(response.reclaim)` → retry. `unseal()` accepts only that server proof; never wire it to a plain button. Registration: `/nanotarget/webauthn/register/options` → `navigator.credentials.create` → `/nanotarget/webauthn/register`.
-- **428**: step-up dialog; demo answer → `POST /nanotarget/step-up {id, answer}`; own OTP → verify your way, then server-side `nt.engine.store.grantStepUp(sessionId, resource, ttlMs)`, then retry.
+- **403**: show "protected — an AI agent is operating this session"; if `body.stepUp?.reclaim`, offer "I'm human — verify with passkey": `POST /onehuman/webauthn/assert/options` → `navigator.credentials.get` → `POST /onehuman/webauthn/assert` → `OneHuman.unseal(response.reclaim)` → retry. `unseal()` accepts only that server proof; never wire it to a plain button. Registration: `/onehuman/webauthn/register/options` → `navigator.credentials.create` → `/onehuman/webauthn/register`.
+- **428**: step-up dialog; demo answer → `POST /onehuman/step-up {id, answer}`; own OTP → verify your way, then server-side `nt.engine.store.grantStepUp(sessionId, resource, ttlMs)`, then retry.
 - CSP: `script-src 'self'`, `connect-src 'self'`; add `chrome-extension:` to `img-src`/`connect-src` for installed-extension detection.
 
-**Policy**: apply the answers to `nanotarget.policy.draft.json`, rename to `nanotarget.policy.json`. Branches: `onAgent` proven agent · `onArtifact` environment only · `onUnknown` not enough signal (never treated as human) · `onHumanLike` kinematic/behavioral human evidence or passkey. Keep `actOn`/`minScore` defaults. Unlisted resources stay unprotected — list that explicitly in your report.
+**Policy**: apply the answers to `onehuman.policy.draft.json`, rename to `onehuman.policy.json`. Branches: `onAgent` proven agent · `onArtifact` environment only · `onUnknown` not enough signal (never treated as human) · `onHumanLike` kinematic/behavioral human evidence or passkey. Keep `actOn`/`minScore` defaults. Unlisted resources stay unprotected — list that explicitly in your report.
 
 ### Step 5 — Verify, then report
 ```bash
-npx nanotarget verify http://localhost:3000 /api/balance     # --base /prefix if you changed basePath
+npx onehuman verify http://localhost:3000 /api/balance     # --base /prefix if you changed basePath
 ```
-Four checks: SDK served · protected endpoint returns a decision (`X-NT-Decision`) · AI-app browser UA reaches the environment branch · a simulated attached agent (control markers posted to `/signals`) changes that session's decision (in `observe` it is recorded, not enforced). Run it for at least one masked, one blocked and one step-up resource. Then open the page in a normal browser and click the real button: data shows, `NanoTarget.lastConnection.state` is `no_indication`, the app's own tests still pass.
+Four checks: SDK served · protected endpoint returns a decision (`X-NT-Decision`) · AI-app browser UA reaches the environment branch · a simulated attached agent (control markers posted to `/signals`) changes that session's decision (in `observe` it is recorded, not enforced). Run it for at least one masked, one blocked and one step-up resource. Then open the page in a normal browser and click the real button: data shows, `OneHuman.lastConnection.state` is `no_indication`, the app's own tests still pass.
 
-Report to the user: the exposure map with the final handling per resource, the mask design as implemented, files changed, how to read the decision log and flip `observe` → `enforce`, that `NT_SECRET` must be set in production, and every route deliberately left open.
+Report to the user: the exposure map with the final handling per resource, the mask design as implemented, files changed, how to read the decision log and flip `observe` → `enforce`, that `ONEHUMAN_SECRET` must be set in production, and every route deliberately left open.
 
 ### Do not
 Move the decision into the front end (the SDK is untrusted input) · protect login/logout/static/health routes · treat `actor: "unknown"` as human · return a constant from `identify()` · call `unseal()` without the server proof · send page text, key identities or form values anywhere (the SDK sends metadata only) · hardcode or commit the secret · skip the analysis and ask the user to "configure it themselves" · silently leave a sensitive route unprotected.
@@ -135,17 +139,17 @@ Move the decision into the front end (the SDK is untrusted input) · protect log
 
 ## What it detects (so you can explain it to the user)
 - **Attach time, before the first click:** agent-tool DOM markers (Claude in Chrome / Codex overlays), tool-injected globals, evaluated-script DOM read bursts, focus emulation, Web Bot Auth signatures (verified operators).
-- **Per click:** pointer kinematics — trajectory curvature, tremor, sub-movements, deceleration onto the target, hold time, pressure, teleport. Measured: humans hold 83–225 ms with ≥35 trajectory points; agents 1–4 ms with none. 100/100 on the labelled dataset, 0 false positives.
+- **Per click:** pointer kinematics — trajectory curvature, tremor, sub-movements, deceleration onto the target, hold time, pressure, teleport. Measured: humans hold 83–225 ms with ≥35 trajectory points; agents 1–4 ms with none. Measured on our own set: 397 human clicks from 22 browsers and devices, 2 read as a program; 824 agent clicks, 2 read as human. Not an independent study.
 - **Session memory:** once an agent attached, the session stays "agent" until a WebAuthn user-verified passkey (Touch ID) reclaims it for 5 minutes.
 - **Seal-on-attach:** `data-nt-sensitive="full"` elements are redacted in the browser the instant an indicator appears — even a read that is already in flight sees `••••`.
 
 ## API surface
-`nanotarget(options)` → `{ middleware(), protect(resource, {respond?}), send(req,res,full,mask), sessionFor(req,res), reloadPolicy(), policy, engine, store, room, basePath, close() }`
+`onehuman(options)` (or `onehumanDeferred(options)` without `await`, for CommonJS) → `{ middleware(), protect(resource, {respond?}), send(req,res,full,mask), sessionFor(req,res), reloadPolicy(), policy, engine, store, room, basePath, close() }`
 `req.nt` → `{ decision, masked, blocked, stepUp, actor, score, reasonCodes, session, full, assessment, token() }`
-SDK: `NanoTarget.fetch`, `.snapshot(withInteraction)`, `.sessionHeaders()`, `.onAssessment(fn)`, `.seal()`, `.unseal(proof)`, `.sealed`, `.lastConnection`; event `nt:sealed`.
-CLI: `npx nanotarget scan [dir] [--json]` · `npx nanotarget verify <baseUrl> <protectedPath> [--base /nanotarget]` · `npx nanotarget secret`.
+SDK: `OneHuman.fetch`, `.snapshot(withInteraction)`, `.sessionHeaders()`, `.onAssessment(fn)`, `.seal()`, `.unseal(proof)`, `.sealed`, `.lastConnection`; event `nt:sealed`.
+CLI: `npx onehuman init [dir] [--yes]` · `npx onehuman scan [dir] [--json]` · `npx onehuman verify <baseUrl> <protectedPath> [--base /onehuman]` · `npx onehuman secret`.
 Routes under `basePath`: `GET /sdk.js`, `POST /signals`, `GET /connection`, `GET /session`, `POST /step-up`, `POST /webauthn/register/options|register|assert/options|assert`, `GET /webauthn/status`.
 
-Options: `secret` (required, ≥32 B) · `policy` (path or object, required) · `db` (`sqlite:./file` | `memory` | `libsql://…`) · `identify(req)` · `basePath` (`/nanotarget`) · `cookie` (`nt_sid`) · `secure` · `tenant` · `respond` (`true`) · `webauthnReclaim` (`true`).
+Options: `secret` (required, ≥32 B) · `policy` (path or object, required) · `db` (`sqlite:./file` | `memory` | `libsql://…`) · `identify(req)` · `basePath` (`/onehuman`) · `cookie` (`nt_sid`) · `secure` · `tenant` · `respond` (`true`) · `webauthnReclaim` (`true`).
 
-Live demo: https://nanotarget-mvp.vercel.app · Source and docs: https://github.com/ArifBabayev05/NanoTarget (SDK and middleware Apache-2.0; engine BUSL-1.1 — production use granted) · `docs/INTEGRATION.md`, `docs/EVAL.md`.
+Live demo: https://onehuman.ai · Source and docs: https://github.com/ArifBabayev05/NanoTarget (SDK and middleware Apache-2.0; engine BUSL-1.1 — production use granted) · `docs/INTEGRATION.md`, `docs/EVAL.md`.

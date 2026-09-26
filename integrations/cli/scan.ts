@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * `nanotarget scan` — static discovery of what an AI agent could reach in this codebase.
+ * `onehuman scan` — static discovery of what an AI agent could reach in this codebase.
  *
  * Walks the project, finds HTTP route definitions (Express/Fastify/Koa/NestJS/Next.js), scores each
  * route's sensitivity from its path, handler text and the data fields it touches, finds how a request is
- * tied to a logged-in user, and proposes a NanoTarget policy. Output is a proposal for a human (or the AI
+ * tied to a logged-in user, and proposes a OneHuman policy. Output is a proposal for a human (or the AI
  * agent integrating the package) to confirm — never applied automatically.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -118,7 +118,8 @@ function resourceId(method: string, path: string, kind: RouteHit['kind']): strin
   const segs = path.split('/').filter((x) => x && !x.startsWith(':') && !x.startsWith('[') && !/^v\d+$/i.test(x) && x !== 'api');
   const noun = (segs.slice(-2).join('.') || 'resource').toLowerCase().replace(/[^a-z0-9.]+/g, '-');
   const verb = kind === 'download' ? 'export' : method === 'GET' ? 'read' : method === 'DELETE' ? 'delete' : /transfer|withdraw|send|pay/i.test(path) ? 'make' : 'write';
-  return `${noun}.${verb}`;
+  // '/statements/export' is already an export: 'statements.export', not 'statements.export.export'
+  return noun.split('.').pop() === verb || (verb === 'export' && /^(download|csv)$/.test(noun.split('.').pop() ?? '')) ? noun : `${noun}.${verb}`;
 }
 
 function proposal(h: { sensitivity: number; kind: RouteHit['kind']; signals: string[] }): RouteHit['proposal'] {
@@ -204,10 +205,10 @@ export function scan(root: string): ScanResult {
   const identityRanked = [...byExpr.values()].sort((a, b) => b.count - a.count).slice(0, 5);
 
   const notes: string[] = [];
-  if (!routes.length) notes.push('No HTTP route definitions recognised. If the server is not Node (Java/.NET/Go/Python), the middleware does not apply; run the NanoTarget engine as a Node sidecar in front of the data endpoints instead.');
-  if (!identityRanked.length) notes.push('No login/session expression found: NanoTarget will fall back to a first-party cookie per browser. If the app has authentication, tell the integrator where the user id lives on the request.');
-  if (frontend.kind === 'spa' || frontend.kind === 'mixed') notes.push(`SPA detected: add <script src="/nanotarget/sdk.js"> to ${frontend.entryHtml[0] ?? 'the entry HTML'} and mark rendered sensitive values with data-nt-sensitive in the components.`);
-  if (axios) notes.push('axios is used: add NanoTarget.sessionHeaders() and X-NT-Sample from NanoTarget.snapshot(true) in a request interceptor for protected calls, or switch those calls to NanoTarget.fetch.');
+  if (!routes.length) notes.push('No HTTP route definitions recognised. If the server is not Node (Java/.NET/Go/Python), the middleware does not apply; run the OneHuman engine as a Node sidecar in front of the data endpoints instead.');
+  if (!identityRanked.length) notes.push('No login/session expression found: OneHuman will fall back to a first-party cookie per browser. If the app has authentication, tell the integrator where the user id lives on the request.');
+  if (frontend.kind === 'spa' || frontend.kind === 'mixed') notes.push(`SPA detected: add <script src="/onehuman/sdk.js"> to ${frontend.entryHtml[0] ?? 'the entry HTML'} and mark rendered sensitive values with data-nt-sensitive in the components.`);
+  if (axios) notes.push('axios is used: add OneHuman.sessionHeaders() and X-NT-Sample from OneHuman.snapshot(true) in a request interceptor for protected calls, or switch those calls to OneHuman.fetch.');
   if (routes.some((r) => r.kind === 'download' && r.sensitivity >= 30)) notes.push('Download/export routes found: decide on the request that issues the link (protect) and put req.nt.token() in the file URL; redeem it in the file route.');
 
   const policyDraft = {
@@ -251,16 +252,16 @@ export function renderProposal(r: ScanResult): string {
   if (rest.length) out.push('', `Left unprotected (low sensitivity or auth/health/static): ${rest.map((x) => `${x.method} ${x.path}`).join(', ')}`);
   out.push('');
   out.push(`Session identity: ${r.identity.length ? `use identify(req) → ${r.identity[0]!.expression} (found in ${r.identity[0]!.file}); return null when not logged in.` : 'no login expression found → per-browser cookie mode (tell me if the app has authentication).'}`);
-  out.push(`Front end: ${r.frontend.kind}${r.frontend.axios ? ', axios' : ''} → add <script src="/nanotarget/sdk.js">, call protected endpoints through NanoTarget.fetch (or an axios interceptor), mark rendered sensitive values with data-nt-sensitive so they are redacted the instant an agent attaches.`);
+  out.push(`Front end: ${r.frontend.kind}${r.frontend.axios ? ', axios' : ''} → add <script src="/onehuman/sdk.js">, call protected endpoints through OneHuman.fetch (or an axios interceptor), mark rendered sensitive values with data-nt-sensitive so they are redacted the instant an agent attaches.`);
   out.push('Rollout: start in observe mode (nothing blocked, every decision recorded with what would have happened); switch to enforce after review.');
   out.push('');
-  out.push('Questions for you: (1) confirm/edit the protected list; (2) modes per route; (3) observe or enforce; (4) session identity expression; (5) storage (sqlite file vs libSQL); (6) built-in step-up/passkey or your own OTP; (7) where NT_SECRET lives.');
+  out.push('Questions for you: (1) confirm/edit the protected list; (2) modes per route; (3) observe or enforce; (4) session identity expression; (5) storage (sqlite file vs libSQL); (6) built-in step-up/passkey or your own OTP; (7) where ONEHUMAN_SECRET lives.');
   return out.join('\n');
 }
 
 export function renderReport(r: ScanResult): string {
   const out: string[] = [];
-  out.push(`NanoTarget scan — ${r.root}`);
+  out.push(`OneHuman scan — ${r.root}`);
   out.push(`${r.filesScanned} files · frameworks: ${r.frameworks.join(', ') || 'none recognised'} · front end: ${r.frontend.kind}${r.frontend.axios ? ' (axios)' : ''} · fetch() calls: ${r.frontend.fetchCalls}`);
   out.push('');
   const prot = r.routes.filter((x) => x.sensitivity >= 30);
@@ -278,7 +279,7 @@ export function renderReport(r: ScanResult): string {
   out.push('');
   for (const n of r.notes) out.push(`! ${n}`);
   out.push('');
-  out.push('Draft policy written to nanotarget.policy.draft.json (enforcement: observe). Confirm resources and modes, then rename to nanotarget.policy.json.');
+  out.push('Draft policy written to onehuman.policy.draft.json (enforcement: observe). Confirm resources and modes, then rename to onehuman.policy.json.');
   out.push('');
   out.push('────────────────────────────────────────────────────────────────');
   out.push(renderProposal(r));

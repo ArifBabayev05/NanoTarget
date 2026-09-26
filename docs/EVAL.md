@@ -1,4 +1,4 @@
-# NanoTarget — qiymətləndirmə hesabatı (avtomatik)
+# OneHuman — qiymətləndirmə hesabatı (avtomatik)
 
 Yaradılma: 2026-09-22T08:56:41.898Z · assess assess-v7 · kinematics kin-v16 · model gbdt-2026-09-22
 

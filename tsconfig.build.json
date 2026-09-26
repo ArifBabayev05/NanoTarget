@@ -6,7 +6,7 @@
     "declaration": true,
     "rewriteRelativeImportExtensions": true,
     "rootDir": ".",
-    "outDir": "packages/nanotarget/dist/types"
+    "outDir": "packages/onehuman/dist/types"
   },
   "include": [
     "integrations/express/index.ts",

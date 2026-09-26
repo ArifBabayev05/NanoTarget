@@ -3,7 +3,7 @@
  * Lab routes: rooms, sessions, signal ingestion, journal, benchmark, step-up
  * and the signed-request simulation.
  */
-import type { NanoTarget } from '../engine.ts';
+import type { OneHuman } from '../engine.ts';
 import { publicDecision } from '../engine.ts';
 import { json, readJson, sameOrigin, url, UUID, type Req, type Res } from '../http.ts';
 import { parseSnapshot } from '../signals.ts';
@@ -16,7 +16,7 @@ import { bus } from '../bus.ts';
 
 export type LabOperator = { operator: string; privateKey: CryptoKey; publicJwk: OperatorKey } | null;
 
-export function labRoutes(engine: NanoTarget, labOperator: LabOperator) {
+export function labRoutes(engine: OneHuman, labOperator: LabOperator) {
   const store = engine.store;
 
   const createRoom = async (req: Req, res: Res) => {
@@ -199,7 +199,7 @@ export type ScenarioRow = {
   runs: { id: string; attachMs: number | null; firstActionMs: number | null; firstDataMs: number | null; codes: string[]; decisions: string[] }[];
 };
 
-export async function computeBenchmark(engine: NanoTarget, room: string, labOperator: string | null = null): Promise<Benchmark> {
+export async function computeBenchmark(engine: OneHuman, room: string, labOperator: string | null = null): Promise<Benchmark> {
   const store = engine.store;
   const sessions = await store.listSessions(room);
   // Decisions produced by the lab's own signed-request simulation carry `simulated`; rows written

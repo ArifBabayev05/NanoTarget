@@ -4,7 +4,7 @@
  *
  *   first start      the portal has no policy for this key → the policy file is sent and becomes version 1
  *   every minute     the server asks the portal for its policy (a 304 when nothing changed) and runs what it gets
- *   file edited      a developer or their coding agent changed nanotarget.policy.json → it is proposed to the portal,
+ *   file edited      a developer or their coding agent changed onehuman.policy.json → it is proposed to the portal,
  *                    which applies it or holds it for approval, as the key's owner decided
  *   portal down      the server keeps running on the last policy it accepted, saved in its own database
  *
@@ -56,7 +56,7 @@ export type PolicyStatus = {
 const EMPTY = { version: 'none', enforcement: 'observe' as const, rules: [] };
 
 export function createPolicySync<P extends PolicyLike>(o: PolicySyncOptions<P>) {
-  const log = o.log ?? ((m: string) => console.log(`nanotarget: ${m}`));
+  const log = o.log ?? ((m: string) => console.log(`onehuman: ${m}`));
   const tag = keyTag(o.apiKey);
   const base = o.portalUrl.replace(/\/$/, '');
   const auth = { Authorization: `Bearer ${o.apiKey}` };

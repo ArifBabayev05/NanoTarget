@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { createServer } from 'node:http';
 import { createApp } from '../server/app.ts';
-import { nanotarget } from '../integrations/express/index.ts';
+import { onehuman } from '../integrations/express/index.ts';
 import { diffPolicy, keyTag, policyHash, verifyPolicyEnvelope, type PolicyLike } from '../integrations/policy/common.ts';
 import { policySigner } from '../server/routes/policy-portal.ts';
 
@@ -64,15 +64,15 @@ const C = { ...H, Cookie: cookie };
 const key = await (await fetch(`${pbase}/api/v1/portal/keys`, { method: 'POST', headers: C, body: JSON.stringify({ name: 'prod' }) })).json();
 
 const dir = mkdtempSync(join(tmpdir(), 'nt-policy-'));
-const file = join(dir, 'nanotarget.policy.json');
+const file = join(dir, 'onehuman.policy.json');
 const dbPath = `sqlite:${join(dir, 'nt.db')}`;
 writeFileSync(file, JSON.stringify(doc('pp-1', [rule('balance.read')])));
 
 const logs: string[] = [];
 const origLog = console.log;
-console.log = (...a: unknown[]) => { const m = a.join(' '); if (m.startsWith('nanotarget:')) logs.push(m); else origLog(...a); };
+console.log = (...a: unknown[]) => { const m = a.join(' '); if (m.startsWith('onehuman:')) logs.push(m); else origLog(...a); };
 const opts = { secret: 'test-secret-test-secret-test-secret-7777', policy: file, db: dbPath, apiKey: key.key, telemetryUrl: `${pbase}/api/v1/ingest` };
-const nt = await nanotarget(opts);
+const nt = await onehuman(opts);
 const app = express();
 app.use(nt.middleware());
 app.get('/api/balance', nt.protect('balance.read'), (req, res) => nt.send(req, res, { balance: 1 }, (x) => ({ ...x, balance: null })));
@@ -196,7 +196,7 @@ test('turning the weakening check off, or weakening from the portal, needs the p
 
 test('portal down: a restarted server runs its saved signed copy; a tampered copy is refused', async () => {
   const dead = { ...opts, portalUrl: 'http://127.0.0.1:9' };
-  const again = await nanotarget(dead);
+  const again = await onehuman(dead);
   assert.equal(again.policySource().source, 'cache');
   assert.equal(again.policy.version, 'portal-v5');
   assert.equal(again.health().policy.source, 'cache');
@@ -211,7 +211,7 @@ test('portal down: a restarted server runs its saved signed copy; a tampered cop
   p.policy.enforcement = 'observe';
   db.prepare('UPDATE policy_cache SET envelope = ? WHERE tag = ?').run(`${h}.${Buffer.from(JSON.stringify(p)).toString('base64url')}.${sig}`, row.tag);
   db.close();
-  const tampered = await nanotarget(dead);
+  const tampered = await onehuman(dead);
   assert.equal(tampered.policySource().source, 'file', 'the forged copy is not used; the file is');
   assert.ok(logs.some((l) => /saved copy failed its check \(bad_signature\)/.test(l)), logs.join('\n'));
   await tampered.close();
@@ -246,7 +246,7 @@ test('the assistant edits existing rules only; a new rule becomes a prompt for t
     assert.equal(a.proposed.rules.find((x: { resource: string }) => x.resource === 'balance.read').onAgent, 'mask');
     assert.equal(a.refused.length, 2, JSON.stringify(a.refused));
     assert.equal(a.careful.length, 1, 'block → mask for agents lowers protection');
-    assert.match(a.needsCode.prompt, /^NanoTarget \(npm: nanotarget\) is installed[\s\S]*Protect the payout endpoint/);
+    assert.match(a.needsCode.prompt, /^OneHuman \(npm: onehuman\) is installed[\s\S]*Protect the payout endpoint/);
     assert.equal((await view()).n, before.n, 'the assistant saves nothing');
     // empty and oversized messages are refused before any model call
     assert.equal((await post('/assist', { message: '' })).status, 400);

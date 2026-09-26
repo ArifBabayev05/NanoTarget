@@ -1,15 +1,15 @@
-# NanoTarget Contributor License Agreement
+# OneHuman Contributor License Agreement
 
 Thank you for contributing. Before we can accept a contribution we need this agreement. It keeps the
-project able to license and relicense its code (NanoTarget is licensed in two parts — see `LICENSE`),
+project able to license and relicense its code (OneHuman is licensed in two parts — see `LICENSE`),
 and it protects you and every user of the project.
 
-This agreement is between you and the NanoTarget project maintainer ("we", "us"). It is based on the
+This agreement is between you and the OneHuman project maintainer ("we", "us"). It is based on the
 widely used Apache Software Foundation Individual Contributor License Agreement.
 
 **1. Definitions.** "You" means the individual or the legal entity on whose behalf you submit a
 Contribution. "Contribution" means any work of authorship, including modifications or additions to an
-existing work, that you intentionally submit to us for inclusion in the NanoTarget project, by pull request,
+existing work, that you intentionally submit to us for inclusion in the OneHuman project, by pull request,
 patch, issue or any other form of communication directed at us or our repositories.
 
 **2. Copyright licence.** You grant to us, and to recipients of software distributed by us, a perpetual,
@@ -46,6 +46,6 @@ these representations inaccurate in any respect.
 
 Add this line to the description of your first pull request, with your name:
 
-> I have read the NanoTarget Contributor License Agreement (CLA.md) and I agree to it. — *Your Full Name*
+> I have read the OneHuman Contributor License Agreement (CLA.md) and I agree to it. — *Your Full Name*
 
 One signature covers all your future contributions.

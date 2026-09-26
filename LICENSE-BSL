@@ -4,8 +4,8 @@ License text copyright (c) 2020 MariaDB Corporation Ab, All Rights Reserved.
 Parameters
 
 Licensor:             Arif Babayev
-Licensed Work:        NanoTarget engine, version 0.4.0 or later: the
-                      nanotarget-engine package and, in the NanoTarget source
+Licensed Work:        OneHuman engine, version 0.4.0 or later: the
+                      onehuman-engine package and, in the OneHuman source
                       repository, every file not listed as Apache-2.0 in the
                       repository's LICENSE file. The Licensed Work is (c) 2026
                       Arif Babayev.
@@ -50,7 +50,7 @@ Change License:       Apache License, Version 2.0, or GNU General Public License
                       Version 2.0 or any later version, at your option.
 
 For information about alternative licensing arrangements for the Licensed Work,
-please contact the Licensor at the address given in SECURITY.md of the NanoTarget
+please contact the Licensor at the address given in SECURITY.md of the OneHuman
 source repository (https://github.com/ArifBabayev05/NanoTarget).
 
 Notice

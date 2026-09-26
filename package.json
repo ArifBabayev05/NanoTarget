@@ -1,8 +1,8 @@
 {
-  "name": "nanotarget-monorepo",
+  "name": "onehuman-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "NanoTarget — session-level control over AI browser agents: engine, SDK, Express integration, demos and research tooling",
+  "description": "OneHuman — session-level control over AI browser agents: engine, SDK, Express integration, demos and research tooling",
   "type": "module",
   "engines": {
     "node": ">=22.13.0"

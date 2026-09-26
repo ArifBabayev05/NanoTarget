@@ -1,10 +1,10 @@
 # Contributing
 
-Thanks for taking the time. NanoTarget is small enough to understand in an afternoon; this page tells you where things are and what a good change looks like.
+Thanks for taking the time. OneHuman is small enough to understand in an afternoon; this page tells you where things are and what a good change looks like.
 
 ## Before your first pull request: the CLA and the licence
 
-NanoTarget is licensed in two parts (see [`LICENSE`](LICENSE)): the browser SDK, the middleware, the CLI and the proof verifier under **Apache 2.0**; the engine and everything else under the **Business Source License 1.1**. To keep that possible, every contributor agrees to the [Contributor License Agreement](CLA.md) once. You keep your copyright; you allow the project to distribute your contribution under the licences it uses. Sign it by adding one line to your first pull request's description — the template has it.
+OneHuman is licensed in two parts (see [`LICENSE`](LICENSE)): the browser SDK, the middleware, the CLI and the proof verifier under **Apache 2.0**; the engine and everything else under the **Business Source License 1.1**. To keep that possible, every contributor agrees to the [Contributor License Agreement](CLA.md) once. You keep your copyright; you allow the project to distribute your contribution under the licences it uses. Sign it by adding one line to your first pull request's description — the template has it.
 
 Every new source file starts with its licence: `// SPDX-License-Identifier: Apache-2.0` under `sdk/` and `integrations/`, `// SPDX-License-Identifier: BUSL-1.1` everywhere else. The open code may reach the engine only through `server/public.ts`; the build and a test enforce this.
 
@@ -12,7 +12,7 @@ Every new source file starts with its licence: `// SPDX-License-Identifier: Apac
 
 ```bash
 git clone https://github.com/ArifBabayev05/NanoTarget.git
-cd NanoTarget
+cd OneHuman
 npm install
 npm run dev        # http://localhost:8787 (node:sqlite in data/lab.db)
 npm run check      # tsc + tests — must pass before a PR
@@ -24,7 +24,7 @@ Node ≥ 22.13 (the engine uses `node:sqlite`). No build step for development; T
 
 | Want to… | Look at |
 | --- | --- |
-| Add a detection signal | `sdk/nanotarget.js` (collect) → `server/signals.ts` (validate) → `server/assess.ts` (weigh) → `server/connection.ts` (attach-time) |
+| Add a detection signal | `sdk/onehuman.js` (collect) → `server/signals.ts` (validate) → `server/assess.ts` (weigh) → `server/connection.ts` (attach-time) |
 | Change how a click is judged | `server/kinematics.ts` (features + rules), `server/kinematics-model.ts` (learned model) |
 | Retrain the model | `node scripts/kinematics-train.mjs` — grouped CV by client, zero-FP thresholds; commit `server/kinematics-model.json` |
 | Add a policy branch or mode | `server/policy.ts` |
