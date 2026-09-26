@@ -10,7 +10,7 @@
   <a href="https://www.npmjs.com/package/onehuman"><img alt="npm" src="https://img.shields.io/npm/v/onehuman?color=3ddc84&label=npm"></a>
   <a href="https://github.com/ArifBabayev05/OneHuman/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ArifBabayev05/OneHuman/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="Apache-2.0 SDK, BUSL-1.1 engine" src="https://img.shields.io/badge/license-Apache--2.0%20SDK%20%C2%B7%20BUSL--1.1%20engine-blue"></a>
-  <a href="https://onehuman-mvp.vercel.app"><img alt="demo" src="https://img.shields.io/badge/live-demo-0f8a4b"></a>
+  <a href="https://onehuman.ai"><img alt="demo" src="https://img.shields.io/badge/live-demo-0f8a4b"></a>
 </p>
 
 ---
@@ -20,12 +20,12 @@ Customers now hand their signed-in banking, CRM and insurance sessions to Claude
 OneHuman works inside the session:
 
 - **Attach-time detection** — agent-tool markers, injected globals, evaluated-script reads, focus emulation and Web Bot Auth signatures are seen before the agent's first action (measured 0.1–0.5 s for Claude in Chrome, 0.14 s for Codex).
-- **Pointer physics per click** — a hand's path is curved, its tremor grows with speed and comes in bursts, it slows onto the target and holds 83–225 ms; drivers teleport and release in 1–4 ms; generated curves are parabola-clean. A boosted-tree model, cross-validated across people and devices: AUC 0.999, zero human false positives.
+- **Pointer physics per click** — a hand's path is curved, its tremor grows with speed and comes in bursts, it slows onto the target and holds 83–225 ms; drivers teleport and release in 1–4 ms; generated curves are parabola-clean. Measured on our own set: 397 human clicks from 22 browsers and devices, 2 read as a program; 824 agent clicks, 2 read as human. Not an independent study.
 - **Per-endpoint policy** — `allow · mask · step_up · block`, in your JSON; masking in your code; decisions on your server.
 - **Seal on attach** — data already on screen is redacted in the browser the instant an indicator appears.
 - **Passkey reclaim** — once an agent attached, the session stays "agent" until the person proves presence with WebAuthn (Touch ID) and takes it back.
 
-Live demo: **https://onehuman-mvp.vercel.app** · Package: **https://www.npmjs.com/package/onehuman**
+Live demo: **https://onehuman.ai** · Package: **https://www.npmjs.com/package/onehuman**
 
 ## Install
 
@@ -40,7 +40,7 @@ One install. `onehuman` (Apache-2.0) depends on [`onehuman-engine`](https://www.
 import { onehuman } from 'onehuman/express';
 
 const nt = await onehuman({
-  secret: process.env.NT_SECRET,
+  secret: process.env.ONEHUMAN_SECRET,
   policy: './onehuman.policy.json',
   db: 'sqlite:./onehuman.db',
   identify: (req) => req.session?.userId ?? null,

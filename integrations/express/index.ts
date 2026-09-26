@@ -3,7 +3,7 @@
  * OneHuman for Express / Connect / plain Node http.
  *
  *   import { onehuman } from 'onehuman/express';
- *   const nt = await onehuman({ secret: process.env.NT_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db' });
+ *   const nt = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db' });
  *   app.use(nt.middleware());                       // serves /onehuman/sdk.js + the SDK's API
  *   app.get('/api/balance', nt.protect('balance.read'), (req, res) => nt.send(req, res, balance, maskBalance));
  *
@@ -43,7 +43,7 @@ export type OneHumanOptions = {
    * source — for servers that cannot reach the internet.
    */
   policyFromPortal?: boolean;
-  /** the portal's address (default: NT_PORTAL_URL, or the origin of `telemetryUrl`) */
+  /** the portal's address (default: ONEHUMAN_PORTAL_URL, or the origin of `telemetryUrl`) */
   portalUrl?: string;
   /** ≥ 32 bytes; signs single-use tokens and derives the tenant room id — keep it stable across restarts */
   secret: string | Buffer;
@@ -68,10 +68,10 @@ export type OneHumanOptions = {
   /** show the WebAuthn "I am human" reclaim path on agent blocks (default true) */
   webauthnReclaim?: boolean;
   /**
-   * Report decisions to your OneHuman portal (https://onehuman-mvp.vercel.app/portal) so you can see how
+   * Report decisions to your OneHuman portal (https://onehuman.ai/portal) so you can see how
    * many of your sessions had an AI agent in them. Metadata only — hashed session id, resource, decision,
    * actor, connection state, detected tools, reason codes. Never payloads, identities or IPs.
-   * Default: process.env.NT_API_KEY. Without a key nothing leaves your server.
+   * Default: process.env.ONEHUMAN_API_KEY (the old NT_API_KEY still works). Without a key nothing leaves your server.
    */
   apiKey?: string;
   /**
@@ -80,7 +80,7 @@ export type OneHumanOptions = {
    * platform that suspends the process between requests.
    */
   telemetryImmediate?: boolean;
-  /** where reports go (default https://onehuman-mvp.vercel.app/api/v1/ingest, or NT_TELEMETRY_URL) */
+  /** where reports go (default https://onehuman.ai/api/v1/ingest, or ONEHUMAN_TELEMETRY_URL) */
   telemetryUrl?: string;
 };
 
@@ -159,7 +159,7 @@ function createReporter(apiKey: string, endpoint: string, keys: ProofJwk[], eage
     const batch = queue.splice(0, 100);   // a signed event is ~1 KB; 100 stays well under the ingest limit
     try {
       const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ events: batch, keys }), signal: AbortSignal.timeout(10000) });
-      if (r.status === 401) { failures = 999; console.warn('onehuman: telemetry API key rejected — check apiKey / NT_API_KEY'); queue = []; }
+      if (r.status === 401) { failures = 999; console.warn('onehuman: telemetry API key rejected — check apiKey / ONEHUMAN_API_KEY'); queue = []; }
       else if (!r.ok) throw new Error(String(r.status));
       else { failures = 0; if (eager && queue.length) setTimeout(() => { keepAlive(flush()); }, 0); }
     } catch {
@@ -194,14 +194,14 @@ export async function onehuman(opts: OneHumanOptions) {
   const cookieName = opts.cookie ?? 'nt_sid';
   const tenant = opts.tenant ?? 'default';
   const respond = opts.respond ?? true;
-  const apiKey = opts.apiKey ?? process.env.NT_API_KEY ?? '';
+  const apiKey = opts.apiKey ?? process.env.ONEHUMAN_API_KEY ?? process.env.NT_API_KEY ?? '';
   const sessionHash = (id: string) => createHash('sha256').update(apiKey).update('\0').update(id).digest('hex').slice(0, 16);
 
   const store = await Store.open(await openClient(opts.db ?? 'sqlite:./onehuman.db'));
   const model = await loadModel();
   attachModel(model ? { predict: (f) => predict(model, f), humanAbove: model.humanAbove, syntheticBelow: model.syntheticBelow } : null);
   const engine = new OneHuman({ store, secret, sessionCookie: cookieName });
-  const telemetryUrl = opts.telemetryUrl ?? process.env.NT_TELEMETRY_URL ?? 'https://onehuman-mvp.vercel.app/api/v1/ingest';
+  const telemetryUrl = opts.telemetryUrl ?? process.env.ONEHUMAN_TELEMETRY_URL ?? process.env.NT_TELEMETRY_URL ?? 'https://onehuman.ai/api/v1/ingest';
   const reporter = apiKey ? createReporter(apiKey, telemetryUrl, engine.proofKeys().keys, opts.telemetryImmediate ?? SERVERLESS) : null;
   engine.webauthnReclaimEnabled = opts.webauthnReclaim ?? true;
   const room = derivedUuid(secret, 'room', tenant);
@@ -221,7 +221,7 @@ export async function onehuman(opts: OneHumanOptions) {
   const sync = fromPortal
     ? createPolicySync({
       store, apiKey, filePath: typeof opts.policy === 'string' ? opts.policy : null, initialFile: filePolicy,
-      portalUrl: (opts.portalUrl ?? process.env.NT_PORTAL_URL ?? new URL(telemetryUrl).origin),
+      portalUrl: (opts.portalUrl ?? process.env.ONEHUMAN_PORTAL_URL ?? process.env.NT_PORTAL_URL ?? new URL(telemetryUrl).origin),
       parse: (raw, version) => parsePolicy(raw, version),
     })
     : null;
@@ -335,8 +335,13 @@ export async function onehuman(opts: OneHumanOptions) {
     };
   }
 
-  /** Decide for `resource`; the result is on `req.nt`. Block → 403, step-up → 428 (unless `respond: false`). */
-  function protect(resource: string, local: { respond?: boolean } = {}) {
+  /**
+   * Decide for `resource`; the result is on `req.nt`. Block → 403, step-up → 428 (unless `respond: false`).
+   * `mask`: what to send when the decision is mask and the handler answers with Express's `res.json()` —
+   * `'auto'` hides every value and keeps the shape and ids, or pass your own function. Without it, the
+   * handler decides (check `req.nt.masked`, or use `nt.send()`).
+   */
+  function protect(resource: string, local: { respond?: boolean; mask?: 'auto' | ((body: unknown) => unknown) } = {}) {
     const answer = local.respond ?? respond;
     sync?.declare(resource);   // the portal lists endpoints that have no rule yet
     return async (req: Req, res: Res, next: Next) => {
@@ -356,6 +361,12 @@ export async function onehuman(opts: OneHumanOptions) {
         if (reporter) report(session, resource, d, result);
         if (answer && d.decision === 'block') return json(res, 403, { error: 'blocked', resource, decision: publicDecision(d), stepUp: result.stepUp });
         if (answer && d.decision === 'step_up') return json(res, 428, { error: 'step_up_required', resource, decision: publicDecision(d), stepUp: result.stepUp });
+        const r = res as Res & { json?: (body: unknown) => unknown };
+        if (d.decision === 'mask' && local.mask && typeof r.json === 'function') {
+          const original = r.json.bind(res);
+          const mask = local.mask === 'auto' ? autoMask : local.mask;
+          r.json = (body: unknown) => original(mask(body));
+        }
         next();
       } catch (e) { next(e); }
     };
@@ -412,6 +423,38 @@ export async function onehuman(opts: OneHumanOptions) {
 }
 
 export type OneHumanInstance = Awaited<ReturnType<typeof onehuman>>;
+
+const KEEP_KEYS = new Set(['id', '_id']);
+/** The `mask: 'auto'` variant: every value hidden, the shape and ids kept, so the page still renders. */
+export function autoMask(value: unknown, key = ''): unknown {
+  if (Array.isArray(value)) return value.map((v) => autoMask(v));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, autoMask(v, k)]));
+  if (KEEP_KEYS.has(key) || value === null || typeof value === 'boolean') return value;
+  return typeof value === 'number' ? null : '••••';
+}
+
+/**
+ * The same instance without `await`: for CommonJS, or code that cannot wait at the top level. It returns at
+ * once and starts in the background; the first request waits for the start. `ready` resolves to the full
+ * instance (or rejects with the reason it could not start, e.g. a missing secret).
+ */
+export function onehumanDeferred(opts: OneHumanOptions) {
+  const ready = onehuman(opts);
+  ready.catch((e: unknown) => console.error(`onehuman: could not start — ${(e as Error).message}`));
+  let mw: ((req: Req, res: Res, next: Next) => void) | null = null;
+  return {
+    ready,
+    middleware() {
+      return (req: Req, res: Res, next: Next) => { ready.then((nt) => { mw ??= nt.middleware(); mw(req, res, next); }, next); };
+    },
+    protect(resource: string, local?: Parameters<OneHumanInstance['protect']>[1]) {
+      let h: ReturnType<OneHumanInstance['protect']> | null = null;
+      return (req: Req, res: Res, next: Next) => { ready.then((nt) => { h ??= nt.protect(resource, local); return h(req, res, next); }, next); };
+    },
+    send<T>(req: Req, res: Res, full: T, mask: (full: T) => unknown) { ready.then((nt) => nt.send(req, res, full, mask), (e) => json(res, 500, { error: 'onehuman_not_started', message: String((e as Error).message) })); },
+    close: () => ready.then((nt) => nt.close(), () => {}),
+  };
+}
 
 // Express users get `req.nt` typed without importing anything else.
 declare global {

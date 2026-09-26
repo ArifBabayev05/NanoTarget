@@ -16,7 +16,8 @@ export type ProofJwk = { kty: 'OKP'; crv: 'Ed25519'; x: string; kid: string; use
 
 export type ProofPayload = {
   v: number;
-  iss: 'onehuman';
+  /** 'onehuman' on proofs signed before the rename to OneHuman */
+  iss: 'onehuman' | 'onehuman';
   /** issued at, seconds */
   iat: number;
   /** the decision id — unique, the handle an auditor asks about */
@@ -67,7 +68,7 @@ export function verifyProof(jws: string, keys: { x: string; kid?: string }[]): P
   let header: { alg?: string; typ?: string; kid?: string };
   let payload: ProofPayload;
   try { header = JSON.parse(fromB64u(h).toString('utf8')); payload = JSON.parse(fromB64u(p).toString('utf8')); } catch { return { valid: false, reason: 'malformed' }; }
-  if (header.alg !== 'EdDSA' || header.typ !== PROOF_TYP || payload?.iss !== 'onehuman') return { valid: false, reason: 'wrong_type' };
+  if (header.alg !== 'EdDSA' || header.typ !== PROOF_TYP || (payload?.iss !== 'onehuman' && payload?.iss !== 'onehuman')) return { valid: false, reason: 'wrong_type' };
   const key = keys.find((k) => (k.kid ?? thumbprint(k.x)) === header.kid && thumbprint(k.x) === header.kid);
   if (!key) return { valid: false, reason: 'unknown_key' };
   let pub = keyCache.get(key.x);

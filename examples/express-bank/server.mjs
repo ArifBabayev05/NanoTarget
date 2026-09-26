@@ -11,7 +11,7 @@ const app = express();
 app.use(express.json());
 
 // --- 1. one line: SDK + its API under /onehuman, policy from your file, storage on your disk ---
-const nt = await onehuman({ secret: process.env.NT_SECRET ?? 'dev-secret-change-me-dev-secret-change-me', policy: join(here, 'onehuman.policy.json'), db: 'sqlite:./examples/express-bank/onehuman.db' });
+const nt = await onehuman({ secret: process.env.ONEHUMAN_SECRET ?? 'dev-secret-change-me-dev-secret-change-me', policy: join(here, 'onehuman.policy.json'), db: 'sqlite:./examples/express-bank/onehuman.db' });
 app.use(nt.middleware());
 
 // --- 2. your data and your own mask functions ---

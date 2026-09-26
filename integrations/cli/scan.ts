@@ -118,7 +118,8 @@ function resourceId(method: string, path: string, kind: RouteHit['kind']): strin
   const segs = path.split('/').filter((x) => x && !x.startsWith(':') && !x.startsWith('[') && !/^v\d+$/i.test(x) && x !== 'api');
   const noun = (segs.slice(-2).join('.') || 'resource').toLowerCase().replace(/[^a-z0-9.]+/g, '-');
   const verb = kind === 'download' ? 'export' : method === 'GET' ? 'read' : method === 'DELETE' ? 'delete' : /transfer|withdraw|send|pay/i.test(path) ? 'make' : 'write';
-  return `${noun}.${verb}`;
+  // '/statements/export' is already an export: 'statements.export', not 'statements.export.export'
+  return noun.split('.').pop() === verb || (verb === 'export' && /^(download|csv)$/.test(noun.split('.').pop() ?? '')) ? noun : `${noun}.${verb}`;
 }
 
 function proposal(h: { sensitivity: number; kind: RouteHit['kind']; signals: string[] }): RouteHit['proposal'] {
@@ -254,7 +255,7 @@ export function renderProposal(r: ScanResult): string {
   out.push(`Front end: ${r.frontend.kind}${r.frontend.axios ? ', axios' : ''} → add <script src="/onehuman/sdk.js">, call protected endpoints through OneHuman.fetch (or an axios interceptor), mark rendered sensitive values with data-nt-sensitive so they are redacted the instant an agent attaches.`);
   out.push('Rollout: start in observe mode (nothing blocked, every decision recorded with what would have happened); switch to enforce after review.');
   out.push('');
-  out.push('Questions for you: (1) confirm/edit the protected list; (2) modes per route; (3) observe or enforce; (4) session identity expression; (5) storage (sqlite file vs libSQL); (6) built-in step-up/passkey or your own OTP; (7) where NT_SECRET lives.');
+  out.push('Questions for you: (1) confirm/edit the protected list; (2) modes per route; (3) observe or enforce; (4) session identity expression; (5) storage (sqlite file vs libSQL); (6) built-in step-up/passkey or your own OTP; (7) where ONEHUMAN_SECRET lives.');
   return out.join('\n');
 }
 

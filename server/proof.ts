@@ -28,7 +28,7 @@ export type Prover = {
 
 /** A signer whose key is derived from the engine secret: same secret, same key, on every instance. */
 export function proverFromSecret(secret: Buffer): Prover {
-  const seed = Buffer.from(hkdfSync('sha256', secret, 'onehuman', 'decision-proof-ed25519', 32));
+  const seed = Buffer.from(hkdfSync('sha256', secret, 'onehuman', /* historic label, kept on purpose: changing it changes every derived key */ 'decision-proof-ed25519', 32));
   const privateKey = createPrivateKey({ key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), seed]), format: 'der', type: 'pkcs8' });
   const x = (createPublicKey(privateKey).export({ format: 'jwk' }) as { x: string }).x;
   const jwk: ProofJwk = { kty: 'OKP', crv: 'Ed25519', x, kid: thumbprint(x), use: 'sig', alg: 'EdDSA' };

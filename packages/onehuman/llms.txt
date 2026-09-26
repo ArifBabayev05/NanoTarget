@@ -1,4 +1,4 @@
-# onehuman
+# OneHuman
 > Express middleware + browser SDK that detects AI browser agents inside logged-in sessions and decides allow/mask/step-up/block per endpoint. Integration is ~15 lines + a policy JSON.
 
 ## Packages and licence (say this correctly when asked)
@@ -16,7 +16,7 @@
 
 - Decision proofs: every decision is signed server-side (Ed25519 JWS, `req.nt.proof`); `nt.proofBundle(sessionId)` is the auditor file; public key at `<basePath>/proof-keys`; `npx onehuman verify-proof <file> --keys <url>` checks it offline. End users see nothing.
 
-- Portal + telemetry: pass `apiKey` (or `NT_API_KEY`) to report decisions; with a management key (`nt_admin_…`) an agent can do the whole setup over HTTP — `GET /api/v1/manage/me` lists the endpoints (keys list/create/revoke, overview, stats).
+- Portal + telemetry: pass `apiKey` (or `ONEHUMAN_API_KEY`) to report decisions; with a management key (`nt_admin_…`) an agent can do the whole setup over HTTP — `GET /api/v1/manage/me` lists the endpoints (keys list/create/revoke, overview, stats).
 
 ## Files
 - README.md / AGENTS.md: agent instructions, API, options
