@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.3
+- **`npx onehumanai init` asks three plain questions**: is the proposed protection right (yes, or change it item by item), watch first or protect now, and your portal API key (Enter skips it). The server type, the signed-in user, the page script and `OneHuman.fetch` are worked out from the code and listed in the plan instead of asked. A list and its detail page are one item; the plan counts protected routes per file instead of printing code.
+- **`npx onehumanai` on its own** starts the setup.
+- Starting without setup now says what to do: no rules file or no secret → "Run `npx onehumanai init`".
+
 ## 0.6.2
 - **`npx onehumanai init` keeps `onehumanai` in package.json.** It wrote its own package.json change after installing, which dropped the dependency npm had just added, so a fresh `npm ci` on a server would not install OneHuman. Files are written first now.
 - **`npx onehumanai verify` works in observe mode.** Protected answers carry `X-OH-Outcome: <decision>; computed=<what protect mode would do>; actor=<who it looked like>` (never the reasons), and verify reads it, so a watch-only setup can be checked too.

@@ -46,7 +46,8 @@ function suggestPreset(r: RouteHit): string {
 /** `payroll.run.make` → "Make payroll run", `employees.read` → "View employees": how the portal lists the rule */
 const VERBS: Record<string, string> = { read: 'View', write: 'Change', make: 'Make', export: 'Export', delete: 'Delete' };
 const titleOf = (res: string) => {
-  const parts = res.split('.');
+  let parts = res.split('.').map((p) => (p === 'me' ? 'your profile' : p));
+  if (parts.includes('export') && parts.at(-1) !== 'export') parts = [...parts.filter((p) => p !== 'export'), 'export'];
   const verb = VERBS[parts.at(-1) ?? ''];
   const noun = (verb ? parts.slice(0, -1) : parts).join(' ').replace(/[_-]+/g, ' ');
   const t = verb ? `${verb} ${noun}` : noun;
@@ -132,7 +133,7 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   }
 
   // ---------------------------------------------------------------- read the project
-  say(`\n${bold('OneHuman setup')} ${dim('— a few questions; nothing is written until you say yes.')}`);
+  say(`\n${bold('OneHuman setup')} ${dim('· three short questions. Nothing is written until you say yes.')}`);
   const pkgPath = join(root, 'package.json');
   if (!existsSync(pkgPath)) { say(yellow(`\nNo package.json in ${root}. Run this in your Node server's folder, or pass it: npx onehumanai init ./server`)); rl?.close(); process.exit(2); }
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { type?: string; dependencies?: Record<string, string>; devDependencies?: Record<string, string>; scripts?: Record<string, string>; packageManager?: string };
@@ -140,10 +141,12 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   const r: ScanResult = scan(root);
   for (const x of r.routes) x.file = resolve(root, x.file);   // the scan reports paths relative to the project
   const detected = deps.express ? 'express' : deps.fastify ? 'fastify' : deps.next ? 'next' : deps.koa ? 'koa' : deps['@nestjs/core'] ? 'nestjs' : r.frameworks[0] ?? 'unknown';
-  say(dim(`\nRead ${r.filesScanned} files: ${r.routes.length} routes${r.frameworks.length ? ` (${r.frameworks.join(', ')})` : ''}, ${r.routes.filter((x) => x.sensitivity >= 25 && !x.signals.includes('excluded-pattern')).length} that an AI agent with a customer's login could misuse.`));
+  const risky = r.routes.filter((x) => x.sensitivity >= 25 && !x.signals.includes('excluded-pattern')).length;
+  const known = { express: 'an Express app', fastify: 'a Fastify app', next: 'a Next.js app', koa: 'a Koa app', nestjs: 'a NestJS app' }[detected as 'express'];
+  say(dim(`\nFound ${known ?? 'a Node app'} with ${r.routes.length} routes. ${risky ? `${risky} of them return or change data an AI agent should not get freely.` : 'None of them look sensitive.'}`));
 
   // ---------------------------------------------------------------- 1. the server
-  const framework = await choose('Which server does this app use?', [
+  const framework = ['express', 'fastify', 'next'].includes(detected) ? detected : await choose('Which server does this app use?', [
     { label: 'Express (or Connect / plain Node http)', value: 'express', hint: 'OneHuman wires the code itself' },
     { label: 'Fastify', value: 'fastify', hint: 'rules and settings written; you add 3 lines' },
     { label: 'Next.js', value: 'next', hint: 'rules and settings written; you add a custom server' },
@@ -152,66 +155,57 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
 
   // ---------------------------------------------------------------- 2. what to protect, and how
   const candidates = r.routes.filter((x) => x.sensitivity >= 25 && !x.signals.includes('excluded-pattern')).sort((a, b) => b.sensitivity - a.sensitivity).slice(0, 40);
-  let chosen: RouteHit[] = [];
-  if (candidates.length) {
-    const w = Math.max(...candidates.map((x) => x.path.length));
-    chosen = await pickMany('Which parts of your app should OneHuman protect?', candidates.map((x) => ({
-      value: x,
-      label: `${x.method.padEnd(6)} ${x.path.padEnd(w)}`,
-      hint: `${relative(root, x.file)}:${x.line} · ${x.signals.filter((s) => s !== 'excluded-pattern').join(', ') || 'sensitive'}`,
-    })), candidates.map((_, i) => i));
-  } else say(dim('\nNo sensitive routes found automatically. You can add rules later in the portal or in onehuman.policy.json.'));
-
+  let chosen: RouteHit[] = [...candidates];
   const presetFor = new Map<RouteHit, string>(chosen.map((x) => [x, suggestPreset(x)]));
-  if (chosen.length) {
-    say(`\n${bold('Suggested protection:')}`);
-    for (const x of chosen) say(`  ${x.method.padEnd(6)} ${x.path}  →  ${green(PRESETS[presetFor.get(x)!]!.label)}`);
-    const how = await choose('Use these suggestions?', [
-      { label: 'Yes, use the suggestions', value: 'suggested' },
-      { label: 'Let me choose for each one', value: 'each' },
-    ]);
-    if (how === 'each') {
-      for (const x of chosen) {
-        const cur = PRESET_KEYS.indexOf(presetFor.get(x)!);
-        presetFor.set(x, await choose(`${x.method} ${x.path} — when an AI agent asks for it:`, PRESET_KEYS.map((k) => ({ value: k, label: PRESETS[k]!.label, hint: PRESETS[k]!.what })), cur));
-      }
+  if (candidates.length) {
+    const w = Math.max(...candidates.map((x) => titleOf(x.resource).length));
+    say(`\n${bold('What I would protect:')}`);
+    for (const [i, x] of candidates.entries()) {
+      if (candidates.findIndex((y) => y.resource === x.resource) !== i) continue;   // a list and its detail page are one item
+      const paths = candidates.filter((y) => y.resource === x.resource).map((y) => `${y.method} ${y.path}`).join(', ');
+      say(`  ${titleOf(x.resource).padEnd(w)}  ${dim(paths)}\n  ${' '.repeat(w)}  → ${green(PRESETS[presetFor.get(x)!]!.label)}`);
     }
-  }
+    const how = await choose('Protect it like this?', [
+      { label: 'Yes', value: 'yes' },
+      { label: 'Let me change it', value: 'change', hint: 'one question per item' },
+    ]);
+    if (how === 'change') {
+      for (const [i, x] of candidates.entries()) {
+        if (candidates.findIndex((y) => y.resource === x.resource) !== i) continue;
+        const cur = PRESET_KEYS.indexOf(presetFor.get(x)!);
+        const pick = await choose(`${titleOf(x.resource)}: when an AI agent asks for it`, PRESET_KEYS.map((k) => ({ value: k, label: PRESETS[k]!.label, hint: PRESETS[k]!.what })), cur);
+        for (const y of candidates) if (y.resource === x.resource) presetFor.set(y, pick);
+      }
+      chosen = candidates.filter((x) => presetFor.get(x) !== 'open');
+    }
+  } else say(dim('\nNothing looks sensitive yet. You can add rules later in the portal or in onehuman.policy.json.'));
 
   // ---------------------------------------------------------------- 3. who is logged in
   const exprs = [...new Set(r.identity.map((i) => i.expression).filter((e) => /^req\.(session|user|auth)\b/.test(e)))].slice(0, 5);
-  const identity = await choose<string | null>('How does your server know who is logged in?', [
-    ...exprs.map((e) => ({ value: e, label: `${e}`, hint: 'found in your code' })),
-    { value: '__custom', label: 'Something else — I will type it' },
-    { value: null, label: 'No login, or not sure', hint: 'one session per browser, from a cookie' },
-  ], 0);
-  let identifyExpr: string | null = identity;
-  if (identity === '__custom') identifyExpr = (await text('Expression for the logged-in user id (for example req.user.id):', 'req.user.id')) || null;
+  // who is signed in: taken from the code, not asked (it is a technical question); init says what it chose
+  const identifyExpr: string | null = exprs[0] ?? null;
 
   // ---------------------------------------------------------------- 4. start mode
-  const enforcement = await choose('How should it start?', [
-    { value: 'observe', label: 'Just watch — record everything, block nothing', hint: 'look at Activity first, switch on later' },
-    { value: 'enforce', label: 'Protect now — apply the rules from the first request' },
+  const enforcement = await choose('Start by only watching, or protect right away?', [
+    { value: 'observe', label: 'Only watch for now', hint: 'nothing is blocked; you see what AI agents do, then switch it on' },
+    { value: 'enforce', label: 'Protect right away' },
   ]);
 
   // ---------------------------------------------------------------- 5. the portal
   let apiKey = process.env.ONEHUMAN_API_KEY ?? '';
-  const portal = await choose('Connect to the OneHuman portal?', [
-    { value: 'key', label: apiKey ? 'Yes — use ONEHUMAN_API_KEY from this shell' : 'Yes — I have an API key', hint: 'see agents, change rules without a deploy' },
-    { value: 'later', label: 'Later', hint: 'everything works on your server without it' },
-  ], apiKey ? 0 : 1);
-  if (portal === 'key' && !apiKey) {
+  if (!apiKey) {
     for (;;) {
-      apiKey = await text('Paste the API key from https://onehuman.ai/portal (starts with oh_live_):');
+      apiKey = await text('Your API key from onehuman.ai/portal, to see all of this there (press Enter to skip):');
       if (!apiKey || /^oh_live_[a-f0-9]{40}$/.test(apiKey)) break;
-      say(yellow('  That does not look like a key. It starts with oh_live_ and has 40 more characters. Leave it empty to skip.'));
+      say(yellow('  That is not a OneHuman key: it starts with oh_live_ and has 40 more characters. Press Enter to skip.'));
     }
   }
 
   // ---------------------------------------------------------------- 6. the page
   const htmlCandidates = [...r.frontend.entryHtml, 'public/index.html', 'index.html', 'static/index.html', 'views/index.html', 'client/index.html', 'src/index.html'];
   const html = [...new Set(htmlCandidates)].map((f) => resolve(root, f)).find((f) => existsSync(f) && /<\/head>/i.test(readFileSync(f, 'utf8')) && !readFileSync(f, 'utf8').includes('/onehuman/sdk.js'));
-  const addScript = html ? await confirm(`Add the page script to ${relative(root, html)}? It lets OneHuman see an agent in the browser the moment it attaches.`, true) : false;
+  // the page script and OneHuman.fetch are part of the setup, not questions: both are listed in the plan below
+  const addScript = !!html;
   // The page's own requests must carry the click that caused them, or a person's click never counts as human evidence
   // (and in protect mode a real person meets a passkey request). The page's local scripts that call fetch():
   const pageScripts = addScript && html
@@ -219,9 +213,7 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
         .map((m) => [resolve(dirname(html), m[1]!.replace(/^\//, '')), resolve(dirname(html), '.' + (m[1]!.startsWith('/') ? m[1] : '/' + m[1]))])
         .flat().filter((f, i, a) => a.indexOf(f) === i && existsSync(f) && /(?<![.\w$])fetch\s*\(/.test(readFileSync(f, 'utf8')))
     : [];
-  const wrapFetch = pageScripts.length
-    ? await confirm(`Send the page's requests through OneHuman.fetch in ${pageScripts.map((f) => relative(root, f)).join(', ')}? Each request then carries the click behind it, so a person is recognised as a person.`, true)
-    : false;
+  const wrapFetch = pageScripts.length > 0;
 
   // ---------------------------------------------------------------- the plan
   const edits: Edit[] = [];
@@ -341,7 +333,7 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
         const mask = PRESETS[preset]!.m.includes('mask') && x.method === 'GET' ? ", { mask: 'auto' }" : '';
         const cut = mm.index + mm[0].length;
         lines[i] = `${lines[i]!.slice(0, cut)} onehuman.protect('${x.resource}'${mask}),${lines[i]!.slice(cut)}`;
-        put(x.file, lines.join('\n'), `${x.method} ${x.path} → onehuman.protect('${x.resource}')`);
+        put(x.file, lines.join('\n'), `protects ${x.method} ${x.path}`);
         protectedFiles.add(x.file);
         done = true;
       }
@@ -374,13 +366,11 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   if (!installed && flags.install) say(`  ${cyan('install')}  onehumanai  ${dim('(one package: middleware, page script, engine)')}`);
   for (const e of edits) {
     say(`  ${e.before === null ? green('new    ') : yellow('change ')} ${relative(root, e.file) || basename(e.file)}`);
-    for (const ch of e.changes) say(`           ${dim('· ' + ch)}`);
-    if (e.before !== null && !e.file.endsWith('.env') && !e.file.endsWith('package.json')) {
-      const a = e.before.split('\n'), b = e.after.split('\n');
-      const aset = new Map<string, number>(); a.forEach((l) => aset.set(l, (aset.get(l) ?? 0) + 1));
-      b.forEach((l, i) => { const n = aset.get(l) ?? 0; if (n > 0) aset.set(l, n - 1); else say(`           ${green('+ ' + String(i + 1).padStart(4) + '  ' + l.trim().slice(0, 110))}`); });
-    }
+    const routes = e.changes.filter((c) => c.startsWith('protects '));
+    for (const ch of e.changes.filter((c) => !c.startsWith('protects '))) say(`           ${dim('· ' + ch)}`);
+    if (routes.length) say(`           ${dim(`· protects ${routes.length === 1 ? routes[0]!.slice(9) : `${routes.length} routes`}`)}`);
   }
+  if (framework === 'express') say(dim(`\n  Signed-in user: ${identifyExpr ? `${identifyExpr} (found in your code)` : 'none found, so each browser gets its own session'}. You can change it in onehuman.js.`));
   if (!edits.length && (installed || !flags.install)) { say(dim('  nothing — OneHuman already looks set up here.')); rl?.close(); return; }
   if (!(await confirm('Apply these changes?', true))) { say('\nNothing was written.'); rl?.close(); return; }
   rl?.close();
