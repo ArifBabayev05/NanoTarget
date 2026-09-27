@@ -9,8 +9,7 @@
 **Install.**
 
 ```bash
-npm i onehumanai                          # pnpm add onehumanai · yarn add onehumanai
-npx onehumanai init                       # asks what to protect; shows every change before writing it
+npx onehumanai init                       # installs the package, asks what to protect, shows every change before writing it
 npm start                               # starts in observe mode: nothing is blocked, everything is recorded
 npx onehumanai verify http://localhost:3000 /api/balance
 ```
