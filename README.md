@@ -7,7 +7,7 @@
   Detect the moment an agent attaches to a signed-in session, decide per endpoint what it may see, and let the person take the session back.
 </p>
 <p align="center">
-  <a href="https://www.npmjs.com/package/onehumanai"><img alt="npm" src="https://img.shields.io/npm/v/onehuman?color=3ddc84&label=npm"></a>
+  <a href="https://www.npmjs.com/package/onehumanai"><img alt="npm" src="https://img.shields.io/npm/v/onehumanai?color=3ddc84&label=npm"></a>
   <a href="https://github.com/onehumanai/onehuman/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/onehumanai/onehuman/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="Apache-2.0 SDK, BUSL-1.1 engine" src="https://img.shields.io/badge/license-Apache--2.0%20SDK%20%C2%B7%20BUSL--1.1%20engine-blue"></a>
   <a href="https://onehuman.ai"><img alt="demo" src="https://img.shields.io/badge/live-demo-0f8a4b"></a>
@@ -32,9 +32,17 @@ Live demo: **https://onehuman.ai** · Package: **https://www.npmjs.com/package/o
 ## Install
 
 ```bash
-npm i onehumanai          # Node ≥ 22.13 · Express 4/5, Connect, Next.js custom server, plain node:http
+npx onehumanai init       # asks a few questions, installs the package with your package manager, wires it in
+```
+
+Or install it yourself — Node ≥ 22.13 · Express 4/5, Connect, Next.js custom server, plain node:http:
+
+```bash
+npm i onehumanai          # pnpm add onehumanai · yarn add onehumanai · bun add onehumanai
 npx onehumanai scan .     # what an AI agent could reach in this codebase + a draft policy
 ```
+
+In a pnpm workspace use `pnpm add onehumanai`: npm cannot install into a `node_modules` that pnpm made (it stops with "Cannot read properties of null (reading 'matches')").
 
 One install: `npm i onehumanai`. The package holds the middleware, the browser SDK and the CLI (Apache-2.0) and the engine they run on (BUSL-1.1, production use granted) — you never import the engine yourself.
 
@@ -67,7 +75,7 @@ signals (untrusted, from the SDK) + server observations (trusted)
     → response    allow | mask | 428 step-up | 403 block (+ passkey reclaim)
 ```
 
-"Unknown" is a first-class outcome and is never treated as human. Environment traces (an AI app's built-in browser, an installed agent extension) never outweigh kinematic evidence of a hand. Details and every measured number are in [`docs/HESABAT.md`](docs/HESABAT.md) (research log) and [`docs/EVAL.md`](docs/EVAL.md) (auto-generated evaluation report).
+"Unknown" is a first-class outcome and is never treated as human. Environment traces (an AI app's built-in browser, an installed agent extension) never outweigh kinematic evidence of a hand. How we measured, and where it fails: https://onehuman.ai/measurements.
 
 ## Repository
 
@@ -81,7 +89,7 @@ signals (untrusted, from the SDK) + server observations (trusted)
 | `web/` | Landing, three demo applications, training lab, sandbox |
 | `scripts/` | Training, evaluation, adversarial generation, reports |
 | `tests/` | 105 tests (`npm test`) |
-| `docs/` | Integration guide, research log, evaluation, competitive landscape |
+| `docs/` | Integration guides, deploy and release notes |
 
 ## Development
 
@@ -89,7 +97,7 @@ signals (untrusted, from the SDK) + server observations (trusted)
 npm install
 npm run dev            # http://localhost:8787
 npm run check          # typecheck + tests
-npm run eval           # regenerate docs/EVAL.md from the sample store
+npm run eval           # regenerate the evaluation report (internal/docs/EVAL.md) from the sample store
 npm run build:package  # packages/onehumanai/dist
 ```
 

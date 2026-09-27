@@ -239,7 +239,7 @@ export function clickFeatures(traj: TrajPoint[], ctx: ClickContext): Features {
 }
 
 /**
- * Rule-based judgement (kin-v2). Thresholds come from the sandbox dataset (docs/HESABAT.md §6):
+ * Rule-based judgement (kin-v2). Thresholds come from the sandbox dataset (research log §6):
  * 18 human clicks (mouse, trackpad, Claude pane) vs 22 agent clicks (Claude desktop pane, Claude in
  * Chrome). Human hold 83–158 ms, n ≥ 35 points, dtMean 8–12 ms, ≥ 6 sub-movements, endSlow ≤ 0.37;
  * agent hold 1–4 ms, no trajectory (or 3 sparse points), landing at the element centre.

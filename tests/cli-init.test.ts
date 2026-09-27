@@ -63,3 +63,14 @@ test("mask: 'auto' hides every value and keeps the shape and ids", () => {
   assert.deepEqual(autoMask({ id: 7, balance: 10.5, owner: 'Ada', active: true, items: [{ _id: 'x', memo: 'rent' }], none: null }),
     { id: 7, balance: null, owner: '••••', active: true, items: [{ _id: 'x', memo: '••••' }], none: null });
 });
+
+test('init installs with the project\'s own package manager (npm breaks inside a pnpm node_modules)', async () => {
+  const { packageManager } = await import('../integrations/cli/init.ts');
+  const at = (files: string[]) => { const d = mkdtempSync(join(tmpdir(), 'oh-pm-')); for (const f of files) { mkdirSync(join(d, f, '..'), { recursive: true }); writeFileSync(join(d, f), ''); } return d; };
+  assert.deepEqual(packageManager(at(['node_modules/.pnpm/x']), {}), ['pnpm', 'add']);
+  assert.deepEqual(packageManager(at(['yarn.lock']), {}), ['yarn', 'add']);
+  assert.deepEqual(packageManager(at(['package-lock.json']), { packageManager: 'pnpm@9.0.0' }), ['pnpm', 'add']);
+  const ws = at(['pnpm-workspace.yaml', 'apps/api/package.json']);
+  assert.deepEqual(packageManager(join(ws, 'apps', 'api'), {}), ['pnpm', 'add'], 'a workspace lockfile above the app counts');
+  assert.deepEqual(packageManager(at(['package-lock.json']), {}), ['npm', 'install']);
+});
