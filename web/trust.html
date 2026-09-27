@@ -84,7 +84,7 @@
       </ul>
     </div>
   </div>
-  <p class="fine"><b>Check it yourself:</b> <code>npx onehuman inspect</code> prints exactly what the page script sent in a session, from your own database — byte for byte when the server runs with <code>ONEHUMAN_RECORD_RAW=1</code>.</p>
+  <p class="fine"><b>Check it yourself:</b> <code>npx onehumanai inspect</code> prints exactly what the page script sent in a session, from your own database — byte for byte when the server runs with <code>ONEHUMAN_RECORD_RAW=1</code>.</p>
   <p class="fine">The page script measures how the session behaves — timing, movement geometry, known agent-tool traces — not what it contains. It is served from your origin and posts only to your origin.</p>
 
   <h2>The path of one decision</h2>
@@ -139,7 +139,7 @@
     <dt>How long is telemetry kept?</dt>
     <dd>Until you revoke and delete the API key, which removes its reported decisions. Revoked keys can be deleted at any time from the portal.</dd>
     <dt>Can our auditor verify a decision without trusting you?</dt>
-    <dd>Yes. Every decision is signed on your server with a key derived from your secret. The public key is served from your own site; the proof verifies with any standard JOSE library or <code>npx onehuman verify-proof</code>. OneHuman the company is not in that loop.</dd>
+    <dd>Yes. Every decision is signed on your server with a key derived from your secret. The public key is served from your own site; the proof verifies with any standard JOSE library or <code>npx onehumanai verify-proof</code>. OneHuman the company is not in that loop.</dd>
     <dt>What if OneHuman is slow or breaks?</dt>
     <dd>Your app keeps working. OneHuman fails open: a protected request waits at most one second (you set it) for a decision; if the engine is slower or fails, the request goes on as if allowed, is logged as an unknown visitor and counted in the health endpoint. In observe mode this is always so. In enforce mode you may choose a 503 instead, per deployment. OneHuman's own routes answer their own errors and never reach your error handler.</dd>
     <dt>Does the page script affect our users?</dt>

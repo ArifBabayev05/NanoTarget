@@ -1,9 +1,9 @@
 {
-  "name": "@onehumanai/express",
+  "name": "onehumanai",
   "version": "0.6.0",
-  "description": "Know the moment an AI agent (Claude in Chrome, ChatGPT Atlas, Codex, Comet, Playwright…) takes over a signed-in session — on your own server — and decide per endpoint what it may see: allow · mask · step-up · block, with a passkey way back and a signed proof of every decision. Express/Connect middleware + browser SDK + CLI. Apache-2.0; pulls in the engine (@onehumanai/engine, BUSL-1.1, production use granted) automatically: `npm i @onehumanai/express` is all you install, `npx onehuman init` sets it up. AI coding agents: the README is your integration protocol.",
+  "description": "When a customer sends an AI agent (Claude in Chrome, ChatGPT agent, Codex, Comet, Playwright…) into your product, decide what it may do on their behalf — allow · mask · step-up · block, per endpoint, on your own server — and keep a signed proof that a human agreed. One package: Express/Connect middleware, browser SDK, engine and CLI. `npm i onehumanai`, then `npx onehumanai init`. AI coding agents: the README is your integration protocol.",
   "type": "module",
-  "license": "Apache-2.0",
+  "license": "(Apache-2.0 AND BUSL-1.1)",
   "engines": {
     "node": ">=22.13.0"
   },
@@ -12,11 +12,13 @@
       "types": "./dist/types/integrations/express/index.d.ts",
       "default": "./dist/express.js"
     },
-    "./cli": "./dist/cli.js",
     "./sdk": "./sdk/onehuman.js",
     "./package.json": "./package.json"
   },
   "types": "./dist/types/integrations/express/index.d.ts",
+  "bin": {
+    "onehumanai": "dist/cli.js"
+  },
   "files": [
     "dist",
     "sdk",
@@ -24,8 +26,10 @@
     "QUICKSTART.md",
     "AGENTS.md",
     "llms.txt",
-    "LICENSE",
     "CHANGELOG.md",
+    "LICENSE",
+    "LICENSE-APACHE",
+    "LICENSE-BSL",
     "NOTICE"
   ],
   "keywords": [
@@ -50,7 +54,7 @@
     "ai-browser-agent",
     "decision-proof",
     "audit",
-    "apache-2.0"
+    "onehuman"
   ],
   "peerDependencies": {
     "express": ">=4"
@@ -60,10 +64,10 @@
       "optional": true
     }
   },
-  "sideEffects": false,
-  "bin": {
-    "onehuman": "dist/cli.js"
+  "optionalDependencies": {
+    "@libsql/client": "^0.18.0"
   },
+  "sideEffects": false,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/onehumanai/onehuman.git"
@@ -72,11 +76,5 @@
   "bugs": {
     "url": "https://github.com/onehumanai/onehuman/issues"
   },
-  "author": "OneHuman <founders@onehuman.ai>",
-  "dependencies": {
-    "@onehumanai/engine": "0.6.0"
-  },
-  "publishConfig": {
-    "access": "public"
-  }
+  "author": "OneHuman <founders@onehuman.ai>"
 }

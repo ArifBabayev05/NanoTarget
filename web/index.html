@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OneHuman — Prove who approved what, when AI agents act for your customers</title>
-<meta name="description" content="When a customer sends an AI agent into your product, OneHuman decides what it may do on their behalf and keeps signed proof that a human agreed. Express middleware and browser SDK that run on your own server. npm i @onehumanai/express.">
+<meta name="description" content="When a customer sends an AI agent into your product, OneHuman decides what it may do on their behalf and keeps signed proof that a human agreed. Express middleware and browser SDK that run on your own server. npm i onehumanai.">
 <meta property="og:title" content="OneHuman — prove who approved what">
 <meta property="og:description" content="When a customer sends an AI agent into your product, decide what it may do on their behalf — and keep proof that a human agreed.">
 <meta property="og:site_name" content="OneHuman">
@@ -48,13 +48,13 @@
   <div class="install reveal-now" id="install">
     <div class="npm big beam">
       <span class="npm-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect width="24" height="24" rx="3"/><path d="M4 8h16v8h-4V11h-2v5H4z" fill="#0a0a0b"/></svg></span>
-      <span class="prompt">$</span><code>npm i @onehumanai/express</code>
+      <span class="prompt">$</span><code>npm i onehumanai</code>
       <button class="copy" id="copy-npm" aria-label="Copy install command"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
     </div>
     <div class="install-row">
-      <a class="npm-link" href="https://www.npmjs.com/package/@onehumanai/express" target="_blank" rel="noopener">npmjs.com/package/@onehumanai/express <span class="ext">↗</span></a>
+      <a class="npm-link" href="https://www.npmjs.com/package/onehumanai" target="_blank" rel="noopener">npmjs.com/package/onehumanai <span class="ext">↗</span></a>
       <span class="sep">·</span>
-      <span class="install-note">then <code>npx onehuman init</code> — a few questions, and it is wired in</span>
+      <span class="install-note">then <code>npx onehumanai init</code> — a few questions, and it is wired in</span>
       <span class="sep">·</span>
       <a class="btn secondary" href="/bank">Open live demo <span class="arrow">→</span></a>
     </div>
@@ -196,12 +196,12 @@
 <section class="integrate" id="integrate">
   <div class="sec-head reveal">
     <h2 class="h2 tr">Integrate in an afternoon — or let your coding agent do it</h2>
-    <p class="lead">Run <code>npx onehuman init</code>: it asks what to protect and how, shows every change, and wires it in when you say yes. Or hand your coding agent the npm link and say “install this”.</p>
+    <p class="lead">Run <code>npx onehumanai init</code>: it asks what to protect and how, shows every change, and wires it in when you say yes. Or hand your coding agent the npm link and say “install this”.</p>
   </div>
   <div class="code-tabs reveal">
     <div class="tabs" id="code-tabs"><button class="on" data-tab="server">server.js</button><button data-tab="page">page.html</button><button data-tab="policy">onehuman.policy.json</button><button data-tab="agent">Prompt for your agent</button></div>
-    <pre class="code" id="code-server"><code><span class="c">// npm i @onehumanai/express  — the engine (@onehumanai/engine) is installed with it; import only from '@onehumanai/express'</span>
-<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'@onehumanai/express'</span>;
+    <pre class="code" id="code-server"><code><span class="c">// npm i onehumanai  — one package, the engine is inside; import only from 'onehumanai'</span>
+<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'onehumanai'</span>;
 
 <span class="k">const</span> oh = <span class="k">await</span> onehuman({
   secret: process.env.ONEHUMAN_SECRET,            <span class="c">// ≥ 32 bytes, stable — signs tokens and decision proofs</span>
@@ -221,8 +221,8 @@ app.get(<span class="s">'/api/balance'</span>, oh.protect(<span class="s">'balan
 &lt;div data-oh-sensitive=<span class="s">"full"</span>&gt;$4,939.10&lt;/div&gt;
 
 <span class="c">// after deploying: four checks, then the auditor's own check of a proof</span>
-npx onehuman verify https://your-app.example /api/balance
-npx onehuman verify-proof proofs.json --keys https://your-app.example/onehuman/proof-keys</code></pre>
+npx onehumanai verify https://your-app.example /api/balance
+npx onehumanai verify-proof proofs.json --keys https://your-app.example/onehuman/proof-keys</code></pre>
     <pre class="code" id="code-policy" hidden><code>{
   <span class="s">"version"</span>: <span class="s">"bank-policy-1"</span>,
   <span class="s">"enforcement"</span>: <span class="s">"observe"</span>,
@@ -231,10 +231,10 @@ npx onehuman verify-proof proofs.json --keys https://your-app.example/onehuman/p
     { <span class="s">"resource"</span>: <span class="s">"report.export"</span>, <span class="s">"onAgent"</span>: <span class="s">"block"</span>, <span class="s">"onArtifact"</span>: <span class="s">"step_up"</span>, <span class="s">"onUnknown"</span>: <span class="s">"step_up"</span>, <span class="s">"onHumanLike"</span>: <span class="s">"allow"</span> }
   ]
 }</code></pre>
-    <pre class="code" id="code-agent" hidden><code>https://www.npmjs.com/package/@onehumanai/express — install this into my project.
-Follow the README protocol: `npm i @onehumanai/express` (one package; its engine dependency comes with it),
+    <pre class="code" id="code-agent" hidden><code>https://www.npmjs.com/package/onehumanai — install this into my project.
+Follow the README protocol: `npm i onehumanai` (one package; its engine dependency comes with it),
 scan the app, show me what an AI browser agent could reach and how to gate it, ask me the nine
-decisions, implement server + page + policy + masks, verify with `npx onehuman verify`, then report.
+decisions, implement server + page + policy + masks, verify with `npx onehumanai verify`, then report.
 Licence: the package is Apache-2.0; the engine is BUSL-1.1 with production use granted — say so if asked.</code></pre>
     <div class="code-actions"><button class="btn ghost" id="copy-code">Copy</button><a class="btn ghost" href="/docs#agent">Read the integration protocol →</a></div>
   </div>
@@ -250,9 +250,9 @@ Licence: the package is Apache-2.0; the engine is BUSL-1.1 with production use g
 
 <section class="cta reveal">
   <h2 class="h2 tr">Know who agreed.</h2>
-  <p class="lead">One <code>npm i @onehumanai/express</code>. The SDK and middleware are Apache 2.0; the engine they pull in is source-available, production use granted. Everything runs on your server. Add an API key and the portal shows you how many of your sessions had an AI agent in them.</p>
+  <p class="lead">One <code>npm i onehumanai</code>. The SDK and middleware are Apache 2.0; the engine they pull in is source-available, production use granted. Everything runs on your server. Add an API key and the portal shows you how many of your sessions had an AI agent in them.</p>
   <div class="hero-actions">
-    <div class="npm"><span class="prompt">$</span><code>npm i @onehumanai/express</code><button class="copy" data-copy="npm i @onehumanai/express" aria-label="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div>
+    <div class="npm"><span class="prompt">$</span><code>npm i onehumanai</code><button class="copy" data-copy="npm i onehumanai" aria-label="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div>
     <a class="btn secondary" href="/portal">Get your API key <span class="arrow">→</span></a>
     <a class="btn secondary" href="https://github.com/onehumanai/onehuman" target="_blank" rel="noopener">Star on GitHub <span class="arrow">→</span></a>
   </div>
@@ -261,7 +261,7 @@ Licence: the package is Apache-2.0; the engine is BUSL-1.1 with production use g
 
 <footer class="foot">
   <span>© 2026 OneHuman · Apache-2.0 SDK · BUSL-1.1 engine · all demo data is synthetic</span>
-  <span><a href="https://github.com/onehumanai/onehuman" target="_blank" rel="noopener">GitHub</a><a href="https://www.npmjs.com/package/@onehumanai/express" target="_blank" rel="noopener">npm</a><a href="/docs#agent">Integration protocol</a><a href="/scorecard">Agent scorecard</a><a href="/measurements">How we measured</a><a href="/trust">Trust &amp; privacy</a></span>
+  <span><a href="https://github.com/onehumanai/onehuman" target="_blank" rel="noopener">GitHub</a><a href="https://www.npmjs.com/package/onehumanai" target="_blank" rel="noopener">npm</a><a href="/docs#agent">Integration protocol</a><a href="/scorecard">Agent scorecard</a><a href="/measurements">How we measured</a><a href="/trust">Trust &amp; privacy</a></span>
 </footer>
 <div class="toast" id="toast"></div>
 <script src="/landing.js"></script>

@@ -10,7 +10,7 @@
   const toastEl = $('#toast'); let toastT;
   const toast = (m) => { toastEl.textContent = m; toastEl.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('show'), 1800); };
   async function copy(text, msg = 'Copied') { try { await navigator.clipboard.writeText(text); toast(msg); } catch { toast('Could not copy'); } }
-  $('#copy-npm').addEventListener('click', () => copy('npm i @onehumanai/express'));
+  $('#copy-npm').addEventListener('click', () => copy('npm i onehumanai'));
   $$('[data-copy]').forEach((b) => b.addEventListener('click', () => copy(b.dataset.copy)));
 
   // ---------------------------------------------------------------- signed in? the nav becomes a way back to the portal

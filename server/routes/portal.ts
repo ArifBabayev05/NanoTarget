@@ -374,7 +374,7 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
     if (!(await store.apiKeyOwned(key, account))) return json(res, 404, { error: 'not_found' });
     json(res, 200, await weeklyFor(key));
   };
-  /** The design-partner report for one key, from what its server reported (same builder as `npx onehuman report`). */
+  /** The design-partner report for one key, from what its server reported (same builder as `npx onehumanai report`). */
   async function reportFor(key: string, days: number, account: string, now = Date.now()) {
     const from = now - days * 86_400_000;
     const name = (await store.apiKeyById(key, account))?.name ?? '';
@@ -586,7 +586,7 @@ export function integrationChecks(h: TelemetryHealth, now: number): Check[] {
   }
 
   if (!h.events) checks.push({ id: 'signed', status: 'off', title: 'Signed decisions', detail: 'Waits for the first decision.' });
-  else if (!h.proofs) checks.push({ id: 'signed', status: 'warn', title: 'Signed decisions', detail: 'Decisions arrive without a signature. Update to the latest @onehumanai/express.' });
+  else if (!h.proofs) checks.push({ id: 'signed', status: 'warn', title: 'Signed decisions', detail: 'Decisions arrive without a signature. Update to the latest onehumanai.' });
   else if (h.proofsOk < h.proofs) checks.push({ id: 'signed', status: 'warn', title: 'Signed decisions', detail: `${h.proofs - h.proofsOk} of ${h.proofs} signatures did not verify. Every server instance must use the same ONEHUMAN_SECRET.` });
   else checks.push({ id: 'signed', status: 'ok', title: 'Signed decisions', detail: `${h.proofsOk.toLocaleString('en-US')} decisions signed and verified. Export them for an auditor from Activity.` });
 

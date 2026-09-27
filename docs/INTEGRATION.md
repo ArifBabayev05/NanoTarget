@@ -1,15 +1,15 @@
 # İnteqrasiya — Express / Node (3 sətir)
 
 ```bash
-npm i @onehumanai/express      # Node ≥ 22.13
+npm i onehumanai      # Node ≥ 22.13
 ```
 
-Yeganə quraşdırma budur. `@onehumanai/express` (Apache-2.0) `@onehumanai/engine` paketindən (BUSL-1.1, produksiyada istifadə icazəlidir) asılıdır — npm onu özü gətirir; engine-i ayrıca əlavə etmək və ya import etmək lazım deyil. İstifadə etdiyiniz hər şey `@onehumanai/express` və `npx onehuman` altındadır.
+Yeganə quraşdırma budur. `onehumanai` paketi middleware, SDK və CLI-ni (Apache-2.0) və engine-i (BUSL-1.1, produksiyada istifadə icazəlidir) birlikdə gətirir; engine-i ayrıca əlavə etmək və ya import etmək lazım deyil. İstifadə etdiyiniz hər şey `onehumanai` və `npx onehumanai` altındadır.
 
 Bank, CRM və ya sığorta şirkəti OneHuman-i öz backend-inə **middleware** kimi qoşur. Qaydalar şirkətin öz JSON faylındadır, maskalama şirkətin öz funksiyasıdır, autentifikasiyaya toxunulmur, məlumat bazası şirkətin öz diskindədir (on-prem).
 
 ```js
-import { onehuman } from '@onehumanai/express';
+import { onehuman } from 'onehumanai';
 
 const oh = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db' });
 app.use(oh.middleware());                                    // 1. SDK + onun API-si /onehuman altında

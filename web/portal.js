@@ -262,7 +262,7 @@
   };
   function codeSnippet(prefix) {
     const key = prefix ? `${prefix}…` : 'oh_live_…';
-    return `<span class="c">// server.js</span>\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'@onehumanai/express'</span>;\n\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({\n  secret: process.env.ONEHUMAN_SECRET,\n  policy: <span class="s">'./onehuman.policy.json'</span>,\n  apiKey: process.env.ONEHUMAN_API_KEY,        <span class="c">// ${esc(key)} — from this portal</span>\n});\napp.use(oh.middleware());\napp.get(<span class="s">'/api/balance'</span>, oh.protect(<span class="s">'balance.read'</span>), (req, res) =&gt; oh.send(req, res, balance, maskBalance));`;
+    return `<span class="c">// server.js</span>\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'onehumanai'</span>;\n\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({\n  secret: process.env.ONEHUMAN_SECRET,\n  policy: <span class="s">'./onehuman.policy.json'</span>,\n  apiKey: process.env.ONEHUMAN_API_KEY,        <span class="c">// ${esc(key)} — from this portal</span>\n});\napp.use(oh.middleware());\napp.get(<span class="s">'/api/balance'</span>, oh.protect(<span class="s">'balance.read'</span>), (req, res) =&gt; oh.send(req, res, balance, maskBalance));`;
   }
   function drawChart(series, since, bucketMs, now) {
     const cv = $('#chart'); const dpr = Math.min(2, devicePixelRatio || 1); const W = cv.clientWidth || 600, H = 220;
@@ -377,12 +377,12 @@
     // a different key or range is a different log: drop the pages the reader had loaded for the old one
     const scope = `${keyId}|${range}`;
     if (scope !== logScope) { logScope = scope; older = []; $('#log-more').hidden = false; }
-    if (!keyId) { $('#empty').hidden = false; $('#stats').hidden = true; $('#empty h2').textContent = 'Create your first API key'; $('#empty p').textContent = 'Each key is one project. Put it into your server as apiKey and every decision shows up here.'; $('#snippet').innerHTML = codeSnippet(''); $('#curl-hint').textContent = 'npx onehuman verify http://localhost:3000 /api/balance'; return; }
+    if (!keyId) { $('#empty').hidden = false; $('#stats').hidden = true; $('#empty h2').textContent = 'Create your first API key'; $('#empty p').textContent = 'Each key is one project. Put it into your server as apiKey and every decision shows up here.'; $('#snippet').innerHTML = codeSnippet(''); $('#curl-hint').textContent = 'npx onehumanai verify http://localhost:3000 /api/balance'; return; }
     let d; try { d = await api(`/api/v1/portal/stats?key=${encodeURIComponent(keyId)}&range=${range}`); } catch (e) { toast(e.message); return; }
     const total = Object.values(d.decisions).reduce((a, b) => a + b, 0);
     const k = (me.keys || []).find((z) => z.id === keyId) || {};
     if (!total && !k.events) {
-      $('#snippet').innerHTML = codeSnippet(k.prefix); $('#curl-hint').textContent = 'npx onehuman verify http://localhost:3000 /api/balance';
+      $('#snippet').innerHTML = codeSnippet(k.prefix); $('#curl-hint').textContent = 'npx onehumanai verify http://localhost:3000 /api/balance';
       $('#empty h2').textContent = 'Waiting for your app to connect'; $('#empty p').textContent = 'Once your developer adds this key to your app, the first visit shows up here by itself.';
       $('#empty').hidden = false; $('#stats').hidden = true;
     } else {
@@ -437,7 +437,7 @@
   const selftest = () => {
     const base = ($('#st-base').value.trim() || 'https://app.yourcompany.com').replace(/\s+/g, '');
     const path = ($('#st-path').value.trim() || '/api/balance').replace(/\s+/g, '');
-    $('#cmd-selftest').textContent = `npx onehuman verify ${base} ${path.startsWith('/') ? path : '/' + path}`;
+    $('#cmd-selftest').textContent = `npx onehumanai verify ${base} ${path.startsWith('/') ? path : '/' + path}`;
     try { localStorage.setItem('oh-selftest', JSON.stringify({ base: $('#st-base').value, path: $('#st-path').value })); } catch {}
   };
   try { const saved = JSON.parse(localStorage.getItem('oh-selftest') || 'null'); if (saved) { $('#st-base').value = saved.base || ''; $('#st-path').value = saved.path || ''; } } catch {}
@@ -447,12 +447,12 @@
   // ------------------------------------------------------------------ setup wizard
   let setupKeyId = null, fw = 'express', waitTimer = 0;
   const FRAMEWORKS = {
-    express: (key) => `<span class="c">// server.js</span>\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'@onehumanai/express'</span>;\n\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({\n  secret: process.env.ONEHUMAN_SECRET,\n  policy: <span class="s">'./onehuman.policy.json'</span>,\n  apiKey: process.env.ONEHUMAN_API_KEY,\n  identify: (req) =&gt; req.session?.userId ?? <span class="k">null</span>,\n});\napp.use(oh.middleware());\napp.get(<span class="s">'/api/balance'</span>, oh.protect(<span class="s">'balance.read'</span>), (req, res) =&gt;\n  oh.send(req, res, balance, (b) =&gt; ({ ...b, amount: <span class="k">null</span> })));`,
-    next: (key) => `<span class="c">// server.mjs — Next.js custom server</span>\n<span class="k">import</span> next <span class="k">from</span> <span class="s">'next'</span>;\n<span class="k">import</span> express <span class="k">from</span> <span class="s">'express'</span>;\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'@onehumanai/express'</span>;\n\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: <span class="s">'./onehuman.policy.json'</span>, apiKey: process.env.ONEHUMAN_API_KEY });\n<span class="k">const</span> app = express();\napp.use(oh.middleware());                       <span class="c">// before next()</span>\napp.get(<span class="s">'/api/balance'</span>, oh.protect(<span class="s">'balance.read'</span>), handler);\napp.all(<span class="s">'*'</span>, (req, res) =&gt; nextHandle(req, res));`,
+    express: (key) => `<span class="c">// server.js</span>\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'onehumanai'</span>;\n\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({\n  secret: process.env.ONEHUMAN_SECRET,\n  policy: <span class="s">'./onehuman.policy.json'</span>,\n  apiKey: process.env.ONEHUMAN_API_KEY,\n  identify: (req) =&gt; req.session?.userId ?? <span class="k">null</span>,\n});\napp.use(oh.middleware());\napp.get(<span class="s">'/api/balance'</span>, oh.protect(<span class="s">'balance.read'</span>), (req, res) =&gt;\n  oh.send(req, res, balance, (b) =&gt; ({ ...b, amount: <span class="k">null</span> })));`,
+    next: (key) => `<span class="c">// server.mjs — Next.js custom server</span>\n<span class="k">import</span> next <span class="k">from</span> <span class="s">'next'</span>;\n<span class="k">import</span> express <span class="k">from</span> <span class="s">'express'</span>;\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'onehumanai'</span>;\n\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: <span class="s">'./onehuman.policy.json'</span>, apiKey: process.env.ONEHUMAN_API_KEY });\n<span class="k">const</span> app = express();\napp.use(oh.middleware());                       <span class="c">// before next()</span>\napp.get(<span class="s">'/api/balance'</span>, oh.protect(<span class="s">'balance.read'</span>), handler);\napp.all(<span class="s">'*'</span>, (req, res) =&gt; nextHandle(req, res));`,
     fastify: (key) => `<span class="c">// server.js — Fastify uses the raw request/response</span>\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: <span class="s">'./onehuman.policy.json'</span>, apiKey: process.env.ONEHUMAN_API_KEY });\n\nfastify.addHook(<span class="s">'onRequest'</span>, (req, reply, done) =&gt; oh.middleware()(req.raw, reply.raw, done));\nfastify.get(<span class="s">'/api/balance'</span>, { onRequest: (req, reply, done) =&gt; oh.protect(<span class="s">'balance.read'</span>)(req.raw, reply.raw, done) },\n  (req, reply) =&gt; oh.send(req.raw, reply.raw, balance, mask));`,
     docker: (key) => `<span class="c"># docker-compose.yml</span>\nservices:\n  api:\n    environment:\n      ONEHUMAN_SECRET: <span class="s">\"\${ONEHUMAN_SECRET}\"</span>\n      ONEHUMAN_API_KEY: <span class="s">\"${esc(key)}\"</span>\n\n<span class="c"># or plain docker</span>\ndocker run -e ONEHUMAN_API_KEY=${esc(key)} -e ONEHUMAN_SECRET=$ONEHUMAN_SECRET my-api`,
   };
-  const agentPrompt = (key, admin) => `https://www.npmjs.com/package/@onehumanai/express — install this into my app.\n\n\`npm i @onehumanai/express\` is the only install (its engine dependency comes with it). Follow the README protocol: scan the app as if you were an AI browser agent holding a customer's\nlogged-in session, show me the exposure map and what you propose to gate, ask me the nine decisions,\nthen implement the server wiring, the page tags, the policy file and every mask function, verify with\n\`npx onehuman verify\`, and report what you left open.\n\nReport telemetry to my OneHuman portal: set apiKey: process.env.ONEHUMAN_API_KEY${key ? ` (${key})` : ''}.\n${admin ? `\nYou can administer my account yourself with the management API:\n  curl -H "Authorization: Bearer ${admin}" ${location.origin}/api/v1/manage/me\nGET /api/v1/manage/keys · POST /api/v1/manage/keys {name, expiresInDays, env} · DELETE /api/v1/manage/keys/:id\nGET /api/v1/manage/overview?range=7d · GET /api/v1/manage/stats?key=:id&range=7d\nGET /api/v1/manage/policy?key=:id · POST /api/v1/manage/policy {key, policy}  (the key's policy lives in the portal; your server reads it from there)` : ''}`;
+  const agentPrompt = (key, admin) => `https://www.npmjs.com/package/onehumanai — install this into my app.\n\n\`npm i onehumanai\` is the only install (its engine dependency comes with it). Follow the README protocol: scan the app as if you were an AI browser agent holding a customer's\nlogged-in session, show me the exposure map and what you propose to gate, ask me the nine decisions,\nthen implement the server wiring, the page tags, the policy file and every mask function, verify with\n\`npx onehumanai verify\`, and report what you left open.\n\nReport telemetry to my OneHuman portal: set apiKey: process.env.ONEHUMAN_API_KEY${key ? ` (${key})` : ''}.\n${admin ? `\nYou can administer my account yourself with the management API:\n  curl -H "Authorization: Bearer ${admin}" ${location.origin}/api/v1/manage/me\nGET /api/v1/manage/keys · POST /api/v1/manage/keys {name, expiresInDays, env} · DELETE /api/v1/manage/keys/:id\nGET /api/v1/manage/overview?range=7d · GET /api/v1/manage/stats?key=:id&range=7d\nGET /api/v1/manage/policy?key=:id · POST /api/v1/manage/policy {key, policy}  (the key's policy lives in the portal; your server reads it from there)` : ''}`;
   function renderIntegration() {
     const keys = liveKeys();
     if (!keys.length) { $('#setup-key').innerHTML = '<option>no keys yet</option>'; }
@@ -462,7 +462,7 @@
     }
     const k = keys.find((x) => x.id === setupKeyId);
     const shown = freshKey && freshKey.id === setupKeyId ? freshKey.raw : `${k ? k.prefix : 'oh_live_'}…`;
-    $('#cmd-env').textContent = `ONEHUMAN_API_KEY=${shown}\nONEHUMAN_SECRET=$(npx onehuman secret)`;
+    $('#cmd-env').textContent = `ONEHUMAN_API_KEY=${shown}\nONEHUMAN_SECRET=$(npx onehumanai secret)`;
     $('#cmd-code').innerHTML = (FRAMEWORKS[fw] || FRAMEWORKS.express)(shown);
     $('#int-prompt').textContent = agentPrompt(freshKey && freshKey.id === setupKeyId ? freshKey.raw : (k ? `${k.prefix}…` : ''), null);
     $$('#fw-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.fw === fw));
@@ -797,7 +797,7 @@
       <h2>How to check this report yourself</h2>
       <ol><li>Ask the company for the proof file of this range (the JSON export next to this report in their OneHuman portal).</li>
       <li>Get their public key from their own website, not from the file: <code>https://&lt;their-site&gt;/onehuman/proof-keys</code>.</li>
-      <li>Run <code>npx onehuman verify-proof proofs.json --keys https://&lt;their-site&gt;/onehuman/proof-keys</code>. It needs no account and sends nothing anywhere. Any standard JOSE library works too.</li></ol>
+      <li>Run <code>npx onehumanai verify-proof proofs.json --keys https://&lt;their-site&gt;/onehuman/proof-keys</code>. It needs no account and sends nothing anywhere. Any standard JOSE library works too.</li></ol>
       <p class="meta">Actor values: human_like = acted like a person · agent_likely = an AI agent · unknown = could not tell (the policy decides, often a passkey). Delivered = whether the data was actually returned.</p>
       <h2>Signed decisions</h2>
       <table><thead><tr><th>Time (UTC)</th><th>Resource</th><th>Decision</th><th>Actor</th><th>Delivered</th><th>Decision id</th><th>Log #</th><th></th></tr></thead><tbody>${rows}</tbody></table>

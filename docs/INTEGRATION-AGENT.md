@@ -4,7 +4,7 @@
 
 Customers now hand their logged-in bank, CRM and insurance sessions to Claude, ChatGPT Agent, Codex and other agentic browsers. Bot management stops bots at the door; it does nothing once a legitimate user is inside and an agent is operating their session. OneHuman works *inside* the session: it detects the moment an agent attaches, redacts what is already on screen, and lets each endpoint decide per resource — **allow · mask · step-up · block** — with a human-verified way back.
 
-- **Proof, not a guess.** Every decision — allowed, hidden, refused, or confirmed by the person with a passkey — is signed on your server (Ed25519). An auditor checks it offline with `npx onehuman verify-proof`, without trusting us.
+- **Proof, not a guess.** Every decision — allowed, hidden, refused, or confirmed by the person with a passkey — is signed on your server (Ed25519). An auditor checks it offline with `npx onehumanai verify-proof`, without trusting us.
 - **Detects at attach time, before the first click.** Agent-tool DOM markers, injected globals, evaluated-script read bursts, focus emulation, Web Bot Auth signatures. Measured: Claude in Chrome 0.1–0.5 s after attach; Codex 0.14 s; in-app agent browsers at first read.
 - **Tells hands from programs per click.** Pointer kinematics — trajectory curvature, tremor, sub-movements, deceleration onto the target, hold time, pressure, teleport. Humans hold 83–225 ms with ≥35 trajectory points; agents 1–4 ms with none. Measured on our own set: 397 human clicks from 22 browsers and devices, 2 read as a program; 824 agent clicks, 2 read as human. Not an independent study — method and limits: https://onehuman.ai/measurements
 - **Never treats "unknown" as human.** Decisions need evidence in both directions; a person inside an AI browser is unlocked by their own first click, not by default.
@@ -13,14 +13,14 @@ Customers now hand their logged-in bank, CRM and insurance sessions to Claude, C
 - **Yours to run.** Express middleware + browser SDK; policy is your JSON, masking is your function, storage is `node:sqlite` on your disk (or libSQL). Telemetry is metadata only and never has to leave your network. Start in `observe` mode: nothing is blocked, every decision is recorded with what *would* have happened.
 
 ```bash
-npm i @onehumanai/express            # Node ≥ 22.13 · Express 4/5, Connect, Next.js custom server, plain node:http
-npx onehuman init         # asks what to protect and how, shows every change, applies it on yes
+npm i onehumanai            # Node ≥ 22.13 · Express 4/5, Connect, Next.js custom server, plain node:http
+npx onehumanai init         # asks what to protect and how, shows every change, applies it on yes
 ```
 
-`init` reads your project, lists the routes an AI agent could misuse with a customer's login, and asks: which to protect, how (from "hide details" to "passkey for everyone"), where your login id is, whether to start by only watching, and whether to connect the portal. It then shows each file it would write or change and waits for your yes. For Express it wires the code itself (a small `onehuman.js`, `app.use(onehuman.middleware())`, `onehuman.protect()` on each route); for other servers it writes the rules and `.env` and prints the lines to add. `npx onehuman init --yes` takes the recommended answers (CI, coding agents). `npx onehuman scan .` only reports, and writes a draft policy.
+`init` reads your project, lists the routes an AI agent could misuse with a customer's login, and asks: which to protect, how (from "hide details" to "passkey for everyone"), where your login id is, whether to start by only watching, and whether to connect the portal. It then shows each file it would write or change and waits for your yes. For Express it wires the code itself (a small `onehuman.js`, `app.use(onehuman.middleware())`, `onehuman.protect()` on each route); for other servers it writes the rules and `.env` and prints the lines to add. `npx onehumanai init --yes` takes the recommended answers (CI, coding agents). `npx onehumanai scan .` only reports, and writes a draft policy.
 
 ```js
-import { onehuman } from '@onehumanai/express';
+import { onehuman } from 'onehumanai';
 
 const oh = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db',
                               identify: (req) => req.session?.userId ?? null });
@@ -57,10 +57,10 @@ OneHuman answers it at the endpoint: attach-time detection (agent-tool markers, 
 
 ### Step 1 — Install and scan (no questions yet)
 ```bash
-npm i @onehumanai/express
-npx onehuman scan .              # full report + onehuman.policy.draft.json (observe mode)
-npx onehuman scan . --proposal   # plain-language proposal for the product owner
-npx onehuman scan . --json       # machine-readable, if you prefer to parse
+npm i onehumanai
+npx onehumanai scan .              # full report + onehuman.policy.draft.json (observe mode)
+npx onehumanai scan . --proposal   # plain-language proposal for the product owner
+npx onehumanai scan . --json       # machine-readable, if you prefer to parse
 ```
 The scanner finds every HTTP route an agent could call with the user's session (Express, Fastify, Koa, NestJS, Next.js), scores sensitivity (money, financial identifiers, personal data, health, HR, credentials, exports, state-changing writes), proposes a mode per route, locates the login identity on a request (`req.session.userId`, `req.user.id`, JWT, Auth.js, Clerk, Supabase, cookies), detects SPA vs SSR and axios, and writes a draft policy. **If it finds no routes, the server is not Node**: stop, say that only the Node middleware exists today and the engine can run as a Node sidecar in front of the data endpoints, and ask whether to proceed that way.
 
@@ -99,13 +99,13 @@ Send the user a short document, in their language and with their route names, st
 5. Session identity for `identify(req)`: confirm the expression. It must return the login/user id **or `null`** — never a constant (a constant merges all anonymous visitors into one session).
 6. Storage: `sqlite:./onehuman.db` on the server's disk (default) or a libSQL/Turso URL (multi-instance, serverless, read-only filesystems).
 7. Step-up: built-in challenge + passkey reclaim now, or their OTP/push via `grantStepUp` later.
-8. `ONEHUMAN_SECRET`: generate with `npx onehuman secret`, store in their env/secret manager. Never hardcode, never commit.
+8. `ONEHUMAN_SECRET`: generate with `npx onehumanai secret`, store in their env/secret manager. Never hardcode, never commit.
 9. URL prefix `/onehuman` — change only on collision.
 
 ### Step 4 — Implement everything (server, page, policy, masks)
 **Server**
 ```js
-import { onehuman } from '@onehumanai/express';
+import { onehuman } from 'onehumanai';
 
 const oh = await onehuman({
   secret: process.env.ONEHUMAN_SECRET,                    // ≥ 32 bytes, stable across restarts
@@ -138,7 +138,7 @@ app.get('/api/balance', oh.protect('balance.read'), (req, res) =>
 
 ### Step 5 — Verify, then report
 ```bash
-npx onehuman verify http://localhost:3000 /api/balance     # --base /prefix if you changed basePath
+npx onehumanai verify http://localhost:3000 /api/balance     # --base /prefix if you changed basePath
 ```
 Four checks: SDK served · protected endpoint returns a decision (`X-OH-Decision`) · AI-app browser UA reaches the environment branch · a simulated attached agent (control markers posted to `/signals`) changes that session's decision (in `observe` it is recorded, not enforced). Run it for at least one masked, one blocked and one step-up resource. Then open the page in a normal browser and click the real button: data shows, `OneHuman.lastConnection.state` is `no_indication`, the app's own tests still pass.
 
@@ -159,7 +159,7 @@ Move the decision into the front end (the SDK is untrusted input) · protect log
 `onehuman(options)` (or `onehumanDeferred(options)` without `await`, for CommonJS) → `{ middleware(), protect(resource, {respond?}), send(req,res,full,mask), sessionFor(req,res), reloadPolicy(), policy, engine, store, room, basePath, close() }`
 `req.onehuman` → `{ decision, masked, blocked, stepUp, actor, score, reasonCodes, session, full, assessment, token() }`
 SDK: `OneHuman.fetch`, `.snapshot(withInteraction)`, `.sessionHeaders()`, `.onAssessment(fn)`, `.seal()`, `.unseal(proof)`, `.sealed`, `.lastConnection`; event `onehuman:sealed`.
-CLI: `npx onehuman init [dir] [--yes]` · `npx onehuman report [--days 30]` (the design-partner report from your own audit log) · `npx onehuman inspect [--sessions]` (exactly what the page script collected; byte for byte with `recordRaw`) · `npx onehuman scan [dir] [--json]` · `npx onehuman verify <baseUrl> <protectedPath> [--base /onehuman]` · `npx onehuman secret`.
+CLI: `npx onehumanai init [dir] [--yes]` · `npx onehumanai report [--days 30]` (the design-partner report from your own audit log) · `npx onehumanai inspect [--sessions]` (exactly what the page script collected; byte for byte with `recordRaw`) · `npx onehumanai scan [dir] [--json]` · `npx onehumanai verify <baseUrl> <protectedPath> [--base /onehuman]` · `npx onehumanai secret`.
 Routes under `basePath`: `GET /sdk.js`, `POST /signals`, `GET /connection`, `GET /session`, `POST /step-up`, `POST /webauthn/register/options|register|assert/options|assert`, `GET /webauthn/status`.
 
 Options: `secret` (required, ≥32 B) · `policy` (path or object, required) · `db` (`sqlite:./file` | `memory` | `libsql://…`) · `identify(req)` · `basePath` (`/onehuman`) · `cookie` (`oh_sid`) · `secure` · `tenant` · `respond` (`true`) · `webauthnReclaim` (`true`).

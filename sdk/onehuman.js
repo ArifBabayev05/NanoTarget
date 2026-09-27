@@ -19,7 +19,7 @@
   const script = document.currentScript;
   // Integration package serves the SDK at <base>/sdk.js and its API next to it; the lab uses /api/v1/*.
   const scriptSrc = (script && script.src) || '';
-  // bundled (npm i @onehumanai/sdk): set window.OneHumanConfig = { endpoint: '/onehuman/signals' } before the import
+  // bundled (npm i onehumanai/sdk): set window.OneHumanConfig = { endpoint: '/onehuman/signals' } before the import
   const config = (typeof window.OneHumanConfig === 'object' && window.OneHumanConfig) || {};
   const endpoint = (script && script.dataset.endpoint) || config.endpoint || (/\/sdk\.js(\?|$)/.test(scriptSrc) ? scriptSrc.replace(/\/sdk\.js(\?.*)?$/, '/signals') : '/api/v1/signals');
   const zoneSelector = (script && script.dataset.zone) || null;

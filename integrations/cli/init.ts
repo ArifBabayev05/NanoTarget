@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * `onehuman init` — set OneHuman up in this project by answering a few questions.
+ * `onehumanai init` — set OneHuman up in this project by answering a few questions.
  *
- * It reads the project (the same scan as `onehuman scan`), asks what to protect and how, shows every file it
+ * It reads the project (the same scan as `onehumanai scan`), asks what to protect and how, shows every file it
  * would write or change, and writes nothing until the person says yes. For an Express app it wires the code
  * itself: a small `onehuman.js` next to the server, `app.use(onehuman.middleware())`, and
  * `onehuman.protect('…')` on each chosen route. For other servers it writes the rules and the environment and
  * prints the lines to add.
  *
- *   npx onehuman init [dir]            ask, show the plan, apply on yes
- *   npx onehuman init [dir] --yes      take every recommended answer (for CI and coding agents)
- *   npx onehuman init [dir] --no-install   do not run the package manager
+ *   npx onehumanai init [dir]            ask, show the plan, apply on yes
+ *   npx onehumanai init [dir] --yes      take every recommended answer (for CI and coding agents)
+ *   npx onehumanai init [dir] --no-install   do not run the package manager
  */
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -63,7 +63,7 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   const root = resolve(dir);
   const rl = flags.yes ? null : createInterface({ input: process.stdin, output: process.stdout });
   if (!flags.yes && !process.stdin.isTTY) {
-    console.error('onehuman init asks questions. In a script, run `npx onehuman init --yes` to take the recommended answers.');
+    console.error('onehumanai init asks questions. In a script, run `npx onehumanai init --yes` to take the recommended answers.');
     process.exit(2);
   }
   const say = (s = '') => console.log(s);
@@ -107,7 +107,7 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   // ---------------------------------------------------------------- read the project
   say(`\n${bold('OneHuman setup')} ${dim('— a few questions; nothing is written until you say yes.')}`);
   const pkgPath = join(root, 'package.json');
-  if (!existsSync(pkgPath)) { say(yellow(`\nNo package.json in ${root}. Run this in your Node server's folder, or pass it: npx onehuman init ./server`)); rl?.close(); process.exit(2); }
+  if (!existsSync(pkgPath)) { say(yellow(`\nNo package.json in ${root}. Run this in your Node server's folder, or pass it: npx onehumanai init ./server`)); rl?.close(); process.exit(2); }
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { type?: string; dependencies?: Record<string, string>; devDependencies?: Record<string, string>; scripts?: Record<string, string> };
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
   const r: ScanResult = scan(root);
@@ -247,11 +247,11 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
     const policyRel = relative(root, policyFile).replace(/\\/g, '/');   // read relative to where the app is started: the project root
     const id = identifyExpr ? `  identify: (req${entryStyle.ts ? ': any' : ''}) => ${safeChain(identifyExpr)} ?? null,   // who is logged in: one session per login\n` : '  // identify: (req) => req.session?.userId ?? null,   // add your login id: one session per login, not per browser\n';
     const opts = `{\n  secret: process.env.ONEHUMAN_SECRET${entryStyle.ts ? " ?? ''" : ''},\n  policy: './${policyRel}',\n  apiKey: process.env.ONEHUMAN_API_KEY,   // the portal: agents seen, rules without a deploy (optional)\n${id}}`;
-    const header = '// OneHuman — written by `npx onehuman init`. Import `onehuman` wherever a route needs protection.\n// The rules are in onehuman.policy.json; with an API key they live in the portal after the first start.\n';
+    const header = '// OneHuman — written by `npx onehumanai init`. Import `onehuman` wherever a route needs protection.\n// The rules are in onehuman.policy.json; with an API key they live in the portal after the first start.\n';
     if (!existsSync(setupFile)) {
       put(setupFile, entryStyle.esm || entryStyle.ts
-        ? `${header}import { onehumanDeferred } from '@onehumanai/express';\n\nexport const onehuman = onehumanDeferred(${opts});\n`
-        : `${header}const { onehumanDeferred } = require('@onehumanai/express');\n\nconst onehuman = onehumanDeferred(${opts});\nmodule.exports = { onehuman };\n`, 'creates the OneHuman instance');
+        ? `${header}import { onehumanDeferred } from 'onehumanai';\n\nexport const onehuman = onehumanDeferred(${opts});\n`
+        : `${header}const { onehumanDeferred } = require('onehumanai');\n\nconst onehuman = onehumanDeferred(${opts});\nmodule.exports = { onehuman };\n`, 'creates the OneHuman instance');
     }
     const importLine = (file: string) => {
       const st = styleOf(file, readFileSync(file, 'utf8'), pkgType);
@@ -306,9 +306,9 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
     if (chosen.some((x) => PRESETS[presetFor.get(x)!]!.m.includes('mask'))) notes.push("Routes that hide details use mask: 'auto' — every value hidden, shape and ids kept. For a precise mask, replace it with your own function: onehuman.protect('balance.read', { mask: (body) => ({ ...body, amount: null }) }).");
   } else {
     const snippet = {
-      fastify: "import { onehuman } from '@onehumanai/express';\nconst oh = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', apiKey: process.env.ONEHUMAN_API_KEY });\nfastify.addHook('onRequest', (req, reply, done) => oh.middleware()(req.raw, reply.raw, done));\n// on each protected route: { onRequest: (req, reply, done) => oh.protect('balance.read')(req.raw, reply.raw, done) }",
+      fastify: "import { onehuman } from 'onehumanai';\nconst oh = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', apiKey: process.env.ONEHUMAN_API_KEY });\nfastify.addHook('onRequest', (req, reply, done) => oh.middleware()(req.raw, reply.raw, done));\n// on each protected route: { onRequest: (req, reply, done) => oh.protect('balance.read')(req.raw, reply.raw, done) }",
       next: '// Next.js: run the app through a small Express server (server.mjs) and add app.use(oh.middleware()) before the Next handler — see https://onehuman.ai/docs',
-      other: '// Paste this into your coding agent:\n// https://www.npmjs.com/package/@onehumanai/express — integrate it into my app. Use the rules in onehuman.policy.json and the keys in .env.',
+      other: '// Paste this into your coding agent:\n// https://www.npmjs.com/package/onehumanai — integrate it into my app. Use the rules in onehuman.policy.json and the keys in .env.',
     }[framework as 'fastify' | 'next' | 'other'];
     notes.push(`Add this to your server:\n${snippet}`);
   }
@@ -317,11 +317,11 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
     put(html, t.replace(/<\/head>/i, '  <script src="/onehuman/sdk.js"></script>\n</head>'), 'adds the page script in <head>');
     if (r.frontend.kind === 'spa') notes.push('If the page is served by a separate dev server (Vite, webpack), proxy /onehuman to your API server so /onehuman/sdk.js loads.');
   }
-  const installed = !!deps['@onehumanai/express'];
+  const installed = !!deps['onehumanai'];
 
   // ---------------------------------------------------------------- show it, then do it
   say(`\n${bold('Here is what will change:')}`);
-  if (!installed && flags.install) say(`  ${cyan('install')}  @onehumanai/express  ${dim('(its engine comes with it)')}`);
+  if (!installed && flags.install) say(`  ${cyan('install')}  onehumanai  ${dim('(its engine comes with it)')}`);
   for (const e of edits) {
     say(`  ${e.before === null ? green('new    ') : yellow('change ')} ${relative(root, e.file) || basename(e.file)}`);
     for (const ch of e.changes) say(`           ${dim('· ' + ch)}`);
@@ -337,9 +337,9 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
 
   if (!installed && flags.install) {
     const pm = existsSync(join(root, 'pnpm-lock.yaml')) ? ['pnpm', 'add'] : existsSync(join(root, 'yarn.lock')) ? ['yarn', 'add'] : existsSync(join(root, 'bun.lockb')) ? ['bun', 'add'] : ['npm', 'install'];
-    say(dim(`\n$ ${pm.join(' ')} @onehumanai/express`));
-    const res = spawnSync(pm[0]!, [...pm.slice(1), '@onehumanai/express'], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
-    if (res.status !== 0) notes.push(`Installing failed — run \`${pm.join(' ')} @onehumanai/express\` yourself.`);
+    say(dim(`\n$ ${pm.join(' ')} onehumanai`));
+    const res = spawnSync(pm[0]!, [...pm.slice(1), 'onehumanai'], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
+    if (res.status !== 0) notes.push(`Installing failed — run \`${pm.join(' ')} onehumanai\` yourself.`);
   }
   for (const e of edits) writeFileSync(e.file, e.after);
 
@@ -348,7 +348,7 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   say(`\n${bold('Next:')}`);
   say(`  1. Start your app and open a page that calls a protected route.`);
   const port = entry ? (readFileSync(entry, 'utf8').match(/\.listen\(\s*(?:process\.env\.PORT\s*(?:\|\||\?\?)\s*)?(\d{2,5})/)?.[1] ?? '3000') : '3000';
-  say(`  2. Check it: ${cyan(`npx onehuman verify http://localhost:${port} ${chosen[0]?.path.replace(/:\w+/g, '1') ?? '/api/…'}`)}`);
+  say(`  2. Check it: ${cyan(`npx onehumanai verify http://localhost:${port} ${chosen[0]?.path.replace(/:\w+/g, '1') ?? '/api/…'}`)}`);
   say(`  3. ${apiKey ? 'See it in the portal: https://onehuman.ai/portal' : 'For the portal (agents seen, rules without a deploy): create a key at https://onehuman.ai/portal and add ONEHUMAN_API_KEY to .env.'}`);
   for (const n of notes) say(`\n${yellow('!')} ${n}`);
   say('');

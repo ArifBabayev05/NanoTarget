@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * `onehuman scan` — static discovery of what an AI agent could reach in this codebase.
+ * `onehumanai scan` — static discovery of what an AI agent could reach in this codebase.
  *
  * Walks the project, finds HTTP route definitions (Express/Fastify/Koa/NestJS/Next.js), scores each
  * route's sensitivity from its path, handler text and the data fields it touches, finds how a request is

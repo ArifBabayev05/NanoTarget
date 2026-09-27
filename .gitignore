@@ -8,8 +8,11 @@ api/
 .vercel
 .env
 .env.*
-packages/express/dist/
-packages/express/sdk/
+packages/onehumanai/dist/
+packages/onehumanai/sdk/
+packages/onehumanai/QUICKSTART.md
+packages/onehumanai/LICENSE-APACHE
+packages/onehumanai/LICENSE-BSL
 examples/express-bank/onehuman.db*
 .claude/
 .agents/
@@ -18,8 +21,6 @@ onehuman.policy.draft.json
 
 # internal notes: sales, pricing, research — never pushed to the public repo
 internal/
-packages/engine/dist/
 
 # local debug queries against the production database — never commit
 q*.mjs
-packages/sdk/onehuman.js

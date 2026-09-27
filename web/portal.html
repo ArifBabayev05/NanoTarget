@@ -39,7 +39,7 @@
   </section>
   <aside class="auth-side">
     <div class="tile"><b>1</b><span>Create a key in the portal</span></div>
-    <div class="tile"><b>2</b><span><code>npm i @onehumanai/express</code> · pass the key as <code>apiKey</code></span></div>
+    <div class="tile"><b>2</b><span><code>npm i onehumanai</code> · pass the key as <code>apiKey</code></span></div>
     <div class="tile"><b>3</b><span>See what AI agents did in your app, and what was stopped</span></div>
     <p class="fine">We only receive short summaries of what happened — never your customers' data, names or IP addresses.</p>
   </aside>
@@ -202,13 +202,13 @@
           <b>Test it yourself</b>
           <p class="hint">Runs from your own machine against your own app: it asks for a protected endpoint the way an agent would, and the decision appears above within seconds. We never send traffic to your site.</p>
           <div class="field-row"><label>Your app<input id="st-base" placeholder="https://app.yourcompany.com" autocomplete="off"></label><label>A protected endpoint<input id="st-path" placeholder="/api/balance" autocomplete="off"></label></div>
-          <div class="copyable"><pre class="code" id="cmd-selftest">npx onehuman verify https://app.yourcompany.com /api/balance</pre><button class="copy" data-copy="#cmd-selftest">Copy</button></div>
+          <div class="copyable"><pre class="code" id="cmd-selftest">npx onehumanai verify https://app.yourcompany.com /api/balance</pre><button class="copy" data-copy="#cmd-selftest">Copy</button></div>
         </div>
       </div>
       <div class="card">
         <div class="setup">
-          <div class="step" id="s1"><span class="n">1</span><div class="body"><b>Install the package</b><div class="copyable"><pre class="code" id="cmd-install">npm i @onehumanai/express
-npx onehuman init</pre><button class="copy" data-copy="#cmd-install">Copy</button></div><p class="hint"><code>init</code> asks what to protect and how, shows every change and applies it on yes — for Express it wires the code for you. The steps below are the same thing by hand. Node ≥ 22.13.</p></div></div>
+          <div class="step" id="s1"><span class="n">1</span><div class="body"><b>Install the package</b><div class="copyable"><pre class="code" id="cmd-install">npm i onehumanai
+npx onehumanai init</pre><button class="copy" data-copy="#cmd-install">Copy</button></div><p class="hint"><code>init</code> asks what to protect and how, shows every change and applies it on yes — for Express it wires the code for you. The steps below are the same thing by hand. Node ≥ 22.13.</p></div></div>
           <div class="step" id="s2"><span class="n">2</span><div class="body"><b>Add the key to your environment</b><div class="copyable"><pre class="code" id="cmd-env"></pre><button class="copy" data-copy="#cmd-env">Copy</button></div><p class="hint">The key is shown here only while this page is open; it is never stored in the portal after creation.</p></div></div>
           <div class="step" id="s3"><span class="n">3</span><div class="body"><b>Wire the middleware</b>
             <div class="tabs" id="fw-tabs"><button data-fw="express" class="on">Express</button><button data-fw="next">Next.js</button><button data-fw="fastify">Fastify</button><button data-fw="docker">Docker / env</button></div>

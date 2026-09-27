@@ -2,7 +2,7 @@
 /**
  * OneHuman for Express / Connect / plain Node http.
  *
- *   import { onehuman } from '@onehumanai/express';
+ *   import { onehuman } from 'onehumanai';
  *   const oh = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db' });
  *   app.use(oh.middleware());                       // serves /onehuman/sdk.js + the SDK's API
  *   app.get('/api/balance', oh.protect('balance.read'), (req, res) => oh.send(req, res, balance, maskBalance));
@@ -17,8 +17,8 @@ import { readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-// The engine is a separate package (@onehumanai/engine, BUSL-1.1); this adapter talks to it only through its
-// public surface. In this repository that is ../../server/public.ts; the build rewrites it to the package.
+// The engine (BUSL-1.1) sits next to this adapter in the package; the adapter talks to it only through its
+// public surface. In this repository that is ../../server/public.ts; the build rewrites it to ./engine.js.
 import {
   ENGINE_VERSION, OneHuman, SERVER_LIMITS, Store, applySignatures, attachModel, clientSignatureRules, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
   sqliteClient, url, webauthnRoutes,
@@ -98,7 +98,7 @@ export type OneHumanOptions = {
   failOpen?: boolean;
   /**
    * Keep a byte-exact copy of everything the page script sends (default false, or ONEHUMAN_RECORD_RAW=1), so
-   * `npx onehuman inspect` can show it as received. Local database only; never sent anywhere.
+   * `npx onehumanai inspect` can show it as received. Local database only; never sent anywhere.
    */
   recordRaw?: boolean;
 };
@@ -135,7 +135,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const SDK_PATH = [join(HERE, '..', 'sdk', 'onehuman.js'), join(HERE, '..', '..', 'sdk', 'onehuman.js')].find((p) => existsSync(p)) ?? join(HERE, '..', 'sdk', 'onehuman.js');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** open the database named by a `db` option string (also used by `npx onehuman inspect / report`) */
+/** open the database named by a `db` option string (also used by `npx onehumanai inspect / report`) */
 export async function openClient(db: string): Promise<SqlClient> {
   if (db === 'memory' || db === ':memory:') return sqliteClient(':memory:');
   if (db.startsWith('libsql://') || db.startsWith('https://')) {
@@ -209,10 +209,9 @@ declare const __ONEHUMAN_VERSION__: string | undefined;
 const PACKAGE_VERSION: string = typeof __ONEHUMAN_VERSION__ === 'string' ? __ONEHUMAN_VERSION__ : '0.0.0-dev';
 
 export async function onehuman(opts: OneHumanOptions) {
-  // `@onehumanai/express` and `@onehumanai/engine` ship together at one version. A lockfile that pins an older engine, or an
-  // engine added by hand, is the one install mistake that would fail somewhere deep and late — fail here instead.
+  // the middleware and the engine are built into one package at one version; a half-updated install fails here, not deep and late
   if (PACKAGE_VERSION !== '0.0.0-dev' && ENGINE_VERSION !== '0.0.0-dev' && PACKAGE_VERSION !== ENGINE_VERSION) {
-    throw new Error(`onehuman ${PACKAGE_VERSION} found @onehumanai/engine ${ENGINE_VERSION}. The two are released together at the same version — run \`npm i @onehumanai/express@${PACKAGE_VERSION}\` (it installs the matching engine) and do not add @onehumanai/engine to your dependencies yourself.`);
+    throw new Error(`onehumanai: the middleware is ${PACKAGE_VERSION} but its engine is ${ENGINE_VERSION} — the install is broken; run \`npm i onehumanai@${PACKAGE_VERSION}\` again.`);
   }
   const secret = Buffer.isBuffer(opts.secret) ? opts.secret : Buffer.from(opts.secret, 'utf8');
   if (secret.length < 32) throw new Error('onehuman: secret must be at least 32 bytes');
