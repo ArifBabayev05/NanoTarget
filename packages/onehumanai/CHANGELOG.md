@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.1
+- `npx onehumanai init` installs with the project's own package manager — pnpm, yarn or bun — found from `packageManager`, `node_modules/.pnpm` or a lockfile here or in a parent workspace. npm cannot install into a `node_modules` that pnpm made ("Cannot read properties of null (reading 'matches')"); in a pnpm project run `pnpm add onehumanai`.
+
 ## 0.6.0 — OneHuman
 - **One package: `onehumanai`.** `npm i onehumanai` installs everything — the Express/Connect middleware, the browser SDK (`/onehuman/sdk.js`, or `import 'onehumanai/sdk'`), the command line (`npx onehumanai init`, `inspect`, `report`, `verify`, `verify-proof`) and the engine they run on (`dist/engine.js`, BUSL-1.1). `import { onehuman } from 'onehumanai'`. Markup `data-oh-*`, headers `X-OH-*`, cookie `oh_sid`, keys `oh_live_…` / `oh_admin_…`, `req.onehuman`, `_onehuman`, event `onehuman:sealed`; environment `ONEHUMAN_SECRET`, `ONEHUMAN_API_KEY`, `ONEHUMAN_TELEMETRY_URL`, `ONEHUMAN_PORTAL_URL`, `ONEHUMAN_DB`. Portal https://onehuman.ai; source https://github.com/onehumanai/onehuman.
 - **`npx onehumanai init`** — answer a few questions (what to protect, how, where the login id is, watch or protect, portal or not); it shows every file it would write or change and applies them on yes. For Express it wires the code itself, ES modules and CommonJS, routes in any file. `--yes` takes the recommended answers.

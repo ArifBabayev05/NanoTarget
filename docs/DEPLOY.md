@@ -1,7 +1,7 @@
 # Deploy — Vercel + Turso
 
 Canlı sayt: **https://onehuman.ai**
-Vercel layihəsi: `arif-babayev-projs/onehuman-mvp`
+Vercel layihəsi: `arif-babayev-projs/onehuman`
 
 ## Arxitektura
 

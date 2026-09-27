@@ -30,6 +30,8 @@ const ROOT = process.env.ONEHUMAN_ROOT ?? process.cwd();
 const WEB = join(ROOT, 'web');
 const SDK = join(ROOT, 'sdk');
 const DOCS = join(ROOT, 'docs');
+/** research log and evaluation: kept out of the repository (internal/ is git-ignored), shown to the local lab only */
+const INTERNAL_DOCS = join(ROOT, 'internal', 'docs');
 
 export type AppOptions = {
   /** storage client; default in-memory sqlite */
@@ -258,6 +260,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
         const file = u.pathname.slice(6);
         if (!PUBLIC_DOCS.has(file) && !labOpen(req, res)) { json(res, 404, { error: 'not_found' }); return; }
         if (await serveStatic(res, DOCS, file)) return;
+        if (!PUBLIC_DOCS.has(file) && (await serveStatic(res, INTERNAL_DOCS, file))) return;
       }
       if (method === 'GET' && u.pathname !== '/' && (await serveStatic(res, WEB, u.pathname.slice(1)))) return;
       json(res, 404, { error: 'not_found' });

@@ -59,6 +59,23 @@ function styleOf(file: string, text: string, pkgType: string | undefined): Style
 
 type Edit = { file: string; before: string | null; after: string; changes: string[] };
 
+/**
+ * The project's own package manager: npm cannot install into a node_modules that pnpm made (it stops with
+ * "Cannot read properties of null (reading 'matches')"), so pnpm, yarn and bun projects get their own tool.
+ * Looks at package.json "packageManager", node_modules/.pnpm, and lockfiles here and in parent folders (workspaces).
+ */
+export function packageManager(root: string, pkg: { packageManager?: unknown }): string[] {
+  const declared = typeof pkg.packageManager === 'string' ? pkg.packageManager.split('@')[0] : '';
+  if (declared === 'pnpm' || declared === 'yarn' || declared === 'bun') return [declared, 'add'];
+  if (existsSync(join(root, 'node_modules', '.pnpm'))) return ['pnpm', 'add'];
+  for (let dir = root; ; dir = dirname(dir)) {
+    if (existsSync(join(dir, 'pnpm-lock.yaml')) || existsSync(join(dir, 'pnpm-workspace.yaml'))) return ['pnpm', 'add'];
+    if (existsSync(join(dir, 'yarn.lock'))) return ['yarn', 'add'];
+    if (existsSync(join(dir, 'bun.lockb')) || existsSync(join(dir, 'bun.lock'))) return ['bun', 'add'];
+    if (existsSync(join(dir, 'package-lock.json')) || dirname(dir) === dir) return ['npm', 'install'];
+  }
+}
+
 export async function runInit(dir: string, flags: { yes: boolean; install: boolean }) {
   const root = resolve(dir);
   const rl = flags.yes ? null : createInterface({ input: process.stdin, output: process.stdout });
@@ -108,7 +125,7 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   say(`\n${bold('OneHuman setup')} ${dim('— a few questions; nothing is written until you say yes.')}`);
   const pkgPath = join(root, 'package.json');
   if (!existsSync(pkgPath)) { say(yellow(`\nNo package.json in ${root}. Run this in your Node server's folder, or pass it: npx onehumanai init ./server`)); rl?.close(); process.exit(2); }
-  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { type?: string; dependencies?: Record<string, string>; devDependencies?: Record<string, string>; scripts?: Record<string, string> };
+  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { type?: string; dependencies?: Record<string, string>; devDependencies?: Record<string, string>; scripts?: Record<string, string>; packageManager?: string };
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
   const r: ScanResult = scan(root);
   for (const x of r.routes) x.file = resolve(root, x.file);   // the scan reports paths relative to the project
@@ -336,7 +353,7 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   rl?.close();
 
   if (!installed && flags.install) {
-    const pm = existsSync(join(root, 'pnpm-lock.yaml')) ? ['pnpm', 'add'] : existsSync(join(root, 'yarn.lock')) ? ['yarn', 'add'] : existsSync(join(root, 'bun.lockb')) ? ['bun', 'add'] : ['npm', 'install'];
+    const pm = packageManager(root, pkg);
     say(dim(`\n$ ${pm.join(' ')} onehumanai`));
     const res = spawnSync(pm[0]!, [...pm.slice(1), 'onehumanai'], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
     if (res.status !== 0) notes.push(`Installing failed — run \`${pm.join(' ')} onehumanai\` yourself.`);

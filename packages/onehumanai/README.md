@@ -15,7 +15,7 @@ Customers now hand their logged-in bank, CRM and insurance sessions to Claude, C
 - **Yours to run.** Express middleware + browser SDK; policy is your JSON, masking is your function, storage is `node:sqlite` on your disk (or libSQL). Telemetry is metadata only and never has to leave your network. Start in `observe` mode: nothing is blocked, every decision is recorded with what *would* have happened.
 
 ```bash
-npm i onehumanai            # Node ≥ 22.13 · Express 4/5, Connect, Next.js custom server, plain node:http
+npm i onehumanai            # or pnpm add / yarn add · Node ≥ 22.13 · Express 4/5, Connect, Next.js custom server, plain node:http
 npx onehumanai init         # asks what to protect and how, shows every change, applies it on yes
 ```
 
@@ -366,4 +366,4 @@ curl -H "Authorization: Bearer $ONEHUMAN_ADMIN_KEY" -H 'Content-Type: applicatio
 
 In `onehumanai` (this package) the browser SDK, the Express middleware, the CLI and the proof verifier are **Apache 2.0**. The engine they run on (`dist/engine.js`) is **Business Source License 1.1** with a production-use grant: you may run it in production, at any scale, to protect your own applications and the services you provide to your customers. The only use not granted is offering OneHuman itself to third parties as a competing hosted or embedded product. Each engine version converts to Apache 2.0 four years after release. Versions before 0.4.0 were MIT.
 
-Live demo: https://onehuman.ai · Source and docs: https://github.com/onehumanai/onehuman (SDK and middleware Apache-2.0; engine BUSL-1.1 — production use granted) · `docs/INTEGRATION.md`, `docs/EVAL.md`.
+Live demo: https://onehuman.ai · Source and docs: https://github.com/onehumanai/onehuman (SDK and middleware Apache-2.0; engine BUSL-1.1 — production use granted) · `docs/INTEGRATION.md`, https://onehuman.ai/measurements.

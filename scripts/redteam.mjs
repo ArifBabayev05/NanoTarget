@@ -181,4 +181,4 @@ try {
     console.log(`${pad}  leaked ${RESOURCE}: ${leaked}/${RUNS}   detected as agent: ${caught}/${RUNS}   actors: ${JSON.stringify(seen)}`);
   }
 } finally { await browser.close(); }
-console.log('\nA high "leaked" with low "detected as agent" is an evasion worth a look — see docs/HESABAT.md §22.');
+console.log('\nA high "leaked" with low "detected as agent" is an evasion worth a look — see the research log (internal/docs/HESABAT.md §22).');

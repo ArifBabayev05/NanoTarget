@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 /**
- * One-command evaluation report → docs/EVAL.md
+ * One-command evaluation report → internal/docs/EVAL.md (not in the repository: it names the model's features)
  *   node scripts/eval-report.mjs
  * Dataset composition, shipped-model CV metrics, click-level KPIs per source (rules + model, as in production),
  * session-level results for every recorded training run (engine replay), adversary coverage. Numbers only —
  * this file is regenerated, never hand-edited.
  */
-import { readFileSync, existsSync, writeFileSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 if (!process.env.ONEHUMAN_DB && existsSync('.env.local')) for (const line of readFileSync('.env.local', 'utf8').split('\n')) { const m = line.match(/^\s*(?:export\s+)?([A-Z_]+)=(.*)$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ''); }
 const { clientFromEnv } = await import('../server/sql.ts');
 const { Store } = await import('../server/db.ts');
@@ -54,6 +54,7 @@ out.push(``, `Sayılan dövrələr: ${sessN}, mühərrik səhvi: **${sessMiss}**
 out.push(`## 5. Düşmən sinifləri (generasiya)`, ``, `| Variant | n | sintetik | insan |`, `| --- | ---: | ---: | ---: |`);
 for (const [k, g] of [...perSrc].filter(([k]) => /ghost/.test(k)).sort()) out.push(`| ${k.split('|')[1]} | ${g.n} | ${g.synthetic} | ${g.human} |`);
 out.push(``, `Qeyd: generasiya olunmuş trayektoriyalar real brauzer hadisələri deyil; onlar "insan kimi görünmək" kitabxanalarının çıxışını təqlid edir və yalnız kinematik hakimi sınayır.`, ``);
-writeFileSync('docs/EVAL.md', out.join('\n'));
-console.log(out.slice(0, 4).join('\n')); console.log(`\nwrote docs/EVAL.md (${out.length} lines) — human synthetic ${totH.synthetic}/${totH.n}, agent human ${totA.human}/${totA.n}, session misses ${sessMiss}/${sessN} runs`);
+mkdirSync('internal/docs', { recursive: true });
+writeFileSync('internal/docs/EVAL.md', out.join('\n'));
+console.log(out.slice(0, 4).join('\n')); console.log(`\nwrote internal/docs/EVAL.md (${out.length} lines) — human synthetic ${totH.synthetic}/${totH.n}, agent human ${totA.human}/${totA.n}, session misses ${sessMiss}/${sessN} runs`);
 store.close();
