@@ -283,20 +283,25 @@
     });
   }
   let lastRecent = [], older = [], live = true;
+  const shownRows = new Set();
   // A decision the portal verified at ingest carries a seal; clicking it downloads that session's proofs.
   const seal = (e) => e.signed === true
     ? `<button class="seal ok" data-proof-session="${esc(e.session)}" title="Signed and verified — download this session's proofs">✓</button>`
     : e.signed === false ? '<span class="seal bad" title="A proof came with this decision but did not verify">!</span>' : '<span class="seal none" title="Unsigned (reported by an older middleware)">·</span>';
   // The customer grades a decision in place. This is the only ground truth the product gets from the field.
   const grade = (e) => `<span class="grade" data-grade-id="${e.id}"><button class="${e.feedback === 'correct' ? 'on' : ''}" data-v="correct" title="This decision was right">✓</button><button class="${e.feedback === 'wrong' ? 'on bad' : ''}" data-v="wrong" title="This was wrong — a person stopped, or an agent let through">✗</button></span>`;
-  const logRow = (e) => `<div class="e${e.feedback === 'wrong' ? ' wrong' : ''}"><span class="t">${seal(e)}${fmtT(e.at)}</span><span class="s">${esc(e.session.slice(0, 8))}</span><span class="r" title="${esc(e.resource)}">${esc(e.resource)}</span><span class="chip ${esc(e.decision)}">${esc(e.decision)}</span><span class="st"><span class="chip ${esc(e.actor)}">${esc(ACTOR_WORD[e.actor] || e.actor)}</span>${e.tools.length ? ` <span class="chip">${esc(e.tools[0])}</span>` : ''}</span><span class="reasons" title="${esc(e.reasons.join(', '))}">${esc(STATE_WORD[e.state] || e.state)} · ${esc(e.reasons.slice(0, 3).join(' · '))}</span>${grade(e)}</div>`;
+  const logRow = (e, fresh = false) => `<div class="e${e.feedback === 'wrong' ? ' wrong' : ''}${fresh ? ' fresh' : ''}"><span class="t">${seal(e)}${fmtT(e.at)}</span><span class="s">${esc(e.session.slice(0, 8))}</span><span class="r" title="${esc(e.resource)}">${esc(e.resource)}</span><span class="chip ${esc(e.decision)}">${esc(e.decision)}</span><span class="st"><span class="chip ${esc(e.actor)}">${esc(ACTOR_WORD[e.actor] || e.actor)}</span>${e.tools.length ? ` <span class="chip">${esc(e.tools[0])}</span>` : ''}</span><span class="reasons" title="${esc(e.reasons.join(', '))}">${esc(STATE_WORD[e.state] || e.state)} · ${esc(e.reasons.slice(0, 3).join(' · '))}</span>${grade(e)}</div>`;
   function filterLog(q) {
     const s = (q || '').toLowerCase();
     // the newest page comes from stats; anything the reader asked for beyond it is appended below
     const seen = new Set(), all = [];
     for (const e of [...lastRecent, ...older]) { const k = `${e.at}|${e.session}|${e.resource}|${e.decision}`; if (!seen.has(k)) { seen.add(k); all.push(e); } }
     const rows = all.filter((e) => !s || [e.resource, e.decision, e.actor, e.state, ...e.tools, ...e.reasons].join(' ').toLowerCase().includes(s));
-    $('#log').innerHTML = rows.length ? rows.map(logRow).join('') : '<div class="empty-row">No decisions yet.</div>';
+    // the live refresh redraws the list every few seconds: only rows not shown before slide in
+    const key = (e) => `${e.at}|${e.session}|${e.resource}|${e.decision}`;
+    const first = !shownRows.size;
+    $('#log').innerHTML = rows.length ? rows.map((e) => logRow(e, !first && !shownRows.has(key(e)))).join('') : '<div class="empty-row">No decisions yet.</div>';
+    for (const e of rows) shownRows.add(key(e));
     $('#log-more').parentElement.hidden = !rows.length;
   }
   $('#live-toggle').onclick = () => {
@@ -388,7 +393,7 @@
     } else {
       $('#empty').hidden = true; $('#stats').hidden = false;
       const pct = d.sessions.total ? Math.round(d.sessions.agent / d.sessions.total * 100) : 0;
-      $('#pct').textContent = `${pct}%`; $('#sessions').textContent = d.sessions.total; $('#agent-sessions').textContent = d.sessions.agent; $('#decisions').textContent = total;
+      $('#pct').textContent = `${pct}%`; $('#sessions').textContent = d.sessions.total; $('#sessions').nextElementSibling.textContent = d.sessions.total === 1 ? 'session' : 'sessions'; $('#agent-sessions').textContent = d.sessions.agent; $('#decisions').textContent = total;
       $('#gated').textContent = (d.decisions.mask || 0) + (d.decisions.block || 0) + (d.decisions.step_up || 0);
       const fb = d.feedback || { reviewed: 0, falseStops: 0, gated: 0 };
       $('#false-stops').textContent = fb.reviewed ? `${fb.falseStops}` : '–';
@@ -417,6 +422,7 @@
     $('#people').classList.toggle('warn', p.stopped > 0);
     $('#people-stopped').title = p.stopped ? `${p.engineStopped} judged human but still gated by the policy · ${p.gradedWrong} gated decisions you marked wrong. Open the log and filter by human_like.` : 'No decision the engine called human was blocked or masked, and you marked no gated decision wrong.';
     $('#people-sessions').textContent = fmt(p.sessions);
+    $('#people-sessions').nextElementSibling.textContent = p.sessions === 1 ? 'session judged human, let through' : 'sessions judged human, all let through';
     $('#people-asked').textContent = fmt(p.askedToConfirm);
     $('#people-agents').textContent = fmt(h.agents.gated);
   }
