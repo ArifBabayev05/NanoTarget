@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 // The engine (BUSL-1.1) sits next to this adapter in the package; the adapter talks to it only through its
 // public surface. In this repository that is ../../server/public.ts; the build rewrites it to ./engine.js.
 import {
-  ENGINE_VERSION, OneHuman, SERVER_LIMITS, Store, applySignatures, attachModel, clientSignatureRules, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
+  ENGINE_VERSION, OneHuman, SERVER_LIMITS, Store, applySignatures, attachModel, checkPolicy, clientSignatureRules, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
   sqliteClient, url, webauthnRoutes,
   type Assessment, type DecideResult, type DecisionRow, type Policy, type SessionRow, type SqlClient,
 } from '../../server/public.ts';
@@ -60,6 +60,12 @@ export type OneHumanOptions = {
    * first-party cookie identifies the browser.
    */
   identify?: (req: IncomingMessage) => string | null | undefined | Promise<string | null | undefined>;
+  /**
+   * Tell the page why a decision was made (reason codes, score, the evidence of an attached agent). Default off:
+   * the page is where the agent is, and the reasons would show it what to hide. Turn on while developing
+   * (or ONEHUMAN_EXPLAIN=1); the reasons are always in the audit log and the portal.
+   */
+  explain?: boolean;
   /** cookie name (default 'oh_sid') */
   cookie?: string;
   /** set the Secure flag on the cookie; default: when the request is https or behind x-forwarded-proto=https */
@@ -241,8 +247,9 @@ export async function onehuman(opts: OneHumanOptions) {
   async function loadPolicy(src: string | Policy): Promise<Policy> {
     const raw = typeof src === 'string' ? JSON.parse(await readFile(src, 'utf8')) : src;
     const version = typeof raw?.version === 'string' ? raw.version : `policy-${tenant}-${Date.now()}`;
-    const parsed = parsePolicy(raw, version);
-    if (!parsed) throw new Error('onehuman: policy file is invalid (see docs/INTEGRATION.md for the schema)');
+    const checked = checkPolicy(raw, version);
+    if ('error' in checked) throw new Error(`onehuman: the policy${typeof src === 'string' ? ` in ${src}` : ''} is invalid: ${checked.error}`);
+    const parsed = checked.policy;
     return parsed;
   }
   const portalUrl = opts.portalUrl ?? process.env.ONEHUMAN_PORTAL_URL ?? new URL(telemetryUrl).origin;
@@ -287,6 +294,7 @@ export async function onehuman(opts: OneHumanOptions) {
   // but it can see the symptom: one identity arriving from many different clients. Warn loudly, once.
   const clientsByIdentity = new Map<string, Set<string>>();
   let identityWarning: string | null = null;
+  let objectIdentityWarned = false;
   function watchIdentity(identity: string, req: IncomingMessage) {
     if (identityWarning) return;
     const ip = String(req.headers['x-forwarded-for'] ?? req.socket?.remoteAddress ?? '').split(',')[0]!.trim();
@@ -302,7 +310,12 @@ export async function onehuman(opts: OneHumanOptions) {
 
   /** The OneHuman session for this request: derived from `identify()` or from the first-party cookie. Creates it on first sight. */
   async function sessionFor(req: IncomingMessage, res: ServerResponse): Promise<SessionRow> {
-    const identity = opts.identify ? await opts.identify(req) : null;
+    let identity: unknown = opts.identify ? await opts.identify(req) : null;
+    if (identity !== null && typeof identity === 'object') {
+      // `req.session.user` instead of `req.session.user.id`: every object would become "[object Object]", one session for all
+      if (!objectIdentityWarned) { objectIdentityWarned = true; console.error('onehuman: identify() returned an object, not an id — ignored (each browser gets its own session). Return the login id, e.g. req.session.user.id.'); }
+      identity = null;
+    }
     if (identity) {
       watchIdentity(String(identity), req);
       const id = derivedUuid(secret, 'session', String(identity));
@@ -320,7 +333,10 @@ export async function onehuman(opts: OneHumanOptions) {
     return (await store.getSession(id))!;
   }
 
-  const lab = labRoutes(engine, null);
+  // what the page sees of a decision: the outcome; the reasons stay in the audit log and the portal (explain: true shows them)
+  const explain = opts.explain ?? process.env.ONEHUMAN_EXPLAIN === '1';
+  const clientDecision = (d: DecisionRow) => (explain ? publicDecision(d) : { id: d.id, resource: d.resource, decision: d.decision, actor: d.actor });
+  const lab = labRoutes(engine, null, { explain });
   const wa = webauthnRoutes(engine);
   const api: Record<string, (req: IncomingMessage, res: ServerResponse) => void | Promise<void>> = {
     'POST /signals': lab.signals,
@@ -441,8 +457,8 @@ export async function onehuman(opts: OneHumanOptions) {
           res.setHeader('X-OH-Policy', d.policyVersion);
           if (debugPolicyHeader) res.setHeader('X-OH-Policy-Source', sync ? sync.source : 'file');
           if (reporter) report(session, resource, d, result);
-          if (answer && d.decision === 'block') return json(res, 403, { error: 'blocked', resource, decision: publicDecision(d), stepUp: result.stepUp });
-          if (answer && d.decision === 'step_up') return json(res, 428, { error: 'step_up_required', resource, decision: publicDecision(d), stepUp: result.stepUp });
+          if (answer && d.decision === 'block') return json(res, 403, { error: 'blocked', resource, decision: clientDecision(d), stepUp: result.stepUp });
+          if (answer && d.decision === 'step_up') return json(res, 428, { error: 'step_up_required', resource, decision: clientDecision(d), stepUp: result.stepUp });
           const r = res as Res & { json?: (body: unknown) => unknown };
           if (d.decision === 'mask' && local.mask && typeof r.json === 'function') {
             const original = r.json.bind(res);
@@ -471,7 +487,7 @@ export async function onehuman(opts: OneHumanOptions) {
   function send<T>(req: Req, res: Res, full: T, mask: (full: T) => unknown) {
     const oh = req.onehuman;
     const body = oh?.masked ? mask(full) : full;
-    json(res, 200, { ...(body as object), _onehuman: oh ? { decision: oh.decision, actor: oh.actor, score: oh.score, reasonCodes: oh.reasonCodes } : null });
+    json(res, 200, { ...(body as object), _onehuman: oh ? (explain ? { decision: oh.decision, actor: oh.actor, score: oh.score, reasonCodes: oh.reasonCodes } : { decision: oh.decision, actor: oh.actor }) : null });
   }
 
   /** the background reporter (null without an apiKey): `await oh.telemetry?.flush()` before exit if you want the last events delivered */
@@ -535,18 +551,39 @@ export function autoMask(value: unknown, key = ''): unknown {
  */
 export function onehumanDeferred(opts: OneHumanOptions) {
   const ready = onehuman(opts);
-  ready.catch((e: unknown) => console.error(`onehuman: could not start — ${(e as Error).message}`));
+  // If OneHuman cannot start (a bad policy file, an unreachable database), the app keeps working: requests go on
+  // without a decision, exactly as when the engine fails later, and the reason is logged once a minute.
+  let startError: string | null = null;
+  let lastLog = 0;
+  ready.catch((e: unknown) => { startError = (e as Error).message; console.error(`onehuman: could not start — ${startError}. Requests go on without OneHuman until this is fixed.`); });
+  const basePath = (opts.basePath ?? '/onehuman').replace(/\/$/, '');
+  const notStarted = (res: Res) => {
+    if (Date.now() - lastLog > 60e3) { lastLog = Date.now(); console.error(`onehuman: not started (${startError}); the request went on without a decision`); }
+    if (!res.headersSent) res.setHeader('X-OH-Decision', 'failed-open:ENGINE_START_FAILED');
+  };
   let mw: ((req: Req, res: Res, next: Next) => void) | null = null;
   return {
     ready,
     middleware() {
-      return (req: Req, res: Res, next: Next) => { ready.then((oh) => { mw ??= oh.middleware(); mw(req, res, next); }, next); };
+      return (req: Req, res: Res, next: Next) => {
+        ready.then((oh) => { mw ??= oh.middleware(); mw(req, res, next); }, () => {
+          const path = (req.url ?? '').split('?')[0]!;
+          if (path === basePath || path.startsWith(`${basePath}/`)) return json(res, 503, { error: 'onehuman_not_started' });
+          next();
+        });
+      };
     },
     protect(resource: string, local?: Parameters<OneHumanInstance['protect']>[1]) {
       let h: ReturnType<OneHumanInstance['protect']> | null = null;
-      return (req: Req, res: Res, next: Next) => { ready.then((oh) => { h ??= oh.protect(resource, local); return h(req, res, next); }, next); };
+      return (req: Req, res: Res, next: Next) => {
+        ready.then((oh) => { h ??= oh.protect(resource, local); return h(req, res, next); }, () => {
+          if (opts.failOpen === false) return json(res, 503, { error: 'onehuman_not_started', message: 'This endpoint needs a OneHuman decision and OneHuman is not running.' });
+          notStarted(res);
+          next();
+        });
+      };
     },
-    send<T>(req: Req, res: Res, full: T, mask: (full: T) => unknown) { ready.then((oh) => oh.send(req, res, full, mask), (e) => json(res, 500, { error: 'onehuman_not_started', message: String((e as Error).message) })); },
+    send<T>(req: Req, res: Res, full: T, mask: (full: T) => unknown) { ready.then((oh) => oh.send(req, res, full, mask), () => { notStarted(res); json(res, 200, full); }); },
     close: () => ready.then((oh) => oh.close(), () => {}),
   };
 }

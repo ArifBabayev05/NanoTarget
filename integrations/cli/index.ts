@@ -66,34 +66,49 @@ async function main() {
   }
   if (cmd === 'verify') {
     const base = positional[0]; const path = positional[1]; const sdkBase = flag('--base') ?? '/onehuman';
-    if (!base || !path) { console.error('usage: onehuman verify <baseUrl> <protectedPath> [--base /onehuman]'); process.exit(2); }
+    if (!base || !path) { console.error('usage: onehumanai verify <baseUrl> <protectedPath> [--base /onehuman] [--cookie "session=…" [--attach]]'); process.exit(2); }
+    // an app behind a login: the cookie of a signed-in browser (copy it from the browser's dev tools)
+    const login = flag('--cookie') ?? '';
+    const withLogin = (c: string) => [login, c].filter(Boolean).join('; ');
     const results: { name: string; ok: boolean; detail: string }[] = [];
     const u = (p: string) => new URL(p, base).toString();
     // 1. SDK is served
     const sdk = await fetch(u(`${sdkBase}/sdk.js`)).catch(() => null);
     results.push({ name: 'SDK served', ok: !!sdk && sdk.ok && /sdk-v/.test(await sdk.text().catch(() => '')), detail: `GET ${sdkBase}/sdk.js → ${sdk?.status ?? 'unreachable'}` });
     // 2. protected endpoint answers with a decision and sets the session cookie
-    const r1 = await fetch(u(path)).catch(() => null);
+    const r1 = await fetch(u(path), { headers: login ? { cookie: login } : {} }).catch(() => null);
     const cookie = r1?.headers.get('set-cookie')?.split(';')[0] ?? '';
     const b1 = r1 ? await r1.json().catch(() => null) : null;
     const decisionHeader = r1?.headers.get('x-oh-decision');
+    const needsLogin = !!r1 && !decisionHeader && (r1.status === 401 || r1.status === 403 || (r1.status >= 300 && r1.status < 400));
     results.push({ name: 'Decision on protected endpoint', ok: !!r1 && !!decisionHeader && (r1.status === 200 || r1.status === 403 || r1.status === 428), detail: `GET ${path} → ${r1?.status ?? 'unreachable'}, X-OH-Decision ${decisionHeader ? 'present' : 'MISSING (protect() not applied?)'}, _onehuman.decision=${b1?._onehuman?.decision ?? b1?.decision?.decision ?? '-'}` });
     // 3. environment-only evidence (AI app browser UA) reaches the onArtifact branch
-    const r2 = await fetch(u(path), { headers: { 'user-agent': 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Claude/2.2553.1 Chrome/152.0.0.0 Safari/537.36' } }).catch(() => null);
-    const b2 = r2 ? await r2.json().catch(() => null) : null;
+    const r2 = await fetch(u(path), { headers: { 'user-agent': 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Claude/2.2553.1 Chrome/152.0.0.0 Safari/537.36', ...(login ? { cookie: login } : {}) } }).catch(() => null);
+    const t2 = r2 ? await r2.text().catch(() => '') : '';
+    const b2 = (() => { try { return JSON.parse(t2); } catch { return null; } })();
     const codes2: string[] = b2?._onehuman?.reasonCodes ?? b2?.decision?.reasonCodes ?? [];
-    results.push({ name: 'Environment evidence recognised', ok: codes2.includes('AGENT_APP_BROWSER'), detail: `AI-app UA → ${r2?.status}, decision=${b2?._onehuman?.decision ?? b2?.decision?.decision ?? '-'}, codes=${codes2.join(',') || '-'}` });
-    // 4. attached agent (control markers via the SDK endpoint) changes the decision for the same session
-    const early = { startedMs: 0, observedMs: 500, webdriver: false, firstInteractionMs: null, dataDomMs: null, markers: [{ name: 'claude-stop', atMs: 100 }, { name: 'claude-cursor', atMs: 100 }], environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: [], focusWhileHiddenMs: null }, focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0, reading: { loadedHidden: false, readBursts: 0, firstReadBurstMs: null, lastReadBurstReads: 0, readBurstAnonymous: false, textExtracts: 0, firstTextExtractMs: null, visibilityFlickers: 0, firstFlickerMs: null, flickerResize: null, renderWhileHiddenMs: null, firstClick: null } };
-    const sig = await fetch(u(`${sdkBase}/signals`), { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ early, interaction: null }) }).catch(() => null);
-    const sb = sig ? await sig.json().catch(() => null) : null;
-    const r3 = await fetch(u(path), { headers: { cookie } }).catch(() => null);
-    const b3 = r3 ? await r3.json().catch(() => null) : null;
-    const applied = b3?._onehuman?.decision ?? b3?.decision?.decision;
-    const observe = r3?.status === 200 && applied === 'allow' && (b3?._onehuman?.reasonCodes ?? b3?.decision?.reasonCodes ?? []).some((c: string) => /AGENT_CONTROL_MARKER|AGENT_ATTACHED_EARLIER/.test(c));
-    results.push({ name: 'Attached agent changes the decision', ok: sb?.connection?.state === 'agent_attached' && (r3?.status === 403 || applied === 'mask' || applied === 'step_up' || observe), detail: `signals → ${sb?.connection?.state ?? sig?.status ?? 'unreachable'}; then GET ${path} → ${r3?.status}, decision=${applied ?? '-'}${observe ? ' (observe mode: recorded, not enforced)' : ''}` });
+    // apps that answer with their own body carry no reason codes: then the answer itself must change (refused, confirm, or masked)
+    const plain = r1 ? JSON.stringify(b1) : '';
+    const changed = !!r2 && (r2.status === 403 || r2.status === 428 || (r2.status === 200 && r1?.status === 200 && JSON.stringify(b2) !== plain));
+    results.push({ name: 'Environment evidence recognised', ok: codes2.includes('AGENT_APP_BROWSER') || (!codes2.length && changed), detail: `AI-app UA → ${r2?.status}, decision=${b2?._onehuman?.decision ?? b2?.decision?.decision ?? '-'}, codes=${codes2.join(',') || '-'}` });
+    // 4. attached agent (control markers via the SDK endpoint) changes the decision for the same session.
+    // With --cookie that session is a real login: marking it "agent" would follow that user for the rest of the visit,
+    // so it runs only when asked (--attach, ideally with a test account).
+    if (login && !rest.includes('--attach')) {
+      results.push({ name: 'Attached agent changes the decision', ok: true, detail: 'skipped: it would mark the signed-in user as an agent for this visit. Run with --attach and a test account\'s cookie to include it.' });
+    } else {
+      const early = { startedMs: 0, observedMs: 500, webdriver: false, firstInteractionMs: null, dataDomMs: null, markers: [{ name: 'claude-stop', atMs: 100 }, { name: 'claude-cursor', atMs: 100 }], environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: [], focusWhileHiddenMs: null }, focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0, reading: { loadedHidden: false, readBursts: 0, firstReadBurstMs: null, lastReadBurstReads: 0, readBurstAnonymous: false, textExtracts: 0, firstTextExtractMs: null, visibilityFlickers: 0, firstFlickerMs: null, flickerResize: null, renderWhileHiddenMs: null, firstClick: null } };
+      const sig = await fetch(u(`${sdkBase}/signals`), { method: 'POST', headers: { 'content-type': 'application/json', cookie: withLogin(cookie) }, body: JSON.stringify({ early, interaction: null }) }).catch(() => null);
+      const sb = sig ? await sig.json().catch(() => null) : null;
+      const r3 = await fetch(u(path), { headers: { cookie: withLogin(cookie) } }).catch(() => null);
+      const b3 = r3 ? await r3.json().catch(() => null) : null;
+      const applied = b3?._onehuman?.decision ?? b3?.decision?.decision;
+      const observe = r3?.status === 200 && applied === 'allow' && (b3?._onehuman?.reasonCodes ?? b3?.decision?.reasonCodes ?? []).some((c: string) => /AGENT_CONTROL_MARKER|AGENT_ATTACHED_EARLIER/.test(c));
+      results.push({ name: 'Attached agent changes the decision', ok: sb?.connection?.state === 'agent_attached' && (r3?.status === 403 || r3?.status === 428 || applied === 'mask' || applied === 'step_up' || observe || (r3?.status === 200 && r1?.status === 200 && JSON.stringify(b3) !== plain)), detail: `signals → ${sb?.connection?.state ?? sig?.status ?? 'unreachable'}; then GET ${path} → ${r3?.status}, decision=${applied ?? '-'}${observe ? ' (observe mode: recorded, not enforced)' : ''}` });
+    }
     let allOk = true;
     for (const x of results) { allOk &&= x.ok; console.log(`${x.ok ? '✓' : '✗'} ${x.name}\n    ${x.detail}`); }
+    if (needsLogin && !login) console.log(`\n${path} answered ${r1!.status} before OneHuman decided: it needs a signed-in user. Sign in in a browser, copy your app's session cookie and run again with --cookie "name=value".`);
     console.log(allOk ? '\nAll checks passed.' : '\nSome checks failed — see details above.');
     process.exit(allOk ? 0 : 1);
   }

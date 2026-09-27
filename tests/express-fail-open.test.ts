@@ -89,3 +89,29 @@ test("the customer's server has no visitor cap and keeps events per session, not
   assert.equal(await count(b!), 1, "another visitor's events are untouched");
   store.close();
 });
+
+test('if OneHuman cannot start, the app still answers; failOpen: false answers 503', async () => {
+  const { onehumanDeferred } = await import('../integrations/express/index.ts');
+  const bad = { version: 'x', enforcement: 'enforce', rules: [rule, rule] } as never;   // the same resource twice
+  const errors: string[] = [];
+  const origError = console.error;
+  console.error = (...a: unknown[]) => { errors.push(a.join(' ')); };
+  try {
+    for (const [failOpen, expect] of [[undefined, 200], [false, 503]] as const) {
+      const oh = onehumanDeferred({ secret, policy: bad, db: 'memory', ...(failOpen === false ? { failOpen } : {}) });
+      const app = express();
+      app.use(oh.middleware());
+      app.get('/api/balance', oh.protect('balance.read'), (_req, res) => { res.json({ amount: 5 }); });
+      app.get('/free', (_req, res) => { res.send('ok'); });
+      const server = app.listen(0);
+      const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      const r = await fetch(`${base}/api/balance`);
+      assert.equal(r.status, expect);
+      if (expect === 200) assert.equal(r.headers.get('x-oh-decision'), 'failed-open:ENGINE_START_FAILED');
+      assert.equal((await fetch(`${base}/free`)).status, 200, 'unprotected routes are untouched');
+      assert.equal((await fetch(`${base}/onehuman/sdk.js`)).status, 503);
+      server.close();
+    }
+  } finally { console.error = origError; }
+  assert.ok(errors.some((e) => /could not start — .*"balance\.read" appears twice/.test(e)), 'the reason is logged');
+});

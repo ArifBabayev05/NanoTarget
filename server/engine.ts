@@ -9,13 +9,13 @@
  * `protect()` is a Node http adapter around `decide()`. Express-style
  * `(req, res)` handlers work with it unchanged.
  */
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { assess, type Assessment } from './assess.ts';
 import { appendDecision } from './audit.ts';
 import { proverFromSecret, type Prover } from './proof.ts';
 import { classifyConnection, type Connection } from './connection.ts';
 import { bus } from './bus.ts';
-import type { DecisionRow, SessionRow, Store } from './db.ts';
+import { VISIT_IDLE_MS, type DecisionRow, type SessionRow, type Store } from './db.ts';
 import { cookies, headerGetter, json, url, type Req, type Res } from './http.ts';
 import { DEFAULT_POLICY, evaluate, type Decision, type Policy } from './policy.ts';
 import { parseSnapshot, type ClientSnapshot, type ServerSignal } from './signals.ts';
@@ -98,7 +98,8 @@ export class OneHuman {
    * moment as an `attach` event. No user action is needed for this.
    */
   async connectionFor(session: SessionRow, now = Date.now()): Promise<Connection> {
-    const recent = await this.store.recentSignals(session.id, now, 24 * 3600000, 0);
+    // this visit's page signals only: an agent from an earlier visit does not attach itself again
+    const recent = await this.store.recentSignals(session.id, now, VISIT_IDLE_MS, 0);
     const c = classifyConnection(session.arrival, recent.early);
     if (c.state === 'agent_attached' || c.state === 'signed_agent') {
       // Server time of the attach: the evidence's page-relative time mapped onto the session
@@ -162,8 +163,24 @@ export class OneHuman {
     }
   }
 
+  /**
+   * A recorded click sent again is not a person clicking. The same click may reach the server twice from its own
+   * session within a few seconds (the page's request and its signal); from another session, or later, it is a replay
+   * and does not count as human evidence. (A program that fabricates a fresh click each time is not caught here —
+   * for irreversible actions the rule should ask everyone for a passkey.)
+   */
+  private async withoutReplayedClick(sessionId: string, snapshot: ClientSnapshot | null, now: number): Promise<ClientSnapshot | null> {
+    const click = snapshot?.interaction?.click;
+    if (!snapshot || !click?.traj || click.traj.length < 3) return snapshot;
+    const fp = createHash('sha256').update(JSON.stringify([click.traj, click.holdMs, click.downMs ?? null, click.at ?? null, click.target ?? null])).digest('base64url').slice(0, 32);
+    if (await this.store.consumeNonce(`click:${fp}`, 24 * 3600e3, now)) { await this.store.consumeNonce(`click:${fp}:${sessionId}`, 10_000, now); return snapshot; }
+    if (!(await this.store.consumeNonce(`click:${fp}:${sessionId}`, 10_000, now))) return snapshot;   // its own session, just now
+    return { ...snapshot, interaction: null };
+  }
+
   /** Store a snapshot as events and return the current assessment (no decision, no audit). */
-  async ingest(room: string, session: SessionRow, snapshot: ClientSnapshot, now = Date.now()): Promise<{ assessment: Assessment; connection: Connection }> {
+  async ingest(room: string, session: SessionRow, raw: ClientSnapshot, now = Date.now()): Promise<{ assessment: Assessment; connection: Connection }> {
+    const snapshot = (await this.withoutReplayedClick(session.id, raw, now))!;
     if (snapshot.early) await this.store.addEvent(room, session.id, 'signal', snapshot.early, now);
     // first report of on-screen redaction by the SDK: keep it as its own timeline event
     if (snapshot.early?.reading.seal && !(await this.store.hasEvent(session.id, 'seal'))) await this.store.addEvent(room, session.id, 'seal', snapshot.early.reading.seal, now);
@@ -187,8 +204,9 @@ export class OneHuman {
     const env = thisRequest.environment?.agentAppToken ? thisRequest.environment : arrival?.environment ?? thisRequest.environment;
     const server: ServerSignal = sigStatus === 'verified' || sigStatus === 'replay' || !arrival ? thisRequest : { ...arrival, environment: env, checkedMs: thisRequest.checkedMs };
 
-    if (input.snapshot?.early) await this.store.addEvent(input.room, input.session.id, 'signal', input.snapshot.early, now);
-    if (input.snapshot?.interaction) await this.store.addEvent(input.room, input.session.id, 'interaction', input.snapshot.interaction, now);
+    const snapshot = await this.withoutReplayedClick(input.session.id, input.snapshot, now);
+    if (snapshot?.early) await this.store.addEvent(input.room, input.session.id, 'signal', snapshot.early, now);
+    if (snapshot?.interaction) await this.store.addEvent(input.room, input.session.id, 'interaction', snapshot.interaction, now);
     await this.store.touchSession(input.session.id, now);
     const simulated = input.request.headers['x-oh-lab-simulated'] === this.simulationToken;
     const conn = simulated ? null : await this.connectionFor(input.session, now);

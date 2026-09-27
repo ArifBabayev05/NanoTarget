@@ -38,10 +38,20 @@ type Choice<T> = { label: string; value: T; hint?: string };
 function suggestPreset(r: RouteHit): string {
   if (r.proposal.onAgent === 'allow') return 'open';
   if (r.proposal.onAgent === 'mask') return r.kind === 'read' ? 'hide' : 'refuse';
-  if (r.kind === 'download' || /transfer|withdraw|payout|pay\b|delete/i.test(r.path)) return 'guard';
+  // money that leaves, or where it goes: a program can imitate a person's clicks, it cannot press their passkey
+  if (r.kind === 'write' && /transfer|withdraw|payout|payroll|payments?\b|pay\b|bank|iban|beneficiar|payee|card/i.test(r.path)) return 'passkey';
+  if (r.kind === 'download' || /delete/i.test(r.path)) return 'guard';
   return r.proposal.onUnknown === 'step_up' ? 'guard' : 'refuse';
 }
-const titleOf = (res: string) => res.replace(/[._-]+/g, ' ').replace(/^./, (x) => x.toUpperCase());
+/** `payroll.run.make` → "Make payroll run", `employees.read` → "View employees": how the portal lists the rule */
+const VERBS: Record<string, string> = { read: 'View', write: 'Change', make: 'Make', export: 'Export', delete: 'Delete' };
+const titleOf = (res: string) => {
+  const parts = res.split('.');
+  const verb = VERBS[parts.at(-1) ?? ''];
+  const noun = (verb ? parts.slice(0, -1) : parts).join(' ').replace(/[_-]+/g, ' ');
+  const t = verb ? `${verb} ${noun}` : noun;
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
 
 /** `req.session.userId` → `req.session?.userId`, so a request without a login gives null instead of throwing */
 const safeChain = (expr: string) => expr.replace(/\?\./g, '.').replace(/\./g, '?.').replace(/^req\?\./, 'req.');
@@ -130,7 +140,7 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   const r: ScanResult = scan(root);
   for (const x of r.routes) x.file = resolve(root, x.file);   // the scan reports paths relative to the project
   const detected = deps.express ? 'express' : deps.fastify ? 'fastify' : deps.next ? 'next' : deps.koa ? 'koa' : deps['@nestjs/core'] ? 'nestjs' : r.frameworks[0] ?? 'unknown';
-  say(dim(`\nRead ${r.filesScanned} files: ${r.routes.length} routes${r.frameworks.length ? ` (${r.frameworks.join(', ')})` : ''}, ${r.routes.filter((x) => x.sensitivity >= 25).length} that an AI agent with a customer's login could misuse.`));
+  say(dim(`\nRead ${r.filesScanned} files: ${r.routes.length} routes${r.frameworks.length ? ` (${r.frameworks.join(', ')})` : ''}, ${r.routes.filter((x) => x.sensitivity >= 25 && !x.signals.includes('excluded-pattern')).length} that an AI agent with a customer's login could misuse.`));
 
   // ---------------------------------------------------------------- 1. the server
   const framework = await choose('Which server does this app use?', [
@@ -141,7 +151,7 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   ], ['express', 'fastify', 'next'].indexOf(detected) >= 0 ? ['express', 'fastify', 'next'].indexOf(detected) : 0);
 
   // ---------------------------------------------------------------- 2. what to protect, and how
-  const candidates = r.routes.filter((x) => x.sensitivity >= 25).sort((a, b) => b.sensitivity - a.sensitivity).slice(0, 40);
+  const candidates = r.routes.filter((x) => x.sensitivity >= 25 && !x.signals.includes('excluded-pattern')).sort((a, b) => b.sensitivity - a.sensitivity).slice(0, 40);
   let chosen: RouteHit[] = [];
   if (candidates.length) {
     const w = Math.max(...candidates.map((x) => x.path.length));
@@ -202,6 +212,16 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   const htmlCandidates = [...r.frontend.entryHtml, 'public/index.html', 'index.html', 'static/index.html', 'views/index.html', 'client/index.html', 'src/index.html'];
   const html = [...new Set(htmlCandidates)].map((f) => resolve(root, f)).find((f) => existsSync(f) && /<\/head>/i.test(readFileSync(f, 'utf8')) && !readFileSync(f, 'utf8').includes('/onehuman/sdk.js'));
   const addScript = html ? await confirm(`Add the page script to ${relative(root, html)}? It lets OneHuman see an agent in the browser the moment it attaches.`, true) : false;
+  // The page's own requests must carry the click that caused them, or a person's click never counts as human evidence
+  // (and in protect mode a real person meets a passkey request). The page's local scripts that call fetch():
+  const pageScripts = addScript && html
+    ? [...readFileSync(html, 'utf8').matchAll(/<script[^>]*\ssrc=["'](?!https?:|\/\/|\/onehuman\/)([^"'?#]+)["']/gi)]
+        .map((m) => [resolve(dirname(html), m[1]!.replace(/^\//, '')), resolve(dirname(html), '.' + (m[1]!.startsWith('/') ? m[1] : '/' + m[1]))])
+        .flat().filter((f, i, a) => a.indexOf(f) === i && existsSync(f) && /(?<![.\w$])fetch\s*\(/.test(readFileSync(f, 'utf8')))
+    : [];
+  const wrapFetch = pageScripts.length
+    ? await confirm(`Send the page's requests through OneHuman.fetch in ${pageScripts.map((f) => relative(root, f)).join(', ')}? Each request then carries the click behind it, so a person is recognised as a person.`, true)
+    : false;
 
   // ---------------------------------------------------------------- the plan
   const edits: Edit[] = [];
@@ -213,10 +233,18 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   };
 
   // the rules
-  const rules = chosen.map((x) => {
+  // one rule per resource: routes that share one (a list and its detail page) get the stricter of their choices
+  const STRICT = ['allow', 'mask', 'step_up', 'block'];
+  const stricter = (a: string, b: string) => (STRICT.indexOf(b) > STRICT.indexOf(a) ? b : a);
+  const byResource = new Map<string, { resource: string; title: string; onAgent: string; onArtifact: string; onUnknown: string; onHumanLike: string; actOn: string[]; minScore: number }>();
+  for (const x of chosen) {
     const m = PRESETS[presetFor.get(x)!]!.m;
-    return { resource: x.resource, title: titleOf(x.resource), onAgent: m[0], onArtifact: m[1], onUnknown: m[2], onHumanLike: m[3], actOn: ['verified', 'strong', 'control', 'behavioral'], minScore: 65 };
-  });
+    const prev = byResource.get(x.resource);
+    byResource.set(x.resource, prev
+      ? { ...prev, onAgent: stricter(prev.onAgent, m[0]), onArtifact: stricter(prev.onArtifact, m[1]), onUnknown: stricter(prev.onUnknown, m[2]), onHumanLike: stricter(prev.onHumanLike, m[3]) }
+      : { resource: x.resource, title: titleOf(x.resource), onAgent: m[0], onArtifact: m[1], onUnknown: m[2], onHumanLike: m[3], actOn: ['verified', 'strong', 'control', 'behavioral'], minScore: 65 });
+  }
+  const rules = [...byResource.values()];
   const policyFile = join(root, 'onehuman.policy.json');
   if (existsSync(policyFile)) notes.push('onehuman.policy.json already exists — kept as it is.');
   else put(policyFile, JSON.stringify({ version: 'app-1', enforcement, rules }, null, 2) + '\n', `${rules.length} rule${rules.length === 1 ? '' : 's'}, ${enforcement === 'observe' ? 'watching only' : 'protection on'}`);
@@ -302,7 +330,7 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
     for (const x of chosen) {
       const t = read(x.file);
       const lines = t.split('\n');
-      const esc = x.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const esc = (x.source ?? x.path).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const re = new RegExp(`\\.\\s*${x.method === 'ALL' ? 'all' : x.method.toLowerCase()}\\s*\\(\\s*(['"\`])${esc}\\1\\s*,`);
       let done = false;
       for (let i = x.line - 1; i < Math.min(lines.length, x.line + 2) && !done; i++) {
@@ -334,11 +362,16 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
     put(html, t.replace(/<\/head>/i, '  <script src="/onehuman/sdk.js"></script>\n</head>'), 'adds the page script in <head>');
     if (r.frontend.kind === 'spa') notes.push('If the page is served by a separate dev server (Vite, webpack), proxy /onehuman to your API server so /onehuman/sdk.js loads.');
   }
+  for (const f of wrapFetch ? pageScripts : []) {
+    const t = read(f);
+    put(f, t.replace(/(?<![.\w$])fetch\s*\(/g, '(window.OneHuman?.fetch ?? fetch)('), 'fetch() → OneHuman.fetch (same arguments; falls back to fetch if the script is missing)');
+  }
+  if (addScript && !wrapFetch && r.frontend.fetchCalls) notes.push('Call protected endpoints with OneHuman.fetch(url, init) instead of fetch(): it carries the click behind the request, so a person is recognised as a person.');
   const installed = !!deps['onehumanai'];
 
   // ---------------------------------------------------------------- show it, then do it
   say(`\n${bold('Here is what will change:')}`);
-  if (!installed && flags.install) say(`  ${cyan('install')}  onehumanai  ${dim('(its engine comes with it)')}`);
+  if (!installed && flags.install) say(`  ${cyan('install')}  onehumanai  ${dim('(one package: middleware, page script, engine)')}`);
   for (const e of edits) {
     say(`  ${e.before === null ? green('new    ') : yellow('change ')} ${relative(root, e.file) || basename(e.file)}`);
     for (const ch of e.changes) say(`           ${dim('· ' + ch)}`);
@@ -364,8 +397,11 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   say(`  ${enforcement === 'observe' ? 'It is watching only: nothing is blocked. Look at Activity, then turn protection on in the portal or in onehuman.policy.json.' : 'Protection is on from the first request.'}`);
   say(`\n${bold('Next:')}`);
   say(`  1. Start your app and open a page that calls a protected route.`);
-  const port = entry ? (readFileSync(entry, 'utf8').match(/\.listen\(\s*(?:process\.env\.PORT\s*(?:\|\||\?\?)\s*)?(\d{2,5})/)?.[1] ?? '3000') : '3000';
-  say(`  2. Check it: ${cyan(`npx onehumanai verify http://localhost:${port} ${chosen[0]?.path.replace(/:\w+/g, '1') ?? '/api/…'}`)}`);
+  const entryText = entry ? readFileSync(entry, 'utf8') : '';
+  const port = entryText.match(/\.listen\(\s*(?:process\.env\.PORT\s*(?:\|\||\?\?)\s*)?(\d{2,5})/)?.[1] ?? entryText.match(/\bPORT\s*(?:\|\||\?\?)\s*['"]?(\d{2,5})/)?.[1] ?? '3000';
+  // verify sends GET requests: show it a protected route it can call
+  const verifyPath = (chosen.find((x) => x.method === 'GET') ?? chosen[0])?.path.replace(/:\w+/g, '1') ?? '/api/…';
+  say(`  2. Check it: ${cyan(`npx onehumanai verify http://localhost:${port} ${verifyPath}`)}`);
   say(`  3. ${apiKey ? 'See it in the portal: https://onehuman.ai/portal' : 'For the portal (agents seen, rules without a deploy): create a key at https://onehuman.ai/portal and add ONEHUMAN_API_KEY to .env.'}`);
   for (const n of notes) say(`\n${yellow('!')} ${n}`);
   say('');

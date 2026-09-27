@@ -14,7 +14,10 @@ export type RouteHit = {
   file: string;
   line: number;
   method: string;
+  /** the full URL path (a router's mount prefix included) */
   path: string;
+  /** the path as written in the file, when it differs from `path` (routes of a mounted router) */
+  source?: string;
   framework: string;
   /** 0..100 */
   sensitivity: number;
@@ -36,7 +39,7 @@ export type ScanResult = {
   frameworks: string[];
   routes: RouteHit[];
   identity: IdentityHit[];
-  frontend: { kind: 'spa' | 'ssr' | 'mixed' | 'unknown'; entryHtml: string[]; fetchCalls: number; axios: boolean };
+  frontend: { kind: 'spa' | 'ssr' | 'mixed' | 'static' | 'unknown'; entryHtml: string[]; fetchCalls: number; axios: boolean };
   policyDraft: unknown;
   notes: string[];
 };
@@ -105,10 +108,11 @@ function score(method: string, path: string, context: string): { sensitivity: nu
   let s = 0;
   const hay = `${path} ${context}`;
   for (const [re, w, cat] of SENSITIVE) { if (re.test(hay)) { s += w; signals.push(cat); } }
-  if (NOT_SENSITIVE.test(path)) { s = Math.min(s, 10); signals.push('excluded-pattern'); }
-  // write operations on anything sensitive are more dangerous than reads
+  const excluded = NOT_SENSITIVE.test(path);
+  if (excluded) { s = Math.min(s, 10); signals.push('excluded-pattern'); }
+  // write operations on anything sensitive are more dangerous than reads (login/logout and the like stay excluded)
   const write = method !== 'GET';
-  if (write && s > 0) s += 15;
+  if (write && s > 0 && !excluded) s += 15;
   let kind: RouteHit['kind'] = write ? 'write' : 'read';
   if (/download|export|csv|xlsx|pdf|attachment/i.test(path) || /Content-Disposition|res\.download\(|res\.attachment\(|sendFile\(/.test(context)) kind = 'download';
   return { sensitivity: Math.max(0, Math.min(100, s)), signals: [...new Set(signals)], kind };
@@ -131,8 +135,31 @@ function proposal(h: { sensitivity: number; kind: RouteHit['kind']; signals: str
   return { onAgent: 'mask', onArtifact: 'allow', onUnknown: 'allow' };
 }
 
+const ident = /^[A-Za-z_$][\w$]*$/;
+const escapeRe = (s: string) => s.replace(/[$]/g, '\\$');
+
+/**
+ * Express routers carry any name (`const payroll = Router()`), and a router's routes are relative to where it is
+ * mounted (`app.use('/api/hr', payroll)`). Collected from every file first: the router is often defined in one file
+ * and mounted in another.
+ */
+function routerNames(texts: string[]): { names: Set<string>; mounts: Map<string, string> } {
+  const names = new Set<string>();
+  const mounts = new Map<string, string>();
+  for (const t of texts) {
+    for (const m of t.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:new\s+)?(?:express\s*\.\s*)?(?:Router|express|KoaRouter|Hono)\s*\(/g)) names.add(m[1]!);
+    for (const m of t.matchAll(/\.use\s*\(\s*(['"`])(\/[^'"`]*)\1\s*,\s*([A-Za-z_$][\w$]*)\s*[,)]/g)) if (!mounts.has(m[3]!)) mounts.set(m[3]!, m[2]!.replace(/\/$/, ''));
+  }
+  return { names, mounts };
+}
+
 export function scan(root: string): ScanResult {
   const files = walk(root);
+  const texts = files.map((f) => { try { return readFileSync(f, 'utf8'); } catch { return ''; } });
+  const { names: customRouters, mounts } = routerNames(texts);
+  const receivers = ['app', 'router', 'server', 'api', 'fastify', 'koaRouter', 'r', ...[...customRouters].filter((n) => ident.test(n))].map(escapeRe);
+  const EXPRESS = new RegExp(`\\b(${[...new Set(receivers)].join('|')})\\s*\\.\\s*(get|post|put|patch|delete|all)\\s*\\(\\s*(['"\`])([^'"\`]+)\\3`, 'g');
+  const NEXT_ROUTE = new RegExp(`\\n\\s*(?:${[...new Set(receivers)].join('|')})\\s*\\.\\s*(?:get|post|put|patch|delete|all|use)\\s*\\(|\\n\\s*@(?:Get|Post|Put|Patch|Delete)\\(`);
   const routes: RouteHit[] = [];
   const identity: IdentityHit[] = [];
   const frameworks = new Set<string>();
@@ -140,8 +167,9 @@ export function scan(root: string): ScanResult {
   let fetchCalls = 0, axios = false, ssrTemplates = 0, spaMarkers = 0;
   const seen = new Set<string>();
 
-  for (const f of files) {
-    let text: string; try { text = readFileSync(f, 'utf8'); } catch { continue; }
+  for (const [i, f] of files.entries()) {
+    const text = texts[i]!;
+    if (!text) continue;
     const rel = relative(root, f);
     const ext = extname(f);
     if (HTML_EXT.has(ext)) {
@@ -169,23 +197,27 @@ export function scan(root: string): ScanResult {
     }
     // NestJS controllers carry a prefix
     const nestPrefix = text.match(/@Controller\s*\(\s*['"`]([^'"`]*)['"`]\s*\)/)?.[1];
-    for (const pat of ROUTE_PATTERNS) {
+    const patterns = [{ framework: 'express', re: EXPRESS, method: (m: RegExpExecArray) => m[2]!.toUpperCase(), path: (m: RegExpExecArray) => m[4]! }, ...ROUTE_PATTERNS.slice(1)];
+    for (const pat of patterns) {
       pat.re.lastIndex = 0;
       let m: RegExpExecArray | null;
       while ((m = pat.re.exec(text))) {
         if (pat.framework === 'nestjs' && nestPrefix === undefined) continue;
         let path = pat.path(m);
         if (pat.framework === 'nestjs') path = '/' + [nestPrefix, path.replace(/^\//, '')].filter(Boolean).join('/');
+        const written = path;
+        const mount = pat.framework === 'express' ? mounts.get(m[1]!) : undefined;
+        if (mount && customRouters.has(m[1]!)) path = (mount + (path === '/' ? '' : path)) || '/';
         const method = pat.method(m);
         if (method === 'ALL') continue;
         const key = `${method} ${path}`; if (seen.has(key)) continue; seen.add(key);
         // handler context ends at the next route definition, so neighbours' keywords do not leak in
         const tail = text.slice(m.index + m[0].length, Math.min(text.length, m.index + 1500));
-        const nextRoute = tail.search(/\n\s*(?:app|router|server|api|fastify|r)\s*\.\s*(?:get|post|put|patch|delete|all|use)\s*\(|\n\s*@(?:Get|Post|Put|Patch|Delete)\(/);
+        const nextRoute = tail.search(NEXT_ROUTE);
         const ctx = (m[0] + (nextRoute >= 0 ? tail.slice(0, nextRoute) : tail)).replace(/module\.exports[^\n]*|^\s*(import|export)\b[^\n]*/gm, '');
         const sc = score(method, path, ctx);
         frameworks.add(pat.framework);
-        routes.push({ file: rel, line: lineOf(text, m.index), method, path, framework: pat.framework, ...sc, resource: resourceId(method, path, sc.kind), proposal: proposal(sc) });
+        routes.push({ file: rel, line: lineOf(text, m.index), method, path, ...(written !== path ? { source: written } : {}), framework: pat.framework, ...sc, resource: resourceId(method, path, sc.kind), proposal: proposal(sc) });
       }
     }
     for (const pat of IDENTITY_PATTERNS) {
@@ -197,11 +229,21 @@ export function scan(root: string): ScanResult {
 
   routes.sort((a, b) => b.sensitivity - a.sensitivity || a.path.localeCompare(b.path));
   const protectedRoutes = routes.filter((r) => r.sensitivity >= 30);
-  const frontend: ScanResult['frontend'] = { kind: spaMarkers && ssrTemplates ? 'mixed' : spaMarkers ? 'spa' : ssrTemplates ? 'ssr' : 'unknown', entryHtml: entryHtml.slice(0, 5), fetchCalls, axios };
+  const frontend: ScanResult['frontend'] = { kind: spaMarkers && ssrTemplates ? 'mixed' : spaMarkers ? 'spa' : ssrTemplates ? 'ssr' : entryHtml.length ? 'static' : 'unknown', entryHtml: entryHtml.slice(0, 5), fetchCalls, axios };
 
   // identity: rank by frequency of expression prefix
   const byExpr = new Map<string, IdentityHit & { count: number }>();
   for (const h of identity) { const k = h.expression.replace(/\?\./g, '.').split('.').slice(0, 3).join('.'); const cur = byExpr.get(k); if (cur) cur.count++; else byExpr.set(k, { ...h, expression: k, count: 1 }); }
+  // identify() must return an id, not the user object (an object stringifies to one value for everyone):
+  // prefer a field the code itself reads under the same object, else `.id`
+  const ID_FIELDS = ['id', 'userId', 'uid', 'sub', 'email', 'username'];
+  for (const h of byExpr.values()) {
+    const last = h.expression.split('.').at(-1) ?? '';
+    if (ID_FIELDS.includes(last)) continue;
+    const deeper = identity.map((x) => x.expression.replace(/\?\./g, '.')).filter((e) => e.startsWith(h.expression + '.')).map((e) => e.slice(h.expression.length + 1).split('.')[0]!);
+    const field = ID_FIELDS.find((f) => deeper.includes(f)) ?? (/^(user|account|profile|currentUser|auth|member)$/.test(last) ? 'id' : null);
+    if (field) h.expression = `${h.expression}.${field}`;
+  }
   const identityRanked = [...byExpr.values()].sort((a, b) => b.count - a.count).slice(0, 5);
 
   const notes: string[] = [];
@@ -214,7 +256,7 @@ export function scan(root: string): ScanResult {
   const policyDraft = {
     version: 'draft-1',
     enforcement: 'observe',
-    rules: protectedRoutes.map((r) => ({ resource: r.resource, title: `${r.method} ${r.path}`, onAgent: r.proposal.onAgent, onArtifact: r.proposal.onArtifact, onUnknown: r.proposal.onUnknown, onHumanLike: 'allow', actOn: ['verified', 'strong', 'control', 'behavioral'], minScore: 65 })),
+    rules: protectedRoutes.filter((r, i, all) => all.findIndex((x) => x.resource === r.resource) === i).map((r) => ({ resource: r.resource, title: `${r.method} ${r.path}`, onAgent: r.proposal.onAgent, onArtifact: r.proposal.onArtifact, onUnknown: r.proposal.onUnknown, onHumanLike: 'allow', actOn: ['verified', 'strong', 'control', 'behavioral'], minScore: 65 })),
   };
   return { root, filesScanned: files.length, frameworks: [...frameworks], routes, identity: identityRanked, frontend, policyDraft, notes };
 }

@@ -136,3 +136,35 @@ test('an extension side panel that reads the page is attached; either fact alone
   assert.equal(both.state, 'agent_attached');
   assert.ok(both.evidence.some((e) => e.code === 'PANEL_PAGE_READ'));
 });
+
+test('an agent from an earlier visit does not mark the next one: a pause over 30 minutes starts clean', async () => {
+  const { Store, VISIT_IDLE_MS } = await import('../server/db.ts');
+  const store = await Store.open();
+  const room = await store.createRoom();
+  const id = (await store.createSession(room, 'unlabelled', null, 1_000))!;
+  assert.ok(await store.markAgentAttached(id, 2_000, 1_000));
+  await store.touchSession(id, 3_000);
+  assert.equal((await store.getSession(id))!.agentAttachedAt, 2_000, 'within the visit the fact sticks');
+  await store.touchSession(id, 3_000 + VISIT_IDLE_MS + 1);
+  assert.equal((await store.getSession(id))!.agentAttachedAt, null, 'after a long pause the new visit is clean');
+  store.close();
+});
+
+test('a recorded click replayed from another session is not a person clicking', async () => {
+  const { Store } = await import('../server/db.ts');
+  const { OneHuman } = await import('../server/engine.ts');
+  const store = await Store.open();
+  const engine = new OneHuman({ store, secret: Buffer.alloc(32, 7) });
+  const room = await store.createRoom();
+  const traj: [number, number, number][] = Array.from({ length: 12 }, (_, i) => [-400 + i * 30, 100 + i * 17 + (i % 3), 200 + i * 9]);
+  const click = { trusted: true, pointer: 'mouse' as const, detail: 1, holdMs: 96, moves: 12, path: 300, travelMs: 400, pressure: 0.5, hidden: false, traj, downMs: -96, target: { w: 120, h: 44, dx: 4, dy: -3 }, coalesced: 0, at: [300, 310] as [number, number] };
+  const snap = { early: null, interaction: { atMs: 1000, webdriver: false, keys: 0, keyIntervals: [], inputEvents: 0, paste: false, click } };
+  const a = (await store.getSession((await store.createSession(room, 'unlabelled', null))!))!;
+  const b = (await store.getSession((await store.createSession(room, 'unlabelled', null))!))!;
+  await engine.ingest(room, a, snap);
+  await engine.ingest(room, a, snap);   // the same page sends it twice: still its own click
+  assert.equal((await store.recentSignals(a.id, Date.now(), 120000, 6)).interactions.length, 2);
+  await engine.ingest(room, b, snap);   // somebody else's session
+  assert.equal((await store.recentSignals(b.id, Date.now(), 120000, 6)).interactions.length, 0, 'the replay is dropped');
+  store.close();
+});
