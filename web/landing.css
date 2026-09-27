@@ -90,7 +90,6 @@ main{max-width:var(--w);margin:0 auto;padding:0 24px}
   background:radial-gradient(60% 55% at 50% 0%,rgba(124,240,192,.10),transparent 70%)}
 .h1{font-size:clamp(33px,5.2vw,62px);line-height:1.05;letter-spacing:-.035em;font-weight:600;margin:26px auto 22px;max-width:900px}
 .h1 .muted{color:var(--fg3);font-size:.62em;letter-spacing:-.02em;display:inline-block;margin-top:.3em;line-height:1.15}
-.proof a{color:inherit;text-decoration:none;border-bottom:1px dotted var(--fg3)}.proof a:hover{color:var(--fg2)}
 .feat a{color:var(--fg2);text-decoration:underline;text-underline-offset:3px}
 .limits{padding:40px 0 20px}
 .h1 .proofline{color:var(--accent);font-size:.62em;letter-spacing:-.02em;display:inline-block;margin-top:.35em}
@@ -114,8 +113,6 @@ main{max-width:var(--w);margin:0 auto;padding:0 24px}
 .npm .copy{height:34px;width:34px;display:grid;place-items:center;border-radius:8px;border:0;background:transparent;color:var(--fg2);transition:background .2s,color .2s}
 .npm .copy:hover{background:var(--bg3);color:var(--fg)}
 .hero-actions .btn.secondary{height:46px;border-radius:11px;padding:0 18px}
-.proof{display:flex;flex-wrap:wrap;justify-content:center;gap:10px 28px;margin:34px auto 0;color:var(--fg3);font-size:13px}
-.proof b{color:var(--fg2);font-weight:500}
 
 /* product story — scroll-driven: steps on the left, sticky frame on the right, 3D point cloud behind */
 .story{margin:72px auto 0;max-width:1120px;display:grid;grid-template-columns:minmax(260px,.9fr) minmax(0,1.6fr);gap:40px;text-align:left;align-items:start}
@@ -223,12 +220,8 @@ main{max-width:var(--w);margin:0 auto;padding:0 24px}
 .npm-mark{display:grid;place-items:center;width:26px;height:26px;color:#cb3837}
 .npm-mark svg{width:26px;height:26px;fill:currentColor}
 .install-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center}
-.npm-link{font:13.5px var(--mono);color:var(--fg2);border-bottom:1px solid var(--line2);padding-bottom:1px;transition:color .2s,border-color .2s}
-.npm-link:hover{color:var(--fg);border-color:var(--fg2)}
-.npm-link .ext{font-family:var(--sans)}
-.install-row .sep{color:var(--fg3)}
 .install-row .btn.secondary{height:38px;border-radius:10px}
-@media (max-width:560px){.npm.big{height:52px;font-size:15px}.install-row .sep{display:none}}
+@media (max-width:560px){.npm.big{height:52px;font-size:15px}}
 
 /* inline headline glyphs — a real fingerprint (the hand) and a glowing spark (the agent), no boxes */
 .h1 .dim{color:var(--fg3)}
@@ -346,7 +339,7 @@ section{padding:96px 0}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}.reveal{opacity:1;transform:none}}
 @media (max-width:980px){.grid3{grid-template-columns:1fr 1fr}.apps{grid-template-columns:1fr}.legend{grid-template-columns:1fr}}
 @media (max-width:560px){#nav-gh{display:none}.portal-chip{padding-right:10px;gap:7px}}
-@media (max-width:560px){.h1{font-size:clamp(27px,7.4vw,40px)}.sub{font-size:15px}.proof{gap:8px;flex-direction:column}}
+@media (max-width:560px){.h1{font-size:clamp(27px,7.4vw,40px)}.sub{font-size:15px}}
 @media (max-width:820px){
   .links{display:none}.nav{padding:0 16px}main{padding:0 16px}
   .hero{padding:64px 0 24px}section{padding:64px 0}
@@ -364,5 +357,3 @@ section{padding:96px 0}
 @keyframes vt-in{from{opacity:0;transform:translateY(8px)}}
 
 
-.install-note{color:var(--fg3);font-size:13px}
-@media (max-width:560px){.install-note{display:none}}
