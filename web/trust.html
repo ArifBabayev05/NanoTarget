@@ -138,6 +138,8 @@
     <dd>No. The assistant on the Rules page is used only when you type into it. It receives your message and your rules — names, labels and settings — and sends them to an AI model through OpenRouter. It never receives traffic, sessions, users or keys, and it can only change the rules you already have; you review every change before it is saved.</dd>
     <dt>How long is telemetry kept?</dt>
     <dd>Until you revoke and delete the API key, which removes its reported decisions. Revoked keys can be deleted at any time from the portal.</dd>
+    <dt>What does onehuman.ai log about visitors to this website?</dt>
+    <dd>This site (not your app, and not the package) keeps a visit log for its operators: the page or demo action, the time, browser and OS family, phone or not, the country and city our host reports, and a keyed hash of IP address + browser so repeat visits count once. No raw IP address, no raw user agent, no tracking cookie. Kept 90 days; demo rooms and their decisions 60 days.</dd>
     <dt>Can our auditor verify a decision without trusting you?</dt>
     <dd>Yes. Every decision is signed on your server with a key derived from your secret. The public key is served from your own site; the proof verifies with any standard JOSE library or <code>npx onehumanai verify-proof</code>. OneHuman the company is not in that loop.</dd>
     <dt>What if OneHuman is slow or breaks?</dt>

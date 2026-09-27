@@ -22,7 +22,7 @@ export async function sqliteClient(path = ':memory:'): Promise<SqlClient> {
   const { DatabaseSync } = await import('node:sqlite');
   const db = new DatabaseSync(path);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
-  const isQuery = (sql: string) => /^\s*(select|pragma|with)\b/i.test(sql);
+  const isQuery = (sql: string) => /^\s*(select|pragma|with)\b/i.test(sql) || /\breturning\b/i.test(sql);
   return {
     async execute(sql, args) {
       const stmt = db.prepare(sql);

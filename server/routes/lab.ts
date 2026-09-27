@@ -16,14 +16,15 @@ import { bus } from '../bus.ts';
 
 export type LabOperator = { operator: string; privateKey: CryptoKey; publicJwk: OperatorKey } | null;
 
-export function labRoutes(engine: OneHuman, labOperator: LabOperator) {
+export function labRoutes(engine: OneHuman, labOperator: LabOperator, opts: { roomAllowed?: (req: Req) => Promise<boolean>; deviceOf?: (req: Req) => string } = {}) {
   const store = engine.store;
 
   const createRoom = async (req: Req, res: Res) => {
     if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
+    if (opts.roomAllowed && !(await opts.roomAllowed(req))) return json(res, 429, { error: 'rate_limited', message: 'Too many new demo rooms from this network. Try again in an hour.' });
     const body = (await readJson(req, 500).catch(() => null)) as { app?: unknown } | null | undefined;
     const app = body && typeof body.app === 'string' && /^[a-z]{2,20}$/.test(body.app) ? body.app : 'bank';
-    json(res, 201, { room: await store.createRoom(Date.now(), app), app });
+    json(res, 201, { room: await store.createRoom(Date.now(), app, opts.deviceOf?.(req) ?? null), app });
   };
 
   const me = async (req: Req, res: Res) => {

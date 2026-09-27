@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>OneHuman ops</title>
+<link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="/ops.css">
+</head>
+<body>
+<header class="top">
+  <b>OneHuman · ops</b>
+  <nav id="tabs">
+    <button data-tab="overview" class="on">Overview</button>
+    <button data-tab="devices">Devices</button>
+    <button data-tab="demo">Demo tests</button>
+    <button data-tab="portal">Portal &amp; integrations</button>
+    <button data-tab="log">Log</button>
+  </nav>
+  <label class="range">Range
+    <select id="range"><option value="1">24 h</option><option value="7" selected>7 days</option><option value="30">30 days</option><option value="all">All</option></select>
+  </label>
+  <button id="refresh" class="ghost">Refresh</button>
+</header>
+<main>
+  <section id="tab-overview"></section>
+  <section id="tab-devices" hidden></section>
+  <section id="tab-demo" hidden></section>
+  <section id="tab-portal" hidden></section>
+  <section id="tab-log" hidden></section>
+</main>
+<dialog id="detail"><form method="dialog"><button class="ghost close">Close</button></form><div id="detail-body"></div></dialog>
+<script src="/ops.js"></script>
+</body>
+</html>

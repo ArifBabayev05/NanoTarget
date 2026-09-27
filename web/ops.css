@@ -1,0 +1,48 @@
+:root{--bg:#0b0d0f;--panel:#13171b;--line:#232a31;--fg:#e8ecef;--fg2:#aab4bc;--fg3:#6f7b85;--accent:#7df0c0;--warn:#ffb86b;--bad:#ff7a7a;--mono:ui-monospace,SFMono-Regular,Menlo,monospace;color-scheme:dark}
+@media (prefers-color-scheme:light){:root{--bg:#f6f7f5;--panel:#fff;--line:#e2e6e3;--fg:#111417;--fg2:#4a545c;--fg3:#7d878f;--accent:#0b7a55;--warn:#a65f00;--bad:#c0392b;color-scheme:light}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+.top{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:12px 20px;background:var(--bg);border-bottom:1px solid var(--line)}
+.top nav{display:flex;flex-wrap:wrap;gap:4px}
+button{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
+button.on{border-color:var(--accent);color:var(--accent)}
+button.ghost{background:transparent}
+select{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 8px}
+.range{margin-left:auto;color:var(--fg2);display:flex;gap:8px;align-items:center}
+main{padding:20px;max-width:1400px;margin:0 auto}
+h2{font-size:15px;margin:26px 0 10px;color:var(--fg2);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+h2:first-child{margin-top:0}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.kpi b{display:block;font-size:26px;font-weight:600;font-variant-numeric:tabular-nums}
+.kpi span{color:var(--fg3);font-size:12.5px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
+.card h3{margin:0 0 8px;font-size:13px;color:var(--fg2);font-weight:600}
+.bars{display:flex;align-items:flex-end;gap:3px;height:120px;padding-top:6px}
+.bars i{flex:1;max-width:44px;background:var(--accent);opacity:.8;border-radius:3px 3px 0 0;min-height:2px;position:relative}
+.bars i:hover::after{content:attr(data-t);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);white-space:nowrap;background:var(--panel);border:1px solid var(--line);padding:2px 6px;border-radius:6px;font-size:12px;color:var(--fg)}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px dashed var(--line)}
+.list li:last-child{border:0}
+.list em{font-style:normal;color:var(--fg2);font-variant-numeric:tabular-nums}
+.tbl-wrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}
+td.wrap{white-space:normal;min-width:220px}
+th{color:var(--fg3);font-weight:500;position:sticky;top:0;background:var(--panel)}
+tr.click{cursor:pointer}
+tr.click:hover td{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+code,.mono{font-family:var(--mono);font-size:12px}
+.pill{display:inline-block;padding:1px 7px;border-radius:99px;border:1px solid var(--line);font-size:12px;margin:1px 2px 1px 0;color:var(--fg2)}
+.pill.agent{border-color:var(--warn);color:var(--warn)}
+.pill.ok{border-color:var(--accent);color:var(--accent)}
+.pill.bad{border-color:var(--bad);color:var(--bad)}
+.muted{color:var(--fg3)}
+.note{color:var(--fg3);font-size:12.5px;margin:6px 0 0}
+dialog{width:min(1000px,94vw);max-height:88vh;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:14px;padding:18px}
+dialog::backdrop{background:rgba(0,0,0,.55)}
+dialog .close{float:right}
+pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;max-height:260px;overflow:auto}
+.more{margin:12px 0}
+@media (max-width:640px){main{padding:12px}.range{margin-left:0}}

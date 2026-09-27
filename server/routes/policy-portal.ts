@@ -248,6 +248,8 @@ export function policyRoutes(engine: OneHuman, deps: Deps) {
    * It saves nothing. The draft is the unsaved editor state when given, else the saved policy.
    */
   const ASSIST_PER_DAY = 40;
+  /** every account together, per day: the OpenRouter bill has a ceiling even if accounts are mass-created */
+  const ASSIST_ALL_PER_DAY = 400;
   const portalAssist = async (req: Req, res: Res) => {
     if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
     const b = (await readJson(req, 64_000).catch(() => null)) as Record<string, unknown> | null | undefined;
@@ -259,8 +261,11 @@ export function policyRoutes(engine: OneHuman, deps: Deps) {
     const kp = await store.keyPolicy(key);
     const draft = b?.draft !== undefined ? parse(b.draft, kp?.n ?? 0) : kp ? parse(kp.body, kp.n) : null;
     if (!draft) return json(res, 409, { error: 'no_policy', message: 'There are no rules yet. They appear when your app first connects.' });
-    if ((await store.assistCount(account, Date.now() - 24 * 3600e3)) >= ASSIST_PER_DAY) return json(res, 429, { error: 'limit', message: `The assistant answers up to ${ASSIST_PER_DAY} requests a day. Try again tomorrow, or change the rules by hand.` });
+    // counted before the call, so parallel requests cannot all slip under the limit; one ceiling for the whole portal too
     await store.noteAssist(account);
+    const day = Date.now() - 24 * 3600e3;
+    if ((await store.assistCount(account, day)) > ASSIST_PER_DAY) return json(res, 429, { error: 'limit', message: `The assistant answers up to ${ASSIST_PER_DAY} requests a day. Try again tomorrow, or change the rules by hand.` });
+    if ((await store.assistCountAll(day)) > ASSIST_ALL_PER_DAY) return json(res, 429, { error: 'limit', message: 'The assistant is busy today. Try again tomorrow.' });
     try {
       json(res, 200, await assistPolicy(draft, message));
     } catch (e) {

@@ -6,7 +6,7 @@
  * long-lived Node server (dev, self-hosted) or as a serverless function (Vercel).
  */
 import { createServer, type Server } from 'node:http';
-import { createPrivateKey, hkdfSync, randomBytes } from 'node:crypto';
+import { createHash, createPrivateKey, hkdfSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { APPS, publicApp } from './apps.ts';
@@ -23,6 +23,8 @@ import { resourceRoutes } from './routes/resources.ts';
 import { sandboxRoutes } from './routes/sandbox.ts';
 import { portalRoutes } from './routes/portal.ts';
 import { webauthnRoutes } from './routes/webauthn.ts';
+import { limiter } from './limits.ts';
+import { opsRoutes, visitLog } from './ops.ts';
 import type { SqlClient } from './sql.ts';
 import { httpsDirectoryLoader, KNOWN_OPERATORS, type KeyLoader, type OperatorKey } from './web-bot-auth.ts';
 
@@ -84,7 +86,10 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
 
   const engine = new OneHuman({ store, secret, keyLoader });
   engine.policyForApp = (app) => APPS[app]?.policy ?? null;
-  const lab = labRoutes(engine, labOperator);
+  const limits = limiter(store, opts.secret);
+  /** a few demo rooms per visitor is normal; hundreds an hour from one address (a whole class shares one) is a script */
+  const roomAllowed = async (req: Req) => !(await limits.over('room', limits.client(req), 200, 3600e3));
+  const lab = labRoutes(engine, labOperator, { roomAllowed, deviceOf: (req) => visits.deviceOf(req) });
   const account = accountRoutes(engine);
   const admin = adminRoutes(engine);
   const wa = webauthnRoutes(engine);
@@ -93,7 +98,10 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
 
   const CSP = "default-src 'self'; img-src 'self' data: chrome-extension:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; connect-src 'self' chrome-extension:; frame-ancestors 'none'";
   const secure = (req: Req) => serverless || url(req).protocol === 'https:';
-  const portal = portalRoutes(engine, { secure });
+  const portal = portalRoutes(engine, { secure, limits });
+  const visits = visitLog(store, opts.secret, portal.accountOf);
+  // the operators' view (/ops): portal accounts listed in ONEHUMAN_OPS_ACCOUNTS; everyone else sees a 404
+  const ops = opsRoutes(store, { accountOf: portal.accountOf, admins: () => new Set((process.env.ONEHUMAN_OPS_ACCOUNTS ?? '').split(',').map((x) => x.trim()).filter(Boolean)) });
 
   /** Serve an HTML file with the session id and flags embedded. */
   async function page(res: Res, file: string, meta: Record<string, string>, headers: Record<string, string> = {}) {
@@ -113,7 +121,8 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     let room = u.searchParams.get('room');
     const roomOk = room && UUID.test(room) && (await store.roomExists(room)) && (await store.roomApp(room)) === appId;
     if (!roomOk) {
-      room = await store.createRoom(Date.now(), appId);
+      if (!(await roomAllowed(req))) return json(res, 429, { error: 'rate_limited', message: 'Too many new demo rooms from this network. Try again in an hour.' });
+      room = await store.createRoom(Date.now(), appId, visits.deviceOf(req));
       const next = new URL(u.href);
       next.searchParams.set('room', room);
       res.writeHead(302, { Location: next.pathname + next.search, 'Cache-Control': 'no-store' });
@@ -146,13 +155,18 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
   // it answers 404 unless the request carries the key (?key=… once, then a cookie); unset = open, for local work.
   const LAB_KEY = process.env.ONEHUMAN_LAB_KEY ?? '';
   const PUBLIC_DOCS = new Set(['INTEGRATION.md', 'INTEGRATION-AGENT.md']);
+  // the cookie carries a hash of the key, not the key; comparisons are constant-time
+  const digest = (v: string) => createHash('sha256').update(`lab:${v}`).digest();
+  const LAB_DIGEST = digest(LAB_KEY);
+  const sameKey = (v: string | undefined | null) => !!v && timingSafeEqual(digest(v), LAB_DIGEST);
   const labOpen = (req: Req, res: Res): boolean => {
     if (!LAB_KEY) return true;
-    if (url(req).searchParams.get('key') === LAB_KEY) {
-      res.setHeader('Set-Cookie', `oh_lab=${LAB_KEY}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure(req) ? '; Secure' : ''}`);
+    if (sameKey(url(req).searchParams.get('key'))) {
+      res.setHeader('Set-Cookie', `oh_lab=${LAB_DIGEST.toString('base64url')}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure(req) ? '; Secure' : ''}`);
       return true;
     }
-    return cookies(req).oh_lab === LAB_KEY;
+    const c = cookies(req).oh_lab;
+    return !!c && c.length === 43 && timingSafeEqual(Buffer.from(c), Buffer.from(LAB_DIGEST.toString('base64url')));
   };
   const labPage = (file: string) => async (req: Req, res: Res) => {
     if (!labOpen(req, res)) return json(res, 404, { error: 'not_found' });
@@ -167,10 +181,10 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['GET', '/insurance', appPage('insurance')],
     ['GET', '/dashboard', labApi(dashboard)],
     ['GET', '/sandbox', labPage('sandbox.html')],
-    ['POST', '/api/v1/sandbox/samples', sandbox.addSample],
+    ['POST', '/api/v1/sandbox/samples', labApi(sandbox.addSample)],
     ['GET', '/api/v1/sandbox/stats', labApi(sandbox.stats)],
     ['GET', '/api/v1/sandbox/export', labApi(sandbox.exportSamples)],
-    ['POST', '/api/v1/sandbox/assess-run', sandbox.assessRun],
+    ['POST', '/api/v1/sandbox/assess-run', labApi(sandbox.assessRun)],
     // the lab pages load the SDK without a session; its passive pushes land here instead of 404
     ['POST', '/api/v1/sandbox/noop', async (_req, res) => json(res, 200, { ok: true })],
     ['GET', '/training', labPage('training.html')],
@@ -218,6 +232,13 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['POST', '/api/v1/portal/policy/decide', portal.policy.portalDecide],
     ['POST', '/api/v1/portal/policy/assist', portal.policy.portalAssist],
     ['GET', '/api/v1/apps', appsApi],
+    ['GET', '/ops', async (req, res) => ((await ops.isOps(req)) ? page(res, 'ops.html', {}, { 'X-Robots-Tag': 'noindex, nofollow' }) : json(res, 404, { error: 'not_found' }))],
+    ['GET', '/api/v1/ops/overview', ops.overview],
+    ['GET', '/api/v1/ops/devices', ops.devices],
+    ['GET', '/api/v1/ops/demo', ops.demo],
+    ['GET', '/api/v1/ops/session', ops.session],
+    ['GET', '/api/v1/ops/portal', ops.portal],
+    ['GET', '/api/v1/ops/log', ops.log],
     ['GET', '/api/v1/version', async (_req, res) => json(res, 200, { signal: SIGNAL_VERSION, kinematics: KINEMATICS_VERSION, model: model ? { version: model.version, trainedAt: model.trainedAt, humanAbove: model.humanAbove, syntheticBelow: model.syntheticBelow, report: model.report } : null })],
     ['POST', '/api/v1/rooms', lab.createRoom],
     ['GET', '/api/v1/session', lab.me],
@@ -246,9 +267,12 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
   ];
 
   const handler: Handler = async (req, res) => {
+    const startedAt = Date.now();
     try {
       const u = url(req);
       const method = req.method ?? 'GET';
+      // one client hammering one instance; the costly paths also have shared limits in the database
+      if (u.pathname.startsWith('/api/') && limits.burst(req, 900, 60e3)) { json(res, 429, { error: 'rate_limited', message: 'Too many requests. Slow down.' }); return; }
       const route = routes.find(([m, p]) => m === method && p === u.pathname);
       if (route) { await route[2](req, res); return; }
       if (u.pathname === '/api/v1/manage' || u.pathname.startsWith('/api/v1/manage/')) { await portal.manage(req, res); return; }
@@ -262,12 +286,17 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
         if (await serveStatic(res, DOCS, file)) return;
         if (!PUBLIC_DOCS.has(file) && (await serveStatic(res, INTERNAL_DOCS, file))) return;
       }
-      if (method === 'GET' && u.pathname !== '/' && (await serveStatic(res, WEB, u.pathname.slice(1)))) return;
+      // pages are served only through their routes (session ids, CSP, lab key, /ops access); never as raw files
+      const file = u.pathname.slice(1);
+      if (method === 'GET' && u.pathname !== '/' && !file.endsWith('.html') && !/^ops\./.test(file) && (await serveStatic(res, WEB, file))) return;
+      if (method === 'GET' && /^ops\.(js|css)$/.test(file) && (await ops.isOps(req)) && (await serveStatic(res, WEB, file))) return;
       json(res, 404, { error: 'not_found' });
     } catch (err) {
       console.error('request failed', err);
       if (!res.headersSent) json(res, 500, { error: 'internal', message: 'Daxili xəta. Yenidən cəhd et.' });
       else res.end();
+    } finally {
+      await visits.record(req, res, startedAt);
     }
   };
 

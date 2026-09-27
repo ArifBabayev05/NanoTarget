@@ -14,6 +14,7 @@ import type { TelemetryEvent, TelemetryHealth } from '../db.ts';
 import { proofBundle, thumbprint, verifyProof, type ProofJwk } from '../proof.ts';
 import { newsSince } from '../agent-news.ts';
 import { policyRoutes } from './policy-portal.ts';
+import type { limiter } from '../limits.ts';
 import { buildReport } from '../../integrations/report/build.ts';
 import { verifySignatureBundle } from '../../integrations/signatures/common.ts';
 import { renderReportHtml } from '../../integrations/report/html.ts';
@@ -54,7 +55,7 @@ export function newAdminKey(): { raw: string; prefix: string; hash: string } {
 const EXPIRY_DAYS = new Set([0, 7, 30, 90, 365]);
 const ENVS = new Set(['production', 'staging', 'development']);
 
-export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boolean }) {
+export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boolean; limits?: ReturnType<typeof limiter> }) {
   const store = engine.store;
   const setSession = (req: Req, res: Res, id: string | null) =>
     res.setHeader('Set-Cookie', id
@@ -115,8 +116,12 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
   // a small in-memory rate limit per key for ingest (serverless instances each have their own; fine)
   const ingestWindow = new Map<string, { n: number; at: number }>();
 
+  const TOO_MANY = { error: 'rate_limited', message: 'Too many attempts. Wait a few minutes and try again.' };
+  const L = opts.limits;
+
   const signup = async (req: Req, res: Res) => {
     if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
+    if (L && (await L.over('signup', L.client(req), 20, 3600e3))) return json(res, 429, TOO_MANY);
     const b = (await readJson(req, 4000).catch(() => null)) as Record<string, unknown> | null | undefined;
     const email = typeof b?.email === 'string' ? b.email.trim().toLowerCase() : '';
     const password = typeof b?.password === 'string' ? b.password : '';
@@ -133,6 +138,7 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
     const b = (await readJson(req, 4000).catch(() => null)) as Record<string, unknown> | null | undefined;
     const email = typeof b?.email === 'string' ? b.email.trim().toLowerCase() : '';
     const password = typeof b?.password === 'string' ? b.password : '';
+    if (L && ((await L.over('login', L.client(req), 60, 600e3)) || (EMAIL.test(email) && (await L.over('login-email', email, 10, 600e3))))) return json(res, 429, TOO_MANY);
     const acc = EMAIL.test(email) ? await store.accountByEmail(email) : null;
     if (!acc || !verifyPassword(password, acc.pass)) return json(res, 401, { error: 'invalid', message: 'E-mail or password is wrong.' });
     setSession(req, res, await store.createPortalSession(acc.id, SESSION_TTL_MS));
@@ -267,10 +273,12 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
     const b = (await readJson(req, 4000).catch(() => null)) as Record<string, unknown> | null | undefined;
     const current = typeof b?.current === 'string' ? b.current : '';
     const next = typeof b?.next === 'string' ? b.next : '';
+    if (L && (await L.over('password', account, 10, 600e3))) return json(res, 429, TOO_MANY);
     const acc = await store.accountByEmail((await store.accountById(account))?.email ?? '');
     if (!acc || !verifyPassword(current, acc.pass)) return json(res, 401, { error: 'invalid', message: 'Current password is wrong.' });
     if (next.length < 8 || next.length > 200) return json(res, 400, { error: 'bad_password', message: 'Use at least 8 characters.' });
     await store.setAccountPassword(account, hashPassword(next));
+    await store.deleteOtherPortalSessions(account, cookies(req)[COOKIE] ?? '');   // a stolen cookie ends with the old password
     json(res, 200, { ok: true });
   };
 
@@ -312,8 +320,9 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
 
   /** POST /api/v1/proof/verify — stateless check of a bundle (or { proofs, keys }). No account, nothing stored. */
   const verifyBundle = async (req: Req, res: Res) => {
-    const b = (await readJson(req, 2_000_000).catch(() => null)) as Record<string, unknown> | null | undefined;
-    const list = Array.isArray(b?.proofs) ? (b!.proofs as unknown[]).slice(0, 5000) : null;
+    if (L && (await L.over('verify', L.client(req), 30, 600e3))) return json(res, 429, TOO_MANY);
+    const b = (await readJson(req, 1_000_000).catch(() => null)) as Record<string, unknown> | null | undefined;
+    const list = Array.isArray(b?.proofs) ? (b!.proofs as unknown[]).slice(0, 2000) : null;
     const keys = parseProofKeys(b?.keys);
     if (!list || !keys.length) return json(res, 400, { error: 'bad_body', message: 'Send a proof bundle: { keys: [...], proofs: [...] }.' });
     let valid = 0;
@@ -547,7 +556,7 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
     return json(res, 404, { error: 'unknown_endpoint', endpoints: MANAGE_ENDPOINTS });
   };
 
-  return { policy: pol, signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, proofs, verifyBundle, feedback, health, weekly, report, signaturesGet, signaturesPost, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
+  return { policy: pol, accountOf, signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, proofs, verifyBundle, feedback, health, weekly, report, signaturesGet, signaturesPost, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
 }
 
 export const MANAGE_ENDPOINTS = [
