@@ -108,20 +108,6 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
       say(yellow(`  Type a number from 1 to ${choices.length}.`));
     }
   }
-  async function pickMany<T>(question: string, choices: Choice<T>[], defaults: number[]): Promise<T[]> {
-    if (flags.yes) return defaults.map((i) => choices[i]!.value);
-    say(`\n${bold('? ' + question)}`);
-    choices.forEach((ch, i) => say(`  ${cyan(String(i + 1).padStart(2) + ')')} ${defaults.includes(i) ? green('●') : dim('○')} ${ch.label}${ch.hint ? dim('  ' + ch.hint) : ''}`));
-    for (;;) {
-      const a = (await rl!.question(`  Numbers separated by commas, "all" or "none" [${defaults.length === choices.length ? 'all' : defaults.map((i) => i + 1).join(',') || 'none'}]: `)).trim().toLowerCase();
-      if (!a) return defaults.map((i) => choices[i]!.value);
-      if (a === 'all') return choices.map((x) => x.value);
-      if (a === 'none') return [];
-      const nums = a.split(/[\s,]+/).map(Number);
-      if (nums.every((n) => Number.isInteger(n) && n >= 1 && n <= choices.length)) return [...new Set(nums)].map((n) => choices[n - 1]!.value);
-      say(yellow('  For example: 1,3,4'));
-    }
-  }
   async function text(question: string, def = ''): Promise<string> {
     if (flags.yes) return def;
     return (await rl!.question(`\n${bold('? ' + question)} ${def ? dim(`[${def}] `) : ''}`)).trim() || def;
@@ -146,12 +132,8 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   say(dim(`\nFound ${known ?? 'a Node app'} with ${r.routes.length} routes. ${risky ? `${risky} of them return or change data an AI agent should not get freely.` : 'None of them look sensitive.'}`));
 
   // ---------------------------------------------------------------- 1. the server
-  const framework = ['express', 'fastify', 'next'].includes(detected) ? detected : await choose('Which server does this app use?', [
-    { label: 'Express (or Connect / plain Node http)', value: 'express', hint: 'OneHuman wires the code itself' },
-    { label: 'Fastify', value: 'fastify', hint: 'rules and settings written; you add 3 lines' },
-    { label: 'Next.js', value: 'next', hint: 'rules and settings written; you add a custom server' },
-    { label: 'Something else', value: 'other', hint: 'rules and settings written, plus a prompt for your coding agent' },
-  ], ['express', 'fastify', 'next'].indexOf(detected) >= 0 ? ['express', 'fastify', 'next'].indexOf(detected) : 0);
+  // not asked: an unknown server gets the rules and settings, plus the lines to add (see the plan)
+  const framework = ['express', 'fastify', 'next'].includes(detected) ? detected : 'other';
 
   // ---------------------------------------------------------------- 2. what to protect, and how
   const candidates = r.routes.filter((x) => x.sensitivity >= 25 && !x.signals.includes('excluded-pattern')).sort((a, b) => b.sensitivity - a.sensitivity).slice(0, 40);

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.4
+- **The setup is always the newest one.** `npx onehumanai init` in a project that already has an older onehumanai installed ran that old copy (with its old questions). It now checks npm first and, when there is a newer version, runs that instead.
+- **No technical questions left.** An unrecognised server no longer asks which framework it is: the rules and settings are written and the plan says which lines to add. The questions are only: is the proposed protection right, watch first or protect now, and the portal API key.
+
 ## 0.6.3
 - **`npx onehumanai init` asks three plain questions**: is the proposed protection right (yes, or change it item by item), watch first or protect now, and your portal API key (Enter skips it). The server type, the signed-in user, the page script and `OneHuman.fetch` are worked out from the code and listed in the plan instead of asked. A list and its detail page are one item; the plan counts protected routes per file instead of printing code.
 - **`npx onehumanai` on its own** starts the setup.

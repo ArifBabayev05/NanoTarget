@@ -66,6 +66,7 @@ await build({
   entryPoints: ['integrations/cli/index.ts'],
   outfile: `${PKG}/dist/cli.js`,
   external: ['@libsql/client', '@libsql/client/*', 'express', 'node:*'],
+  define: { __ONEHUMAN_VERSION__: JSON.stringify(version) },
   banner: { js: '#!/usr/bin/env node' },
 });
 // Belt and braces: no engine module may appear in the open bundles.
