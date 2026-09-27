@@ -13,6 +13,8 @@ import { sqliteClient, type Row, type SqlArg, type SqlClient } from './sql.ts';
 
 /** demo rooms (and their sessions, events, decisions) are kept this long: long enough to read a test campaign's results */
 export const ROOM_TTL_MS = 60 * 86400000;
+/** a pause this long ends a visit: the next request starts a new one (see touchSession) */
+export const VISIT_IDLE_MS = 30 * 60000;
 export const MAX_SESSIONS_PER_ROOM = 400;
 export const MAX_EVENTS_PER_ROOM = 2000;
 
@@ -498,8 +500,16 @@ export class Store {
     return (await this.sql.execute('SELECT * FROM sessions WHERE room = ? ORDER BY created ASC', [room])).rows.map((r) => this.rowToSession(r));
   }
 
+  /**
+   * A request in this session. After a pause longer than VISIT_IDLE_MS a new visit starts clean: an agent that was
+   * attached in an earlier visit no longer marks this one (a session tied to a login would otherwise stay "agent"
+   * for good). An agent that is still attached is seen again at once from the page's next signal.
+   */
   async touchSession(id: string, now = Date.now()) {
-    await this.sql.execute('UPDATE sessions SET last_seen = ? WHERE id = ?', [now, id]);
+    await this.sql.execute(`UPDATE sessions SET
+        agent_attached_at = CASE WHEN ? - last_seen > ? THEN NULL ELSE agent_attached_at END,
+        agent_attached_client_ms = CASE WHEN ? - last_seen > ? THEN NULL ELSE agent_attached_client_ms END,
+        last_seen = ? WHERE id = ?`, [now, VISIT_IDLE_MS, now, VISIT_IDLE_MS, now, id]);
   }
 
   async markFirstData(id: string, now: number) {

@@ -12,7 +12,7 @@ export { OneHuman, publicDecision, type DecideResult } from './engine.ts';
 export { attachModel } from './kinematics.ts';
 export { loadModel, predict } from './kinematics-model.ts';
 export { cookies, json, url } from './http.ts';
-export { parsePolicy, type Policy } from './policy.ts';
+export { checkPolicy, parsePolicy, type Policy } from './policy.ts';
 export { labRoutes } from './routes/lab.ts';
 export { webauthnRoutes } from './routes/webauthn.ts';
 export { libsqlClient, sqliteClient, type SqlClient } from './sql.ts';

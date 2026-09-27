@@ -1,7 +1,19 @@
 # Changelog
 
 ## 0.6.1
-- `npx onehumanai init` installs with the project's own package manager — pnpm, yarn or bun — found from `packageManager`, `node_modules/.pnpm` or a lockfile here or in a parent workspace. npm cannot install into a `node_modules` that pnpm made ("Cannot read properties of null (reading 'matches')"); in a pnpm project run `pnpm add onehumanai`.
+Found by installing it into a new app as a customer would, then attacking it.
+
+- **`init` finds routers with their own name** (`const payroll = Router()`) in their own file, and their mount prefix (`app.use('/api/hr', payroll)`). Before, the most sensitive routes of such an app were missed.
+- **`init` writes a policy the engine accepts**: routes that share a resource (a list and its detail) become one rule. A bad policy now names the problem (`rule 2: resource "x" appears twice`), instead of "invalid".
+- **`init` never proposes protecting login/logout**, suggests a login id rather than the user object (`req.session.user.email`), finds the port from `process.env.PORT ?? 3100`, points `verify` at a GET route, and offers to send the page's own `fetch()` calls through `OneHuman.fetch` (without it a person's click never counts, and in protect mode real people meet a passkey request).
+- **Money that leaves, or where it goes** (payroll, payouts, transfers, bank details): `init` suggests "everyone confirms with a passkey". A program can fake a person's clicks; it cannot press their passkey.
+- **If OneHuman cannot start** (a bad policy, an unreachable database) the app keeps working: requests go on without a decision (`X-OH-Decision: failed-open:ENGINE_START_FAILED`) and the reason is logged. `failOpen: false` answers 503 instead.
+- **The page learns the outcome, not the reasons.** Blocked/confirm answers, `_onehuman` and the SDK's connection state no longer carry reason codes, scores or evidence (they would teach an agent what to hide). `explain: true` / `ONEHUMAN_EXPLAIN=1` shows them while developing; they are always in the audit log and the portal.
+- **An agent from an earlier visit no longer marks the next one.** With `identify()` a session belongs to a login; after 30 minutes without requests a new visit starts clean.
+- **A recorded click replayed from another session** is not counted as a person clicking.
+- **`identify()` returning an object** (the user instead of its id) is ignored with a warning, instead of merging every user into one session.
+- **`verify --cookie "session=…"`** checks an app behind a login; the attached-agent step runs only with `--attach` (it would mark that user as an agent for the visit).
+- `npx onehumanai init` installs with the project's own package manager (pnpm, yarn, bun); npm cannot install into a `node_modules` that pnpm made.
 
 ## 0.6.0 — OneHuman
 - **One package: `onehumanai`.** `npm i onehumanai` installs everything — the Express/Connect middleware, the browser SDK (`/onehuman/sdk.js`, or `import 'onehumanai/sdk'`), the command line (`npx onehumanai init`, `inspect`, `report`, `verify`, `verify-proof`) and the engine they run on (`dist/engine.js`, BUSL-1.1). `import { onehuman } from 'onehumanai'`. Markup `data-oh-*`, headers `X-OH-*`, cookie `oh_sid`, keys `oh_live_…` / `oh_admin_…`, `req.onehuman`, `_onehuman`, event `onehuman:sealed`; environment `ONEHUMAN_SECRET`, `ONEHUMAN_API_KEY`, `ONEHUMAN_TELEMETRY_URL`, `ONEHUMAN_PORTAL_URL`, `ONEHUMAN_DB`. Portal https://onehuman.ai; source https://github.com/onehumanai/onehuman.

@@ -64,24 +64,31 @@ export const DEFAULT_POLICY: Policy = {
 const MODES: Mode[] = ['allow', 'mask', 'step_up', 'block'];
 const TIERS: Tier[] = ['verified', 'strong', 'control', 'behavioral', 'artifact'];
 
-/** Validate an untrusted policy document from the dashboard. Returns null when invalid. */
+/** Validate an untrusted policy document. Returns null when invalid; checkPolicy says why. */
 export function parsePolicy(input: unknown, version: string): Policy | null {
-  if (!input || typeof input !== 'object') return null;
+  const c = checkPolicy(input, version);
+  return 'policy' in c ? c.policy : null;
+}
+
+/** Validate a policy document and name the first problem, for error messages a person can act on. */
+export function checkPolicy(input: unknown, version: string): { policy: Policy } | { error: string } {
+  if (!input || typeof input !== 'object') return { error: 'the policy is not a JSON object' };
   const o = input as Record<string, unknown>;
-  if (o.enforcement !== 'observe' && o.enforcement !== 'enforce') return null;
-  if (!Array.isArray(o.rules) || o.rules.length === 0 || o.rules.length > 50) return null;
+  if (o.enforcement !== 'observe' && o.enforcement !== 'enforce') return { error: 'enforcement must be "observe" or "enforce"' };
+  if (!Array.isArray(o.rules) || o.rules.length === 0 || o.rules.length > 50) return { error: 'rules must be a list of 1 to 50 rules' };
   const rules: Rule[] = [];
-  for (const r of o.rules) {
-    if (!r || typeof r !== 'object') return null;
+  for (const [i, r] of o.rules.entries()) {
+    const at = `rule ${i + 1}`;
+    if (!r || typeof r !== 'object') return { error: `${at} is not an object` };
     const x = r as Record<string, unknown>;
-    if (typeof x.resource !== 'string' || !/^[a-z][a-z0-9_.]{1,60}$/.test(x.resource)) return null;
-    if (rules.some((k) => k.resource === x.resource)) return null;
-    if (typeof x.title !== 'string' || x.title.length > 80) return null;
-    for (const key of ['onAgent', 'onUnknown', 'onHumanLike'] as const) if (!MODES.includes(x[key] as Mode)) return null;
+    if (typeof x.resource !== 'string' || !/^[a-z][a-z0-9_.]{1,60}$/.test(x.resource)) return { error: `${at}: resource must be lower-case letters, digits, "_" and "." (got ${JSON.stringify(x.resource)})` };
+    if (rules.some((k) => k.resource === x.resource)) return { error: `${at}: resource "${x.resource}" appears twice; one rule per resource (routes may share it)` };
+    if (typeof x.title !== 'string' || x.title.length > 80) return { error: `${at} (${x.resource}): title must be text of at most 80 characters` };
+    for (const key of ['onAgent', 'onUnknown', 'onHumanLike'] as const) if (!MODES.includes(x[key] as Mode)) return { error: `${at} (${x.resource}): ${key} must be one of ${MODES.join(', ')}` };
     const onArtifact = x.onArtifact === undefined ? 'allow' : x.onArtifact;
-    if (!MODES.includes(onArtifact as Mode)) return null;
-    if (!Array.isArray(x.actOn) || !x.actOn.every((t) => TIERS.includes(t as Tier))) return null;
-    if (typeof x.minScore !== 'number' || x.minScore < 0 || x.minScore > 100) return null;
+    if (!MODES.includes(onArtifact as Mode)) return { error: `${at} (${x.resource}): onArtifact must be one of ${MODES.join(', ')}` };
+    if (!Array.isArray(x.actOn) || !x.actOn.every((t) => TIERS.includes(t as Tier))) return { error: `${at} (${x.resource}): actOn must list tiers from ${TIERS.join(', ')}` };
+    if (typeof x.minScore !== 'number' || x.minScore < 0 || x.minScore > 100) return { error: `${at} (${x.resource}): minScore must be a number from 0 to 100` };
     rules.push({
       resource: x.resource,
       title: x.title,
@@ -93,7 +100,7 @@ export function parsePolicy(input: unknown, version: string): Policy | null {
       minScore: x.minScore,
     });
   }
-  return { version, enforcement: o.enforcement, rules };
+  return { policy: { version, enforcement: o.enforcement, rules } };
 }
 
 /**

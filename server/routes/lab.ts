@@ -16,8 +16,12 @@ import { bus } from '../bus.ts';
 
 export type LabOperator = { operator: string; privateKey: CryptoKey; publicJwk: OperatorKey } | null;
 
-export function labRoutes(engine: OneHuman, labOperator: LabOperator, opts: { roomAllowed?: (req: Req) => Promise<boolean>; deviceOf?: (req: Req) => string } = {}) {
+export function labRoutes(engine: OneHuman, labOperator: LabOperator, opts: { roomAllowed?: (req: Req) => Promise<boolean>; deviceOf?: (req: Req) => string; explain?: boolean } = {}) {
   const store = engine.store;
+  // The lab shows why (it is a lab). On a customer's site the page — and so the agent in it — learns only the outcome:
+  // the evidence behind it would teach an agent what to hide.
+  const explain = opts.explain ?? true;
+  const view = <T extends { state: string }>(c: T) => (explain ? c : { state: c.state });
 
   const createRoom = async (req: Req, res: Res) => {
     if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
@@ -32,7 +36,7 @@ export function labRoutes(engine: OneHuman, labOperator: LabOperator, opts: { ro
     if (!r) return json(res, 401, { error: 'no_session' });
     const policy = await engine.policyFor(r.room);
     const app = (await store.roomApp(r.room)) ?? 'bank';
-    json(res, 200, { room: r.room, app, session: r.session.id, label: r.session.label, scenario: r.session.scenario, arrival: r.session.arrival, connection: await engine.connectionFor(r.session), policy, labOperator: labOperator?.operator ?? null });
+    json(res, 200, { room: r.room, app, session: r.session.id, label: r.session.label, scenario: r.session.scenario, arrival: explain ? r.session.arrival : null, connection: view(await engine.connectionFor(r.session)), policy: explain ? policy : null, labOperator: labOperator?.operator ?? null });
   };
 
   /** The one question: is an agent attached to this session right now? No action required. */
@@ -41,7 +45,7 @@ export function labRoutes(engine: OneHuman, labOperator: LabOperator, opts: { ro
     if (!r) return json(res, 401, { error: 'no_session' });
     const c = await engine.connectionFor(r.session);
     const s = (await store.getSession(r.session.id))!;
-    json(res, 200, { session: s.id, connection: c, attachedAt: s.agentAttachedAt, attachedClientMs: s.agentAttachedClientMs, sinceStartMs: s.agentAttachedAt ? s.agentAttachedAt - s.created : null });
+    json(res, 200, { session: s.id, connection: view(c), attachedAt: s.agentAttachedAt, attachedClientMs: s.agentAttachedClientMs, sinceStartMs: s.agentAttachedAt ? s.agentAttachedAt - s.created : null });
   };
 
   const signals = async (req: Req, res: Res) => {
@@ -52,7 +56,7 @@ export function labRoutes(engine: OneHuman, labOperator: LabOperator, opts: { ro
     const snapshot = body === undefined ? null : parseSnapshot(body);
     if (!snapshot) return json(res, 400, { error: 'bad_snapshot', message: 'Siqnal formatı düzgün deyil.' });
     const { assessment, connection } = await engine.ingest(r.room, r.session, snapshot);
-    json(res, 200, { assessment, connection });
+    json(res, 200, explain ? { assessment, connection } : { assessment: { actor: assessment.actor }, connection: view(connection) });
   };
 
   const journal = async (req: Req, res: Res) => {

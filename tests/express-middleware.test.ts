@@ -17,7 +17,7 @@ const policy = {
 const early = { startedMs: 0, observedMs: 500, webdriver: false, firstInteractionMs: null, dataDomMs: null, markers: [] as { name: string; atMs: number }[], environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: [], focusWhileHiddenMs: null }, focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0, reading: { ...EMPTY_READING } };
 
 const secret = 'test-secret-test-secret-test-secret-1234';
-const oh = await onehuman({ secret, policy: policy as never, db: 'memory', identify: (req) => (req.headers['x-user'] as string | undefined) || null });
+const oh = await onehuman({ secret, policy: policy as never, db: 'memory', explain: true, identify: (req) => (req.headers['x-user'] as string | undefined) || null });
 const app = express();
 app.use(express.json());
 app.use(oh.middleware());
@@ -87,6 +87,26 @@ test('step_up answers 428 with a challenge; respond:false hands the decision to 
 });
 
 test('policy from a file is validated; a broken file is rejected at start-up', async () => {
-  await assert.rejects(onehuman({ secret, policy: { version: 'x', enforcement: 'enforce', rules: [{ resource: 'a' }] } as never, db: 'memory' }), /policy file is invalid/);
+  await assert.rejects(onehuman({ secret, policy: { version: 'x', enforcement: 'enforce', rules: [{ resource: 'a' }] } as never, db: 'memory' }), /the policy is invalid: rule 1: resource must be/);
   await assert.rejects(onehuman({ secret: 'short', policy: policy as never, db: 'memory' }), /at least 32 bytes/);
+});
+
+test('by default the page learns the outcome, not the reasons (they would teach an agent what to hide)', async () => {
+  const quiet = await onehuman({ secret, policy: policy as never, db: 'memory', identify: (req) => (req.headers['x-user'] as string | undefined) || null });
+  const app2 = express();
+  app2.use(express.json());
+  app2.use(quiet.middleware());
+  app2.get('/api/balance', quiet.protect('balance.read'), (req, res) => quiet.send(req, res, { amount: 5 }, (b) => ({ ...b, amount: null })));
+  const server2 = app2.listen(0);
+  const base2 = `http://127.0.0.1:${(server2.address() as AddressInfo).port}`;
+  const early = { startedMs: 0, observedMs: 500, webdriver: false, firstInteractionMs: null, dataDomMs: null, markers: [{ name: 'claude-stop', atMs: 100 }], environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: [], focusWhileHiddenMs: null }, focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0 };
+  const sig = await fetch(`${base2}/onehuman/signals`, { method: 'POST', headers: { 'content-type': 'application/json', origin: base2, 'x-user': 'quiet-1' }, body: JSON.stringify({ early, interaction: null }) });
+  const s = await sig.json();
+  assert.deepEqual(Object.keys(s.connection), ['state'], 'the page sees the state, not the evidence');
+  assert.deepEqual(Object.keys(s.assessment), ['actor']);
+  const r = await fetch(`${base2}/api/balance`, { headers: { 'x-user': 'quiet-1' } });
+  const body = await r.json();
+  assert.equal(JSON.stringify(body).includes('reasonCodes'), false);
+  assert.equal(JSON.stringify(body).includes('score'), false);
+  server2.close(); await quiet.close();
 });

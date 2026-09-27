@@ -214,7 +214,7 @@ label{display:grid;gap:6px;font-size:13px;color:var(--fg2)}
   .auth{grid-template-columns:1fr;padding:32px 16px;gap:20px}
   .usage,.quick,.hero-stat,.grid2{grid-template-columns:1fr}
   .panel{overflow-x:auto}.tbl{min-width:720px}
-  .log .e{grid-template-columns:88px minmax(0,1fr) 70px}.log .s,.log .reasons,.log .st{display:none}
+
   .bar{grid-template-columns:96px 1fr 40px}
 }
 
@@ -284,7 +284,7 @@ select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .grade button.on.bad{background:rgba(255,123,123,.14);color:var(--danger);border-color:rgba(255,123,123,.4)}
 .log .e.wrong .chip{opacity:.6}
 .hero-side .hint{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;border:1px solid var(--line2);font-size:10px;font-style:normal;color:var(--fg3);margin-left:5px;cursor:help;vertical-align:1px}
-@media (max-width:820px){.log .e{grid-template-columns:88px minmax(0,1fr) 70px 58px}}
+@media (max-width:820px){.log .e{grid-template-columns:70px minmax(0,1fr) auto auto 44px}.log .s,.log .reasons{display:none}.log .st .chip+.chip{display:none}}
 
 /* people strip — "how many people did we stop" is the first question a bank asks */
 .people{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,2fr);gap:16px;margin-bottom:16px;border:1px solid var(--accent-line);border-radius:16px;padding:18px 20px;background:var(--bg2)}
@@ -377,3 +377,10 @@ select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .ask-list{margin:0 0 12px;padding-left:18px;font-size:13px;line-height:1.55;color:var(--danger)}
 @media (max-width:820px){.wk-kpis{grid-template-columns:1fr 1fr}.pol-row{grid-template-columns:1fr}.pol-un{grid-template-columns:1fr}.pol-hist{grid-template-columns:1fr}.assist-box{flex-direction:column}.assist-box .btn{width:100%}}
 @media print{body.print-weekly .top,body.print-weekly .side,body.print-weekly .page-head .head-tools,body.print-weekly .toast{display:none!important}body.print-weekly .shell{display:block}body.print-weekly .main{padding:0}body.print-weekly .view:not(#view-weekly){display:none!important}}
+@media (hover:none){.grade{opacity:1}}
+/* phones: two lines per decision: when and what · the decision, who acted, and the grade */
+@media (max-width:560px){
+  .log .e{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"t r r" "c st g";row-gap:6px}
+  .log .e>.t{grid-area:t}.log .e>.r{grid-area:r}.log .e>.chip{grid-area:c;justify-self:start}.log .e>.st{grid-area:st;display:block}.log .e>.grade{grid-area:g}
+  .log .s,.log .reasons{display:none}
+}

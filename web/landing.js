@@ -81,7 +81,7 @@
     }
     if (io) io.observe(cv); else requestAnimationFrame(frame);
   })();
-  // "Decide what they can see." — the verb cycles through what the policy actually governs
+  // "Decide what they can see.": the verb cycles through what the policy actually governs
   (function rotator() {
     const rot = $('#rot'); if (!rot) return;
     const words = $$('span', rot); let i = 0;
@@ -156,7 +156,7 @@
 
   // ---------------------------------------------------------------- product story: scroll-driven tutorial
   // Four steps on the left; the framed session on the right plays the matching state. Scrolling is
-  // the timeline — nothing auto-advances — so the reader controls the pace and can go back.
+  // the timeline (nothing auto-advances), so the reader controls the pace and can go back.
   const S = {
     steps: $$('#story-steps .ss'), guard: $('#f-guard'), amount: $('#f-amount'), btn: $('#f-btn'), notice: $('#f-notice'),
     agent: $('#f-agent'), ai: $('#f-ai'), passkey: $('#f-passkey'), pointer: $('#f-pointer'), log: $('#f-log'),
@@ -199,7 +199,7 @@
     };
     ptrAnim = requestAnimationFrame(frame);
   }
-  /** put the cursor down somewhere without a journey — the start of a move, not a move */
+  /** put the cursor down somewhere without a journey: the start of a move, not a move */
   function placePointer(x, y) { cancelAnimationFrame(ptrAnim); S.pointer.classList.remove('agent'); setPtr(x, y); S.pointer.classList.add('show'); }
   // The caption beside the frame: what just happened, in words, with the one measurement that decided it.
   function hideNotes() { S.note.classList.remove('show'); }
@@ -268,13 +268,13 @@
       seal(false); S.amount.textContent = '$4,939.10'; S.notice.className = 'f-notice'; S.btn.textContent = 'Show balance';
       const c = targetOf(S.btn), a = { x: c.x - 240, y: c.y + 110 }, e = edgeOf(S.btn, a); placePointer(a.x, a.y); await wait(260); movePointer(e.tip.x, e.tip.y); await wait(1000);
       pressPointer(); S.btn.classList.add('pressed'); await wait(140); S.btn.classList.remove('pressed'); notice('Verified: human click', 'ok');
-      note('The click came from a hand', 'Before answering, the server looks at how the pointer moved. This path curved, trembled and slowed onto the button — so the real balance comes back.', 'ok', 'curved path · slows onto the button · 118 ms press');
+      note('The click came from a hand', 'Before answering, the server looks at how the pointer moved. This path curved, trembled and slowed onto the button, so the real balance comes back.', 'ok', 'curved path · slows onto the button · 118 ms press');
     } else if (i === 1) {
       S.pointer.classList.remove('show'); S.passkey.classList.remove('in'); seal(false); S.amount.textContent = '$4,939.10'; S.notice.className = 'f-notice';
       await wait(300); placeAgent(); S.agent.classList.add('in'); S.ai.classList.add('typing'); S.ai.textContent = '';
       await typePrompt('What’s my balance?');
       await wait(400); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'Agent attached · sealed'; seal(true);
-      note('An assistant joined the tab', 'Its browser tool leaves traces the page can see. Within 0.3 s every number already on screen is blurred — before the assistant reads it.', 'warn', 'seal · 0.3 s after attach');
+      note('An assistant joined the tab', 'Its browser tool leaves traces the page can see. Within 0.3 s every number already on screen is blurred, before the assistant can read it.', 'warn', 'seal · 0.3 s after attach');
       await wait(400); await aiSay('I can see the account, but the balance field shows •••• .', 600);
     } else if (i === 2) {
       placeAgent(); S.agent.classList.add('in'); S.guard.className = 'f-guard agent'; S.guard.lastElementChild.textContent = 'Agent attached · sealed'; S.passkey.classList.remove('in');
@@ -282,11 +282,11 @@
       await typePrompt('Download my statement.');
       const e = edgeOf(S.btn, a, 6); movePointer(e.tip.x, e.tip.y, true); await wait(400); pressPointer(); S.btn.classList.add('pressed'); await wait(60); S.btn.classList.remove('pressed');
       await wait(300); S.amount.textContent = '$•,•••.••'; S.amount.classList.remove('sealed'); flash(S.amount, 'flash-mask'); notice('Masked for AI agents · balance.read → mask', 'warn');
-      note('The assistant clicks — the server answers differently', 'No pointer path and an instant press: a program. Your policy says balance → mask, so the same endpoint returns the number hidden.', 'warn', 'no path · jumped to the centre · 2 ms press');
+      note('The assistant clicks, and the server answers differently', 'No pointer path and an instant press: a program. Your policy says balance → mask, so the same endpoint returns the number hidden.', 'warn', 'no path · jumped to the centre · 2 ms press');
       await wait(1400); await aiSay('Trying “Download statement”…', 500); const e2 = edgeOf(S.btn.nextElementSibling, a, 6); movePointer(e2.tip.x, e2.tip.y, true); await wait(500); pressPointer(); await wait(150);
       S.guard.className = 'f-guard block'; S.guard.lastElementChild.textContent = 'Export blocked'; flash(S.btn.nextElementSibling, 'flash-block'); notice('report.export → block · 403', 'bad');
       note('Downloading everything is refused', 'A statement export hands over the whole account in one click. For agents the policy says block; a person can still do it after a passkey.', 'bad', 'report.export → block');
-      await wait(500); await aiSay('The download is blocked for assistants — you’ll need to confirm it yourself.', 600);
+      await wait(500); await aiSay('The download is blocked for assistants. You’ll need to confirm it yourself.', 600);
     } else {
       S.pointer.classList.remove('show'); S.agent.classList.remove('in'); S.passkey.classList.add('in'); await wait(1800); S.passkey.classList.remove('in');
       S.guard.className = 'f-guard'; S.guard.lastElementChild.textContent = 'You’re back · 5:00';
@@ -311,9 +311,9 @@
   (function morph() {
     const cv = $('#morph'); if (!cv || reduced) return;
     const gl = cv.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: true, powerPreference: 'low-power' }); if (!gl) return;
-    const N = 2744; // 14³ — the lattice; the fingerprint uses the same count so every point has a home in both shapes
+    const N = 2744; // 14³, the lattice; the fingerprint uses the same count so every point has a home in both shapes
     const A = new Float32Array(N * 3), B = new Float32Array(N * 3);
-    // A: a fingerprint in 3D — nine oval ridges, staggered breaks, a gentle dome in z
+    // A: a fingerprint in 3D: nine oval ridges, staggered breaks, a gentle dome in z
     let i = 0;
     const perRing = Math.floor(N / 9);
     for (let k = 0; k < 9; k++) {
@@ -326,7 +326,7 @@
       }
     }
     for (; i < N; i++) { A[i * 3] = 0; A[i * 3 + 1] = 0; A[i * 3 + 2] = 0.26; }
-    // B: a cubic lattice — the shape of a program
+    // B: a cubic lattice, the shape of a program
     i = 0; for (let x = 0; x < 14; x++) for (let y = 0; y < 14; y++) for (let z = 0; z < 14; z++) { B[i * 3] = (x / 13 - .5) * 1.2; B[i * 3 + 1] = (y / 13 - .5) * 1.2; B[i * 3 + 2] = (z / 13 - .5) * 1.2; i++; }
     const VS = `attribute vec3 a;attribute vec3 b;uniform float m;uniform float t;uniform vec2 R;uniform float dpr;varying float vz;varying float vm;
       void main(){float mm=smoothstep(0.,1.,m);vec3 p=mix(a,b,mm);
@@ -387,7 +387,7 @@
       const { room } = await r.json();
       const url = `${location.origin}/${app.id}?room=${room}&as=agent`;
       const steps = (app.promptSteps || []).map((st, i) => `${i + 2}. ${st}`).join('\n');
-      await copy(`Open this page with your browser tool: ${url}\n\nThis is a test application called ${app.name}; all data is synthetic. Use only the visible interface — do not call APIs directly.\n\n1. After the page loads, wait 5 seconds.\n${steps}\n\nAt the end, write briefly what you saw at each step (data shown / hidden / blocked / confirmation requested).`, 'Prompt copied — paste it to your agent');
+      await copy(`Open this page with your browser tool: ${url}\n\nThis is a test application called ${app.name}; all data is synthetic. Use only the visible interface. Do not call APIs directly.\n\n1. After the page loads, wait 5 seconds.\n${steps}\n\nAt the end, write briefly what you saw at each step (data shown / hidden / blocked / confirmation requested).`, 'Prompt copied. Paste it to your agent.');
     } catch { toast('Could not copy'); } finally { b.disabled = false; }
   });
 

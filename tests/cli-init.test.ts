@@ -74,3 +74,50 @@ test('init installs with the project\'s own package manager (npm breaks inside a
   assert.deepEqual(packageManager(join(ws, 'apps', 'api'), {}), ['pnpm', 'add'], 'a workspace lockfile above the app counts');
   assert.deepEqual(packageManager(at(['package-lock.json']), {}), ['npm', 'install']);
 });
+
+test('a router in its own file with its own name is found; login is never proposed; the policy it writes starts', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'oh-init-router-'));
+  mkdirSync(join(dir, 'routes')); mkdirSync(join(dir, 'public'));
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'payroll', type: 'module', dependencies: { express: '^5' } }));
+  writeFileSync(join(dir, 'server.js'), [
+    "import express from 'express';",
+    "import { payroll } from './routes/payroll.js';",
+    'const app = express();',
+    "app.post('/api/login', (req, res) => res.json({ ok: true, password: req.body?.password && 1 }));",
+    "app.use('/api/hr', payroll);",
+    'const port = Number(process.env.PORT ?? 3100);',
+    'app.listen(port);',
+  ].join('\n'));
+  writeFileSync(join(dir, 'routes', 'payroll.js'), [
+    "import { Router } from 'express';",
+    'export const payroll = Router();',
+    "payroll.get('/employees', (req, res) => res.json({ salary: 1, iban: 'AZ', by: req.session.user.email }));",
+    "payroll.get('/employees/:id', (req, res) => res.json({ salary: 1, iban: 'AZ' }));",
+    "payroll.post('/payroll/run', (req, res) => res.json({ ok: true }));",
+  ].join('\n'));
+  writeFileSync(join(dir, 'public', 'index.html'), '<html><head><title>x</title><script src="/app.js"></script></head><body></body></html>');
+  writeFileSync(join(dir, 'public', 'app.js'), "const r = await fetch('/api/hr/employees');\nconst j = await window.fetch('/x');\n");
+  const r = run(dir);
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  const routes = readFileSync(join(dir, 'routes', 'payroll.js'), 'utf8');
+  assert.match(routes, /payroll\.get\('\/employees', onehuman\.protect\('hr\.employees\.read'/, 'found under its mount prefix');
+  assert.match(routes, /payroll\.post\('\/payroll\/run', onehuman\.protect\(/);
+  assert.doesNotMatch(readFileSync(join(dir, 'server.js'), 'utf8'), /'\/api\/login', onehuman/, 'login is never protected');
+  const policy = JSON.parse(readFileSync(join(dir, 'onehuman.policy.json'), 'utf8'));
+  const ids = policy.rules.map((x: { resource: string }) => x.resource);
+  assert.equal(new Set(ids).size, ids.length, 'one rule per resource, although two routes share hr.employees.read');
+  const { checkPolicy } = await import('../server/policy.ts');
+  assert.ok('policy' in checkPolicy(policy, 'v'), 'the engine accepts what init wrote');
+  assert.match(readFileSync(join(dir, 'onehuman.js'), 'utf8'), /identify: \(req\) => req\.session\?\.user\?\.email \?\? null/, 'a login id, not the user object');
+  const page = readFileSync(join(dir, 'public', 'app.js'), 'utf8');
+  assert.match(page, /await \(window\.OneHuman\?\.fetch \?\? fetch\)\('\/api\/hr\/employees'\)/, 'the page sends its requests through OneHuman.fetch');
+  assert.match(page, /window\.fetch\('\/x'\)/, 'a member call is left alone');
+  assert.match(r.stdout, /verify http:\/\/localhost:3100 \/api\/hr\/employees/, 'the check uses the real port and a GET route');
+});
+
+test('a policy with a problem names it', async () => {
+  const { checkPolicy } = await import('../server/policy.ts');
+  const rule = { resource: 'a.read', title: 'A', onAgent: 'mask', onArtifact: 'mask', onUnknown: 'allow', onHumanLike: 'allow', actOn: ['strong'], minScore: 65 };
+  const c = checkPolicy({ enforcement: 'enforce', rules: [rule, rule] }, 'v');
+  assert.ok('error' in c && /"a\.read" appears twice/.test(c.error));
+});
