@@ -462,7 +462,7 @@
     }
     const k = keys.find((x) => x.id === setupKeyId);
     const shown = freshKey && freshKey.id === setupKeyId ? freshKey.raw : `${k ? k.prefix : 'oh_live_'}…`;
-    $('#cmd-env').textContent = `ONEHUMAN_API_KEY=${shown}\nNT_SECRET=$(npx onehuman secret)`;
+    $('#cmd-env').textContent = `ONEHUMAN_API_KEY=${shown}\nONEHUMAN_SECRET=$(npx onehuman secret)`;
     $('#cmd-code').innerHTML = (FRAMEWORKS[fw] || FRAMEWORKS.express)(shown);
     $('#int-prompt').textContent = agentPrompt(freshKey && freshKey.id === setupKeyId ? freshKey.raw : (k ? `${k.prefix}…` : ''), null);
     $$('#fw-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.fw === fw));
