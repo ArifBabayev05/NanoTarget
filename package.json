@@ -1,5 +1,5 @@
 {
-  "name": "onehuman-monorepo",
+  "name": "onehumanai-monorepo",
   "version": "0.1.0",
   "private": true,
   "description": "OneHuman — session-level control over AI browser agents: engine, SDK, Express integration, demos and research tooling",
@@ -38,6 +38,6 @@
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/onehumanai/onehuman.git"
+    "url": "git+https://github.com/OneHumanAI/onehumanai.git"
   }
 }

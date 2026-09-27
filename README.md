@@ -8,7 +8,7 @@
 </p>
 <p align="center">
   <a href="https://www.npmjs.com/package/onehumanai"><img alt="npm" src="https://img.shields.io/npm/v/onehumanai?color=3ddc84&label=npm"></a>
-  <a href="https://github.com/onehumanai/onehuman/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/onehumanai/onehuman/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/OneHumanAI/onehumanai/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/OneHumanAI/onehumanai/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="Apache-2.0 SDK, BUSL-1.1 engine" src="https://img.shields.io/badge/license-Apache--2.0%20SDK%20%C2%B7%20BUSL--1.1%20engine-blue"></a>
   <a href="https://onehuman.ai"><img alt="demo" src="https://img.shields.io/badge/live-demo-0f8a4b"></a>
 </p>
