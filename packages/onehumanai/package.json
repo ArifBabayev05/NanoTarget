@@ -70,11 +70,11 @@
   "sideEffects": false,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/onehumanai/onehuman.git"
+    "url": "git+https://github.com/OneHumanAI/onehumanai.git"
   },
   "homepage": "https://onehuman.ai",
   "bugs": {
-    "url": "https://github.com/onehumanai/onehuman/issues"
+    "url": "https://github.com/OneHumanAI/onehumanai/issues"
   },
   "author": "OneHuman <founders@onehuman.ai>"
 }
