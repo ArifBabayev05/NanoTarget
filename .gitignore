@@ -24,3 +24,10 @@ internal/
 
 
 q*.mjs
+
+# SQLite files a run with a bare "memory" path leaves behind
+memory
+memory-shm
+memory-wal
+*.db-shm
+*.db-wal

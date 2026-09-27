@@ -11,7 +11,8 @@ import type { Decision, Policy } from './policy.ts';
 import type { ClientSnapshot, ServerSignal } from './signals.ts';
 import { sqliteClient, type Row, type SqlArg, type SqlClient } from './sql.ts';
 
-export const ROOM_TTL_MS = 7 * 86400000;
+/** demo rooms (and their sessions, events, decisions) are kept this long: long enough to read a test campaign's results */
+export const ROOM_TTL_MS = 60 * 86400000;
 export const MAX_SESSIONS_PER_ROOM = 400;
 export const MAX_EVENTS_PER_ROOM = 2000;
 
@@ -254,6 +255,30 @@ CREATE TABLE IF NOT EXISTS training_sessions (
   created INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS training_sessions_client ON training_sessions(client);
+-- visits to this website (onehuman.ai itself, not customers' apps): pages and state-changing API calls, for the
+-- operators' view. No raw IP and no raw user agent: a keyed hash of both, plus browser/OS family and country.
+CREATE TABLE IF NOT EXISTS visits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at INTEGER NOT NULL,
+  device TEXT NOT NULL,
+  account TEXT,
+  method TEXT NOT NULL,
+  path TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  status INTEGER NOT NULL,
+  ms INTEGER NOT NULL,
+  browser TEXT NOT NULL,
+  os TEXT NOT NULL,
+  mobile INTEGER NOT NULL,
+  bot INTEGER NOT NULL,
+  country TEXT,
+  city TEXT,
+  referrer TEXT
+);
+CREATE INDEX IF NOT EXISTS visits_at ON visits(at);
+CREATE INDEX IF NOT EXISTS visits_device ON visits(device, at);
+-- rate-limit counters shared by every serverless instance (server/limits.ts)
+CREATE TABLE IF NOT EXISTS rate_limits (key TEXT NOT NULL, win INTEGER NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (key, win));
 CREATE TABLE IF NOT EXISTS challenges (
   id TEXT PRIMARY KEY,
   session TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -265,7 +290,7 @@ CREATE TABLE IF NOT EXISTS challenges (
 
 /** additive migrations for databases created by earlier builds */
 /** The newest column of each migrated table. Add a line here whenever MIGRATIONS gains a column. */
-const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash'], ['assist_log', 'at'], ['telemetry', 'computed'], ['signature_bundles', 'added']];
+const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash'], ['assist_log', 'at'], ['telemetry', 'computed'], ['signature_bundles', 'added'], ['rooms', 'device'], ['visits', 'referrer'], ['rate_limits', 'n']];
 
 const MIGRATIONS = [
   'ALTER TABLE sessions ADD COLUMN agent_attached_at INTEGER',
@@ -286,6 +311,9 @@ const MIGRATIONS = [
   'ALTER TABLE telemetry ADD COLUMN feedback_note TEXT',
   'ALTER TABLE telemetry ADD COLUMN feedback_at INTEGER',
   'ALTER TABLE telemetry ADD COLUMN computed TEXT',
+  'ALTER TABLE rooms ADD COLUMN device TEXT',
+  'CREATE INDEX IF NOT EXISTS rooms_device ON rooms(device, created)',
+  'CREATE INDEX IF NOT EXISTS rooms_created ON rooms(created)',
 ];
 
 export type KeyPolicyRow = {
@@ -349,6 +377,8 @@ export class Store {
   readonly sql: SqlClient;
   readonly limits: StoreLimits;
   private inserts = 0;
+  private roomInserts = 0;
+  private roomTrims = 0;
   private constructor(sql: SqlClient, limits: StoreLimits) { this.sql = sql; this.limits = limits; }
 
   /** Open a store on a client and make sure the schema exists. */
@@ -379,14 +409,46 @@ export class Store {
   }
 
   // --- rooms ---------------------------------------------------------------
-  async createRoom(now = Date.now(), app = 'bank'): Promise<string> {
+  async createRoom(now = Date.now(), app = 'bank', device: string | null = null): Promise<string> {
     const id = crypto.randomUUID();
+    // expired rooms go now and then, children first: the remote database may not enforce ON DELETE CASCADE
+    const expired = "SELECT id FROM rooms WHERE created < ? AND app NOT LIKE 'tenant:%'";
+    const cut = now - ROOM_TTL_MS;
+    const prune = ++this.roomInserts % 50 === 1
+      ? ['challenges', 'stepups'].map((t) => ({ sql: `DELETE FROM ${t} WHERE session IN (SELECT id FROM sessions WHERE room IN (${expired}))`, args: [cut] }))
+        .concat(['events', 'decisions', 'credentials', 'policies', 'sessions', 'rooms'].map((t) => ({ sql: t === 'rooms' ? `DELETE FROM rooms WHERE id IN (${expired})` : `DELETE FROM ${t} WHERE room IN (${expired})`, args: [cut] })))
+      : [];
     await this.sql.batch([
-      { sql: "DELETE FROM rooms WHERE created < ? AND app NOT LIKE 'tenant:%'", args: [now - ROOM_TTL_MS] },
-      { sql: 'INSERT INTO rooms (id, created, app) VALUES (?, ?, ?)', args: [id, now, app] },
+      ...prune,
+      { sql: 'INSERT INTO rooms (id, created, app, device) VALUES (?, ?, ?, ?)', args: [id, now, app, device] },
     ]);
     return id;
   }
+  /** demo rooms this device opened since `since` — a cheap brake on scripted room creation */
+  async roomsByDevice(device: string, since: number): Promise<number> {
+    return Number((await this.sql.execute('SELECT COUNT(*) AS n FROM rooms WHERE device = ? AND created >= ?', [device, since])).rows[0]?.n ?? 0);
+  }
+
+  // --- visits (this website's own log, read in /ops) -------------------------
+  async addVisit(v: { at: number; device: string; account: string | null; method: string; path: string; kind: string; status: number; ms: number; browser: string; os: string; mobile: boolean; bot: boolean; country: string | null; city: string | null; referrer: string | null }, keepMs: number): Promise<void> {
+    await this.sql.execute('INSERT INTO visits (at, device, account, method, path, kind, status, ms, browser, os, mobile, bot, country, city, referrer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [v.at, v.device, v.account, v.method, v.path, v.kind, v.status, v.ms, v.browser, v.os, v.mobile ? 1 : 0, v.bot ? 1 : 0, v.country, v.city, v.referrer]);
+    if (Math.random() < 0.01) await this.sql.execute('DELETE FROM visits WHERE at < ?', [v.at - keepMs]);
+  }
+
+  /** count one hit on `key` in the current window of `windowMs`; returns the count so far */
+  async hitLimit(key: string, windowMs: number, now = Date.now()): Promise<number> {
+    const win = Math.floor(now / windowMs) * windowMs;   // the window's start time
+    const r = await this.sql.execute('INSERT INTO rate_limits (key, win, n) VALUES (?, ?, 1) ON CONFLICT (key, win) DO UPDATE SET n = n + 1 RETURNING n', [key, win]);
+    if (Math.random() < 0.005) await this.sql.execute('DELETE FROM rate_limits WHERE win < ?', [now - 2 * 86400000]).catch(() => {});
+    return Number(r.rows[0]?.n ?? 1);
+  }
+
+  /** read-only reporting query for the operators' view (/ops) */
+  async report(sqlText: string, args: SqlArg[] = []): Promise<Row[]> {
+    return (await this.sql.execute(sqlText, args)).rows as Row[];
+  }
+
 
   async roomExists(id: string, now = Date.now()): Promise<boolean> {
     // lab rooms expire; a tenant's room (integration package) never does
@@ -479,7 +541,7 @@ export class Store {
   async addEvent(room: string, session: string, kind: EventRow['kind'], payload: unknown, now = Date.now()): Promise<number> {
     const res = await this.sql.execute('INSERT INTO events (room, session, kind, payload, created) VALUES (?, ?, ?, ?, ?)', [room, session, kind, JSON.stringify(payload), now]);
     const L = this.limits;
-    if (L.eventsPerRoom !== null) await this.sql.execute('DELETE FROM events WHERE room = ? AND id NOT IN (SELECT id FROM events WHERE room = ? ORDER BY id DESC LIMIT ?)', [room, room, L.eventsPerRoom]);
+    if (L.eventsPerRoom !== null && ++this.roomTrims % 20 === 1) await this.sql.execute('DELETE FROM events WHERE room = ? AND id NOT IN (SELECT id FROM events WHERE room = ? ORDER BY id DESC LIMIT ?)', [room, room, L.eventsPerRoom]);
     // per session: an indexed look at this session only, never a scan of everyone's events
     if (L.eventsPerSession !== null) await this.sql.execute('DELETE FROM events WHERE session = ? AND id < (SELECT id FROM events WHERE session = ? ORDER BY id DESC LIMIT 1 OFFSET ?)', [session, session, L.eventsPerSession - 1]);
     // by age: now and then, not on every insert
@@ -664,6 +726,8 @@ export class Store {
     return r.rows[0] ? String(r.rows[0].account) : null;
   }
   async deletePortalSession(id: string) { await this.sql.execute('DELETE FROM portal_sessions WHERE id = ?', [id]); }
+  /** after a password change: every other sign-in of the account ends */
+  async deleteOtherPortalSessions(account: string, keep: string) { await this.sql.execute('DELETE FROM portal_sessions WHERE account = ? AND id <> ?', [account, keep]); }
 
   async createApiKey(account: string, key: { name: string; prefix: string; hash: string; expires?: number | null; env?: string }, now = Date.now()): Promise<string> {
     const id = crypto.randomUUID();
@@ -832,6 +896,10 @@ export class Store {
   /** The policy assistant's use per account, for its daily limit. */
   async noteAssist(account: string) {
     await this.sql.execute('INSERT INTO assist_log (account, at) VALUES (?, ?)', [account, Date.now()]);
+  }
+  /** every account together: the assistant's spend has one ceiling for the whole portal */
+  async assistCountAll(since: number): Promise<number> {
+    return Number((await this.sql.execute('SELECT COUNT(*) AS n FROM assist_log WHERE at > ?', [since])).rows[0]?.n ?? 0);
   }
   async assistCount(account: string, since: number): Promise<number> {
     return Number((await this.sql.execute('SELECT COUNT(*) AS n FROM assist_log WHERE account = ? AND at > ?', [account, since])).rows[0]?.n ?? 0);
