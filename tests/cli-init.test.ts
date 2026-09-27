@@ -121,3 +121,18 @@ test('a policy with a problem names it', async () => {
   const c = checkPolicy({ enforcement: 'enforce', rules: [rule, rule] }, 'v');
   assert.ok('error' in c && /"a\.read" appears twice/.test(c.error));
 });
+
+test('the dependency the package manager adds stays in package.json (init writes its files first)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'oh-init-dep-'));
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'shop', type: 'module', scripts: { start: 'node server.js' }, dependencies: { express: '^5' } }, null, 2));
+  writeFileSync(join(dir, 'package-lock.json'), '{}');
+  writeFileSync(join(dir, 'server.js'), "import express from 'express';\nconst app = express();\napp.get('/api/balance', (req, res) => res.json({ balance: 5 }));\napp.listen(3000);\n");
+  // a stand-in npm: `npm install onehumanai` records the dependency the way npm does
+  const bin = mkdtempSync(join(tmpdir(), 'oh-fake-npm-'));
+  writeFileSync(join(bin, 'npm'), `#!/bin/sh\nexec "${process.execPath}" -e "const f=require('fs');const p=JSON.parse(f.readFileSync('package.json','utf8'));p.dependencies={...p.dependencies,onehumanai:'^0.6.1'};f.writeFileSync('package.json',JSON.stringify(p,null,2))"\n`, { mode: 0o755 });
+  const r = spawnSync(process.execPath, [CLI, 'init', dir, '--yes'], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+  assert.equal(pkg.dependencies.onehumanai, '^0.6.1', 'installed and listed');
+  assert.match(pkg.scripts.start, /--env-file-if-exists=\.env/, 'and init\'s own change is there too');
+});

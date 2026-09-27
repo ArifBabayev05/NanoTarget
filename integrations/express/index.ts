@@ -454,6 +454,8 @@ export async function onehuman(opts: OneHumanOptions) {
             token: () => engine.issueToken(d), proof: result.proof,
           };
           res.setHeader('X-OH-Decision', d.id);
+          // the outcome, never the reasons: what was done, what protect mode would do (observe), and who it looked like
+          res.setHeader('X-OH-Outcome', `${d.decision}; computed=${d.computed}; actor=${d.actor}`);
           res.setHeader('X-OH-Policy', d.policyVersion);
           if (debugPolicyHeader) res.setHeader('X-OH-Policy-Source', sync ? sync.source : 'file');
           if (reporter) report(session, resource, d, result);

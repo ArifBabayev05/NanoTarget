@@ -385,13 +385,15 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   if (!(await confirm('Apply these changes?', true))) { say('\nNothing was written.'); rl?.close(); return; }
   rl?.close();
 
+  // files first: the package manager then adds the dependency to the package.json we just wrote (the other order
+  // overwrote it, and a fresh `npm ci` on the server would not install OneHuman at all)
+  for (const e of edits) writeFileSync(e.file, e.after);
   if (!installed && flags.install) {
     const pm = packageManager(root, pkg);
     say(dim(`\n$ ${pm.join(' ')} onehumanai`));
     const res = spawnSync(pm[0]!, [...pm.slice(1), 'onehumanai'], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
-    if (res.status !== 0) notes.push(`Installing failed — run \`${pm.join(' ')} onehumanai\` yourself.`);
+    if (res.status !== 0) notes.push(`Installing failed. Run \`${pm.join(' ')} onehumanai\` yourself.`);
   }
-  for (const e of edits) writeFileSync(e.file, e.after);
 
   say(`\n${green('✓')} ${bold('OneHuman is set up.')}`);
   say(`  ${enforcement === 'observe' ? 'It is watching only: nothing is blocked. Look at Activity, then turn protection on in the portal or in onehuman.policy.json.' : 'Protection is on from the first request.'}`);
