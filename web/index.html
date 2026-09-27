@@ -48,7 +48,7 @@
   <div class="install reveal-now" id="install">
     <div class="npm big beam">
       <span class="npm-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect width="24" height="24" rx="3"/><path d="M4 8h16v8h-4V11h-2v5H4z" fill="#0a0a0b"/></svg></span>
-      <span class="prompt">$</span><code>npm i onehumanai</code>
+      <span class="prompt">$</span><code>npx onehumanai init</code>
       <button class="copy" id="copy-npm" aria-label="Copy install command"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
     </div>
     <div class="install-row">
@@ -222,7 +222,7 @@ npx onehumanai verify-proof proofs.json --keys https://your-app.example/onehuman
   ]
 }</code></pre>
     <pre class="code" id="code-agent" hidden><code>https://www.npmjs.com/package/onehumanai: install this into my project.
-Follow the README protocol: `npm i onehumanai` (one package; its engine dependency comes with it),
+Follow the README protocol: `npm i onehumanai` (one package, the engine is inside),
 scan the app, show me what an AI browser agent could reach and how to gate it, ask me the nine
 decisions, implement server + page + policy + masks, verify with `npx onehumanai verify`, then report.
 Licence: the package is Apache-2.0; the engine is BUSL-1.1 with production use granted. Say so if asked.</code></pre>
@@ -240,9 +240,9 @@ Licence: the package is Apache-2.0; the engine is BUSL-1.1 with production use g
 
 <section class="cta reveal">
   <h2 class="h2 tr">Know who agreed.</h2>
-  <p class="lead">One install: <code>npm i onehumanai</code>. Everything runs on your own server. The SDK and middleware are Apache 2.0, and the engine's source is open with production use granted. Add an API key and the portal shows how many of your sessions had an AI agent in them.</p>
+  <p class="lead">One command: <code>npx onehumanai init</code>. It installs the package, asks what to protect and shows every change before it writes it. Everything runs on your own server. The SDK and middleware are Apache 2.0, and the engine's source is open with production use granted. Add an API key and the portal shows how many of your sessions had an AI agent in them.</p>
   <div class="hero-actions">
-    <div class="npm"><span class="prompt">$</span><code>npm i onehumanai</code><button class="copy" data-copy="npm i onehumanai" aria-label="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div>
+    <div class="npm"><span class="prompt">$</span><code>npx onehumanai init</code><button class="copy" data-copy="npx onehumanai init" aria-label="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div>
     <a class="btn secondary" href="/portal">Get your API key <span class="arrow">→</span></a>
     <a class="btn secondary" href="https://github.com/OneHumanAI/onehumanai" target="_blank" rel="noopener">Star on GitHub <span class="arrow">→</span></a>
   </div>

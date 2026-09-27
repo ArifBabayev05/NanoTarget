@@ -59,8 +59,7 @@
     <dd>API keys and server-to-server calls, native mobile apps, backends that are not Node. It does not identify people. A script written for one site can pass the behaviour check — critical actions should ask for a passkey. <a href="/measurements">How we measured</a> · <a href="/trust">Trust &amp; privacy</a></dd>
   </dl>
   <h2>Install</h2>
-  <pre class="code">npm i onehumanai
-npx onehumanai init                          <span class="c"># asks what to protect; shows every change before writing it</span>
+  <pre class="code">npx onehumanai init                          <span class="c"># installs the package, asks what to protect, shows every change before writing it</span>
 npm start                                  <span class="c"># observe mode: nothing blocked, everything recorded</span>
 npx onehumanai verify http://localhost:3000 /api/balance</pre>
   <p>After a week in observe mode, look at what <i>would</i> have been stopped — <code>npx onehumanai report</code> or the portal — then switch the rules to enforce. Security contact: <a href="mailto:security@onehuman.ai">security@onehuman.ai</a>.</p>
@@ -121,11 +120,9 @@ npx onehumanai verify http://localhost:3000 /api/balance</pre>
   <h2>Quickstart</h2>
   <p>Node ≥ 22.13. Works with Express 4/5, Connect, a Next.js custom server, or plain <code>node:http</code>.</p>
   <ol class="steps">
-    <li><b>Install</b><pre class="code">npm i onehumanai        <span class="c"># pnpm add onehumanai · yarn add onehumanai</span></pre>
-      <p class="fine">One package: middleware, browser SDK, CLI and the engine they run on. Everything you use is under <code>onehumanai</code> and <code>npx onehumanai</code>.</p></li>
     <li><b>Let the setup do it</b><pre class="code">npx onehumanai init              <span class="c"># a few questions, then every change shown before it is written</span>
 npx onehumanai init --yes        <span class="c"># the recommended answers, for CI and coding agents</span></pre>
-      <p class="fine">It asks which routes to protect and how, where your login id is, whether to start by only watching, and whether to connect the portal. For Express it adds <code>onehuman.js</code>, <code>app.use(onehuman.middleware())</code> and <code>onehuman.protect()</code> on each route — ES modules or CommonJS. The steps below are the same by hand.</p></li>
+      <p class="fine">It asks which routes to protect and how, where your login id is, whether to start by only watching, and whether to connect the portal. For Express it adds <code>onehuman.js</code>, <code>app.use(onehuman.middleware())</code> and <code>onehuman.protect()</code> on each route — ES modules or CommonJS. The steps below are the same by hand. Prefer to do it by hand? <code>npm i onehumanai</code> (or <code>pnpm add</code> / <code>yarn add</code>) and follow the steps below.</p></li>
     <li><b>See what an agent could reach</b><pre class="code">npx onehumanai scan .            <span class="c"># routes, sensitivity, a draft policy</span>
 npx onehumanai scan . --proposal <span class="c"># the same, in plain language</span></pre></li>
     <li><b>Wire the middleware</b><pre class="code"><span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'onehumanai'</span>;
