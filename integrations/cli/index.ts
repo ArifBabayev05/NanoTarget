@@ -79,9 +79,11 @@ async function main() {
     const r1 = await fetch(u(path), { headers: login ? { cookie: login } : {} }).catch(() => null);
     const cookie = r1?.headers.get('set-cookie')?.split(';')[0] ?? '';
     const b1 = r1 ? await r1.json().catch(() => null) : null;
+    // `decision; computed=…; actor=…` — present on every protected answer, whatever the app's body looks like
+    const outcome = (r: Response | null) => { const h = r?.headers.get('x-oh-outcome') ?? ''; const m = /^(\w+); computed=(\w+); actor=(\w+)/.exec(h); return m ? { decision: m[1]!, computed: m[2]!, actor: m[3]! } : null; };
     const decisionHeader = r1?.headers.get('x-oh-decision');
     const needsLogin = !!r1 && !decisionHeader && (r1.status === 401 || r1.status === 403 || (r1.status >= 300 && r1.status < 400));
-    results.push({ name: 'Decision on protected endpoint', ok: !!r1 && !!decisionHeader && (r1.status === 200 || r1.status === 403 || r1.status === 428), detail: `GET ${path} → ${r1?.status ?? 'unreachable'}, X-OH-Decision ${decisionHeader ? 'present' : 'MISSING (protect() not applied?)'}, _onehuman.decision=${b1?._onehuman?.decision ?? b1?.decision?.decision ?? '-'}` });
+    results.push({ name: 'Decision on protected endpoint', ok: !!r1 && !!decisionHeader && (r1.status === 200 || r1.status === 403 || r1.status === 428), detail: `GET ${path} → ${r1?.status ?? 'unreachable'}, X-OH-Decision ${decisionHeader ? 'present' : 'MISSING (protect() not applied?)'}, ${outcome(r1) ? `decision=${outcome(r1)!.decision}, rules say ${outcome(r1)!.computed}` : `decision=${b1?._onehuman?.decision ?? b1?.decision?.decision ?? '-'}`}` });
     // 3. environment-only evidence (AI app browser UA) reaches the onArtifact branch
     const r2 = await fetch(u(path), { headers: { 'user-agent': 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Claude/2.2553.1 Chrome/152.0.0.0 Safari/537.36', ...(login ? { cookie: login } : {}) } }).catch(() => null);
     const t2 = r2 ? await r2.text().catch(() => '') : '';
@@ -90,7 +92,9 @@ async function main() {
     // apps that answer with their own body carry no reason codes: then the answer itself must change (refused, confirm, or masked)
     const plain = r1 ? JSON.stringify(b1) : '';
     const changed = !!r2 && (r2.status === 403 || r2.status === 428 || (r2.status === 200 && r1?.status === 200 && JSON.stringify(b2) !== plain));
-    results.push({ name: 'Environment evidence recognised', ok: codes2.includes('AGENT_APP_BROWSER') || (!codes2.length && changed), detail: `AI-app UA → ${r2?.status}, decision=${b2?._onehuman?.decision ?? b2?.decision?.decision ?? '-'}, codes=${codes2.join(',') || '-'}` });
+    const o2 = outcome(r2);
+    const envSeen = codes2.includes('AGENT_APP_BROWSER') || (!!o2 && o2.computed !== (outcome(r1)?.computed ?? 'allow')) || (!codes2.length && changed);
+    results.push({ name: 'Environment evidence recognised', ok: envSeen, detail: `AI-app UA → ${r2?.status}, ${o2 ? `decision=${o2.decision}, rules say ${o2.computed}, actor=${o2.actor}` : `decision=${b2?._onehuman?.decision ?? b2?.decision?.decision ?? '-'}`}${codes2.length ? `, codes=${codes2.join(',')}` : ''}` });
     // 4. attached agent (control markers via the SDK endpoint) changes the decision for the same session.
     // With --cookie that session is a real login: marking it "agent" would follow that user for the rest of the visit,
     // so it runs only when asked (--attach, ideally with a test account).
@@ -102,8 +106,9 @@ async function main() {
       const sb = sig ? await sig.json().catch(() => null) : null;
       const r3 = await fetch(u(path), { headers: { cookie: withLogin(cookie) } }).catch(() => null);
       const b3 = r3 ? await r3.json().catch(() => null) : null;
-      const applied = b3?._onehuman?.decision ?? b3?.decision?.decision;
-      const observe = r3?.status === 200 && applied === 'allow' && (b3?._onehuman?.reasonCodes ?? b3?.decision?.reasonCodes ?? []).some((c: string) => /AGENT_CONTROL_MARKER|AGENT_ATTACHED_EARLIER/.test(c));
+      const o3 = outcome(r3);
+      const applied = o3?.decision ?? b3?._onehuman?.decision ?? b3?.decision?.decision;
+      const observe = r3?.status === 200 && applied === 'allow' && (o3 ? o3.computed !== 'allow' : (b3?._onehuman?.reasonCodes ?? b3?.decision?.reasonCodes ?? []).some((c: string) => /AGENT_CONTROL_MARKER|AGENT_ATTACHED_EARLIER/.test(c)));
       results.push({ name: 'Attached agent changes the decision', ok: sb?.connection?.state === 'agent_attached' && (r3?.status === 403 || r3?.status === 428 || applied === 'mask' || applied === 'step_up' || observe || (r3?.status === 200 && r1?.status === 200 && JSON.stringify(b3) !== plain)), detail: `signals → ${sb?.connection?.state ?? sig?.status ?? 'unreachable'}; then GET ${path} → ${r3?.status}, decision=${applied ?? '-'}${observe ? ' (observe mode: recorded, not enforced)' : ''}` });
     }
     let allOk = true;

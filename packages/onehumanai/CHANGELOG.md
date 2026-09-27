@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.2
+- **`npx onehumanai init` keeps `onehumanai` in package.json.** It wrote its own package.json change after installing, which dropped the dependency npm had just added, so a fresh `npm ci` on a server would not install OneHuman. Files are written first now.
+- **`npx onehumanai verify` works in observe mode.** Protected answers carry `X-OH-Outcome: <decision>; computed=<what protect mode would do>; actor=<who it looked like>` (never the reasons), and verify reads it, so a watch-only setup can be checked too.
+
 ## 0.6.1
 Found by installing it into a new app as a customer would, then attacking it.
 
