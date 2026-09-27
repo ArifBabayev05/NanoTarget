@@ -2,7 +2,7 @@
 /**
  * OneHuman browser SDK (v4: pointer trajectories, seal-on-attach). Include in <head>, before app code:
  *
- *   <script src="/sdk/onehuman.js" data-endpoint="/api/v1/signals" data-zone="[data-nt-zone]"></script>
+ *   <script src="/sdk/onehuman.js" data-endpoint="/api/v1/signals" data-zone="[data-oh-zone]"></script>
  *
  * Collects ONLY interaction metadata and known page artifacts:
  *   - navigator.webdriver, known agent DOM markers, model-context globals,
@@ -19,30 +19,32 @@
   const script = document.currentScript;
   // Integration package serves the SDK at <base>/sdk.js and its API next to it; the lab uses /api/v1/*.
   const scriptSrc = (script && script.src) || '';
-  const endpoint = (script && script.dataset.endpoint) || (/\/sdk\.js(\?|$)/.test(scriptSrc) ? scriptSrc.replace(/\/sdk\.js(\?.*)?$/, '/signals') : '/api/v1/signals');
+  // bundled (npm i @onehumanai/sdk): set window.OneHumanConfig = { endpoint: '/onehuman/signals' } before the import
+  const config = (typeof window.OneHumanConfig === 'object' && window.OneHumanConfig) || {};
+  const endpoint = (script && script.dataset.endpoint) || config.endpoint || (/\/sdk\.js(\?|$)/.test(scriptSrc) ? scriptSrc.replace(/\/sdk\.js(\?.*)?$/, '/signals') : '/api/v1/signals');
   const zoneSelector = (script && script.dataset.zone) || null;
   const focusProbe = !script || script.dataset.focusProbe !== 'off';
   const now = () => Math.round(performance.now());
-  // Session id embedded in this page instance by the server (see <meta name="nt-session">).
-  const sessionMeta = document.querySelector('meta[name="nt-session"]');
+  // Session id embedded in this page instance by the server (see <meta name="oh-session">).
+  const sessionMeta = document.querySelector('meta[name="oh-session"]');
   const sessionId = (sessionMeta && sessionMeta.content) || null;
-  const sessionHeaders = () => (sessionId ? { 'X-NT-Session': sessionId } : {});
+  const sessionHeaders = () => (sessionId ? { 'X-OH-Session': sessionId } : {});
   // Transport state lives up here: probes may report (flush) while the page is still loading, before the
   // transport section below has run, and a `let` read before its line would throw and take the SDK down.
   let flushing = null;
   let established = !!sessionId;
-  try { if (sessionStorage.getItem('nt-established') === '1') established = true; } catch { /* ignore */ }
+  try { if (sessionStorage.getItem('oh-established') === '1') established = true; } catch { /* ignore */ }
   let establishing = null;
 
   // ----------------------------------------------------------------- seal
   // Data already on screen when an agent attaches is the gap the server cannot close: the agent reads the
   // DOM, not the API. So the moment an attach indicator appears *in the browser* — a control marker, a
   // tool-injected global, an evaluated script reading the page, or the server saying "attached" — every
-  // element marked data-nt-sensitive="full" is redacted in place, synchronously, and the page is told to
+  // element marked data-oh-sensitive="full" is redacted in place, synchronously, and the page is told to
   // re-fetch (the server will now answer with the masked/blocked variant). A verified human reclaim
   // (unseal) suspends this for the reclaim window.
   const sealEnabled = !script || script.dataset.seal !== 'off';
-  const SEAL_SELECTOR = '[data-nt-sensitive="full"]';
+  const SEAL_SELECTOR = '[data-oh-sensitive="full"]';
   let sealed = false;
   let sealSuspendedUntil = 0;
   let sealReason = null;
@@ -52,7 +54,7 @@
     while (walker.nextNode()) nodes.push(walker.currentNode);
     for (const n of nodes) { if (n.nodeValue && n.nodeValue.trim()) n.nodeValue = '••••'; }
     for (const i of el.querySelectorAll('input, textarea')) { try { i.value = ''; } catch { /* ignore */ } }
-    el.setAttribute('data-nt-sensitive', 'sealed');
+    el.setAttribute('data-oh-sensitive', 'sealed');
   }
   function seal(reason) {
     if (!sealEnabled || Date.now() < sealSuspendedUntil) return false;
@@ -62,7 +64,7 @@
     sealed = true; sealReason = sealReason || reason;
     if (first) { early.reading.seal = { atMs: now(), reason, redacted: n }; queueMicrotask(() => { if (typeof flush === 'function') flush().catch(() => {}); }); }
     else if (n && early.reading.seal) early.reading.seal.redacted += n;
-    if (first || n) { try { document.dispatchEvent(new CustomEvent('nt:sealed', { detail: { reason, redacted: n, first } })); } catch { /* ignore */ } }
+    if (first || n) { try { document.dispatchEvent(new CustomEvent('onehuman:sealed', { detail: { reason, redacted: n, first } })); } catch { /* ignore */ } }
     return true;
   }
   /**
@@ -341,7 +343,7 @@
         }
       } catch { /* ignore */ }
     }
-    if (early.dataDomMs === null && document.querySelector('[data-nt-sensitive]')) early.dataDomMs = now();
+    if (early.dataDomMs === null && document.querySelector('[data-oh-sensitive]')) early.dataDomMs = now();
     let attachedNow = false;
     for (const [name, selector] of PROBES) {
       if (early.markers.some((m) => m.name === name)) continue;
@@ -355,7 +357,7 @@
       else if (early.environment.agentGlobals.some((g) => CONTROL_GLOBAL.test(g) || EXTRA_GLOBALS.has(g))) seal('tool_globals');
     } else if (document.querySelector(SEAL_SELECTOR)) {
       // sealed is a state, not an event: anything rendered as "full" while an agent is attached is redacted too
-      // (the mutation observer below watches data-nt-sensitive, so this runs right after the render)
+      // (the mutation observer below watches data-oh-sensitive, so this runs right after the render)
       seal(sealReason || 'resealed');
     }
   }
@@ -363,7 +365,7 @@
   const scanTimer = setInterval(scan, 250);
   setTimeout(() => clearInterval(scanTimer), 60000);
   const observer = new MutationObserver(scan);
-  observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['id', 'data-codex-favicon-badge', 'data-nt-sensitive'] });
+  observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['id', 'data-codex-favicon-badge', 'data-oh-sensitive'] });
 
   // ---------------------------------------------------------- interactions
   const inside = (e) => !zoneSelector || (e.target instanceof Element && !!e.target.closest(zoneSelector));
@@ -379,15 +381,15 @@
   // The hand's approach survives a reload of this tab: a person who refreshes and clicks without moving still
   // arrived here by hand. Kept 60 s at most, in this tab only (sessionStorage), never across sites.
   try {
-    const saved = JSON.parse(sessionStorage.getItem('nt-approach') || 'null');
+    const saved = JSON.parse(sessionStorage.getItem('oh-approach') || 'null');
     if (saved && Array.isArray(saved.p) && Date.now() - saved.at < 60000) {
       const shift = performance.now() - (Date.now() - saved.at) - saved.span; // map absolute ages onto this page's clock
       for (const q of saved.p) points.push({ t: shift + q[0], x: q[1], y: q[2] });
     }
-    sessionStorage.removeItem('nt-approach');
+    sessionStorage.removeItem('oh-approach');
   } catch { /* ignore */ }
   window.addEventListener('pagehide', () => {
-    try { const p = points.slice(-60); if (p.length) sessionStorage.setItem('nt-approach', JSON.stringify({ at: Date.now(), span: p[p.length - 1].t - p[0].t, p: p.map((q) => [Math.round(q.t - p[0].t), Math.round(q.x), Math.round(q.y)]) })); } catch { /* ignore */ }
+    try { const p = points.slice(-60); if (p.length) sessionStorage.setItem('oh-approach', JSON.stringify({ at: Date.now(), span: p[p.length - 1].t - p[0].t, p: p.map((q) => [Math.round(q.t - p[0].t), Math.round(q.x), Math.round(q.y)]) })); } catch { /* ignore */ }
   });
   let coalesced = 0;
   document.addEventListener('pointermove', (e) => {
@@ -543,7 +545,7 @@
   function ensureSession() {
     if (established) return Promise.resolve();
     if (!establishing) {
-      const done = () => { established = true; establishing = null; try { sessionStorage.setItem('nt-established', '1'); } catch { /* ignore */ } };
+      const done = () => { established = true; establishing = null; try { sessionStorage.setItem('oh-established', '1'); } catch { /* ignore */ } };
       establishing = post(snapshot(false)).then(done, done);   // a failed first report must not hold the page hostage
     }
     return establishing;
@@ -565,8 +567,8 @@
   function protectedFetch(input, init) {
     const snap = snapshot(true);   // taken now: the click that caused this call belongs to it
     const headers = new Headers((init && init.headers) || {});
-    headers.set('X-NT-Sample', JSON.stringify(snap));
-    if (sessionId) headers.set('X-NT-Session', sessionId);
+    headers.set('X-OH-Sample', JSON.stringify(snap));
+    if (sessionId) headers.set('X-OH-Session', sessionId);
     return ensureSession().then(() => fetch(input, { ...(init || {}), headers, credentials: 'same-origin', cache: 'no-store' }));
   }
 

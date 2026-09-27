@@ -17,17 +17,17 @@ const policy = {
 const early = { startedMs: 0, observedMs: 500, webdriver: false, firstInteractionMs: null, dataDomMs: null, markers: [] as { name: string; atMs: number }[], environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: [], focusWhileHiddenMs: null }, focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0, reading: { ...EMPTY_READING } };
 
 const secret = 'test-secret-test-secret-test-secret-1234';
-const nt = await onehuman({ secret, policy: policy as never, db: 'memory', identify: (req) => (req.headers['x-user'] as string | undefined) || null });
+const oh = await onehuman({ secret, policy: policy as never, db: 'memory', identify: (req) => (req.headers['x-user'] as string | undefined) || null });
 const app = express();
 app.use(express.json());
-app.use(nt.middleware());
+app.use(oh.middleware());
 const account = { balance: 2920.74, iban: 'AZ21NABZ00000000137010001944' };
-app.get('/api/balance', nt.protect('balance.read'), (req, res) => nt.send(req, res, account, (a) => ({ ...a, balance: null })));
-app.post('/api/transfer', nt.protect('transfer.make'), (req, res) => res.json({ ok: true, decision: req.nt!.decision }));
-app.get('/api/manual', nt.protect('balance.read', { respond: false }), (req, res) => res.json({ handled: req.nt!.decision }));
+app.get('/api/balance', oh.protect('balance.read'), (req, res) => oh.send(req, res, account, (a) => ({ ...a, balance: null })));
+app.post('/api/transfer', oh.protect('transfer.make'), (req, res) => res.json({ ok: true, decision: req.onehuman!.decision }));
+app.get('/api/manual', oh.protect('balance.read', { respond: false }), (req, res) => res.json({ handled: req.onehuman!.decision }));
 const server = app.listen(0);
 const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-after(() => { server.close(); nt.close(); });
+after(() => { server.close(); oh.close(); });
 
 const cookieOf = (r: Response) => (r.headers.get('set-cookie') ?? '').split(';')[0]!;
 
@@ -42,11 +42,11 @@ test('serves the SDK next to its API and the SDK derives the endpoint from its o
 test('first request creates a session cookie and an unknown actor is allowed by this policy', async () => {
   const r = await fetch(`${base}/api/balance`);
   assert.equal(r.status, 200);
-  assert.match(r.headers.get('set-cookie') ?? '', /^nt_sid=[0-9a-f-]{36}; Path=\/; HttpOnly; SameSite=Lax/);
+  assert.match(r.headers.get('set-cookie') ?? '', /^oh_sid=[0-9a-f-]{36}; Path=\/; HttpOnly; SameSite=Lax/);
   const d = await r.json();
   assert.equal(d.balance, 2920.74);
-  assert.equal(d._nt.decision, 'allow');
-  assert.ok(r.headers.get('x-nt-decision'));
+  assert.equal(d._onehuman.decision, 'allow');
+  assert.ok(r.headers.get('x-oh-decision'));
 });
 
 test('identify(): two tabs of one login share one session; an agent marker in one blocks the other', async () => {
@@ -72,7 +72,7 @@ test('artifact-only evidence takes the mask branch and the company mask function
   const d = await r.json();
   assert.equal(d.balance, null, 'masked by the company function');
   assert.equal(d.iban, account.iban);
-  assert.equal(d._nt.decision, 'mask');
+  assert.equal(d._onehuman.decision, 'mask');
 });
 
 test('step_up answers 428 with a challenge; respond:false hands the decision to the handler', async () => {

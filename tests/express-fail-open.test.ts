@@ -14,15 +14,15 @@ const rule = { resource: 'balance.read', title: 'Balance', onAgent: 'block', onA
 const secret = 'test-secret-test-secret-test-secret-fail';
 
 async function appWith(enforcement: 'observe' | 'enforce', extra: Record<string, unknown> = {}) {
-  const nt = await onehuman({ secret, policy: { version: 't', enforcement, rules: [rule] } as never, db: 'memory', decisionTimeoutMs: 150, ...extra });
+  const oh = await onehuman({ secret, policy: { version: 't', enforcement, rules: [rule] } as never, db: 'memory', decisionTimeoutMs: 150, ...extra });
   const app = express();
-  app.use(nt.middleware());
-  app.get('/api/balance', nt.protect('balance.read'), (req, res) => { res.json({ balance: 10, failedOpen: req.nt?.failedOpen ?? null }); });
+  app.use(oh.middleware());
+  app.get('/api/balance', oh.protect('balance.read'), (req, res) => { res.json({ balance: 10, failedOpen: req.onehuman?.failedOpen ?? null }); });
   // the app's own error handler must never be reached because of OneHuman
   app.use((_e: unknown, _req: express.Request, res: express.Response, _n: express.NextFunction) => { res.status(599).json({ appErrorHandler: true }); });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  return { nt, base, close: async () => { server.close(); await nt.close(); } };
+  return { oh, base, close: async () => { server.close(); await oh.close(); } };
 }
 const quiet = console.warn;
 console.warn = () => {};
@@ -30,20 +30,20 @@ after(() => { console.warn = quiet; });
 
 test('an engine that throws: the request goes on, marked failed-open, counted in health', async () => {
   const a = await appWith('enforce');
-  a.nt.engine.decide = async () => { throw new Error('database is locked'); };
+  a.oh.engine.decide = async () => { throw new Error('database is locked'); };
   const r = await fetch(`${a.base}/api/balance`);
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { balance: 10, failedOpen: 'ENGINE_ERROR' });
-  assert.equal(r.headers.get('x-nt-decision'), 'failed-open:ENGINE_ERROR');
-  const h = a.nt.health().failOpen;
+  assert.equal(r.headers.get('x-oh-decision'), 'failed-open:ENGINE_ERROR');
+  const h = a.oh.health().failOpen;
   assert.equal(h.count, 1); assert.equal(h.lastReason, 'ENGINE_ERROR'); assert.equal(h.lastError, 'database is locked');
   await a.close();
 });
 
 test('an engine slower than the timeout: the request goes on within the timeout, and the late answer is ignored', async () => {
   const a = await appWith('observe');
-  const real = a.nt.engine.decide.bind(a.nt.engine);
-  a.nt.engine.decide = async (x) => { await new Promise((r) => setTimeout(r, 600)); return real(x); };
+  const real = a.oh.engine.decide.bind(a.oh.engine);
+  a.oh.engine.decide = async (x) => { await new Promise((r) => setTimeout(r, 600)); return real(x); };
   const t0 = Date.now();
   const r = await fetch(`${a.base}/api/balance`);
   const took = Date.now() - t0;
@@ -51,19 +51,19 @@ test('an engine slower than the timeout: the request goes on within the timeout,
   assert.equal((await r.json()).failedOpen, 'ENGINE_TIMEOUT');
   assert.ok(took < 500, `answered in ${took} ms`);
   await new Promise((r) => setTimeout(r, 700));   // the late decision arrives after the response: nothing breaks
-  assert.equal(a.nt.health().failOpen.lastReason, 'ENGINE_TIMEOUT');
+  assert.equal(a.oh.health().failOpen.lastReason, 'ENGINE_TIMEOUT');
   await a.close();
 });
 
 test('enforce mode with failOpen:false answers 503 instead of serving without a decision; observe ignores it', async () => {
   const strict = await appWith('enforce', { failOpen: false });
-  strict.nt.engine.decide = async () => { throw new Error('boom'); };
+  strict.oh.engine.decide = async () => { throw new Error('boom'); };
   const r = await fetch(`${strict.base}/api/balance`);
   assert.equal(r.status, 503);
   assert.equal((await r.json()).error, 'onehuman_unavailable');
   await strict.close();
   const watch = await appWith('observe', { failOpen: false });
-  watch.nt.engine.decide = async () => { throw new Error('boom'); };
+  watch.oh.engine.decide = async () => { throw new Error('boom'); };
   assert.equal((await fetch(`${watch.base}/api/balance`)).status, 200, 'observe mode never blocks');
   await watch.close();
 });
@@ -72,7 +72,7 @@ test('a healthy engine still decides normally (no false fail-open)', async () =>
   const a = await appWith('enforce');
   const r = await fetch(`${a.base}/api/balance`);
   assert.equal(r.status, 428, 'unknown visitor, enforce: passkey asked');
-  assert.equal(a.nt.health().failOpen.count, 0);
+  assert.equal(a.oh.health().failOpen.count, 0);
   await a.close();
 });
 

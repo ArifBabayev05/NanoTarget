@@ -11,7 +11,7 @@ Every new source file starts with its licence: `// SPDX-License-Identifier: Apac
 ## Setup
 
 ```bash
-git clone https://github.com/ArifBabayev05/OneHuman.git
+git clone https://github.com/onehumanai/onehuman.git
 cd OneHuman
 npm install
 npm run dev        # http://localhost:8787 (node:sqlite in data/lab.db)

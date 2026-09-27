@@ -10,7 +10,7 @@
  *
  * The server accepts only a policy the portal signed, for this API key. It pins the portal's key the first time it
  * sees it and refuses any other afterwards. Where the policy running now came from — portal, saved copy, file —
- * is logged on every change and reported in `nt.health()` and to the portal.
+ * is logged on every change and reported in `oh.health()` and to the portal.
  */
 import { readFile } from 'node:fs/promises';
 import { keyTag, policyHash, verifyPolicyEnvelope, type PolicyLike } from '../policy/common.ts';
@@ -125,7 +125,7 @@ export function createPolicySync<P extends PolicyLike>(o: PolicySyncOptions<P>) 
   async function fetchPolicy(): Promise<'ok' | 'none' | 'unreachable'> {
     let r: Response;
     try {
-      const headers: Record<string, string> = { 'X-NT-Policy-Version': active.version, 'X-NT-Policy-Source': source };
+      const headers: Record<string, string> = { 'X-OH-Policy-Version': active.version, 'X-OH-Policy-Source': source };
       if (n !== null && (source === 'portal' || source === 'cache')) headers['If-None-Match'] = `"portal-v${n}"`;
       r = await call('/api/v1/key-policy', { headers });
     } catch { return 'unreachable'; }
@@ -225,7 +225,7 @@ export function createPolicySync<P extends PolicyLike>(o: PolicySyncOptions<P>) 
     /** called on requests: on a platform that freezes between requests the interval never fires, so a stale check is started here */
     maybeRefresh() { if (!inflight && (lastCheckAt === null || Date.now() - lastCheckAt > every)) void refreshOnce(); },
     refresh: refreshOnce,
-    /** every nt.protect(resource) registers here, so the portal can show endpoints that have no rule */
+    /** every oh.protect(resource) registers here, so the portal can show endpoints that have no rule */
     declare(resource: string) {
       if (declared.has(resource)) return;
       declared.add(resource);

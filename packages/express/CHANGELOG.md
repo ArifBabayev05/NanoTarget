@@ -1,14 +1,14 @@
 # Changelog
 
 ## 0.6.0 — OneHuman
-- **OneHuman is now OneHuman.** The packages are `onehuman` and `onehuman-engine` (published as `onehuman` / `onehuman-engine` up to 0.5.0): `npm i onehuman`, `import { onehuman } from 'onehuman/express'`, `npx onehuman …`. The page script is `/onehuman/sdk.js` and its global is `OneHuman`; the default database is `onehuman.db` and the rules file `onehuman.policy.json`. Environment: `ONEHUMAN_SECRET`, `ONEHUMAN_API_KEY` (the old `NT_API_KEY`, `NT_TELEMETRY_URL`, `NT_PORTAL_URL` still work). Proofs and rule envelopes signed before the rename still verify. The portal is https://onehuman.ai.
+- **OneHuman, published by the `onehumanai` organisation.** Four packages at one version: `@onehumanai/express` (what you install: `npm i @onehumanai/express`, `import { onehuman } from '@onehumanai/express'`), `@onehumanai/engine` (comes with it), `@onehumanai/sdk` (the browser SDK alone, for bundled front ends), and `onehuman` (the short `npx onehuman …` command). The page script is `/onehuman/sdk.js` with the global `OneHuman`; markup `data-oh-*`, headers `X-OH-*`, cookie `oh_sid`, keys `oh_live_…` / `oh_admin_…`, `req.onehuman`, the response summary `_onehuman`, the event `onehuman:sealed`. Environment: `ONEHUMAN_SECRET`, `ONEHUMAN_API_KEY`, `ONEHUMAN_TELEMETRY_URL`, `ONEHUMAN_PORTAL_URL`, `ONEHUMAN_DB`. The portal is https://onehuman.ai; source https://github.com/onehumanai/onehuman.
 - **`npx onehuman init`** — answer a few questions (what to protect, how, where the login id is, watch or protect, portal or not); it shows every file it would write or change and applies them on yes. For Express it wires the code itself, ES modules and CommonJS, routes in any file. `--yes` takes the recommended answers.
 - `onehumanDeferred(options)` — the same instance without `await`, for CommonJS and code that cannot wait at the top level.
 - `protect(resource, { mask: 'auto' })` — when the decision is mask and the handler uses `res.json()`, every value is hidden and the shape and ids kept; or pass your own function.
-- **OneHuman never breaks your app.** A protected request waits at most `decisionTimeoutMs` (1000 ms) for a decision; on a timeout or an engine error it goes on as allowed (`req.nt.failedOpen`, header `X-NT-Decision: failed-open:<reason>`, counted in `health().failOpen`). Observe mode always fails open; enforce mode can choose `failOpen: false` (503). OneHuman's own routes no longer hand errors to your error handler.
+- **OneHuman never breaks your app.** A protected request waits at most `decisionTimeoutMs` (1000 ms) for a decision; on a timeout or an engine error it goes on as allowed (`req.onehuman.failedOpen`, header `X-OH-Decision: failed-open:<reason>`, counted in `health().failOpen`). Observe mode always fails open; enforce mode can choose `failOpen: false` (503). OneHuman's own routes no longer hand errors to your error handler.
 - **Fixed: a customer server stopped opening sessions after 400 visitors**, and kept only 2000 events for all visitors together (pruned on every insert). Now: no visitor cap, the newest 300 events per session, a week of history.
 - **Observe mode is counted right.** Reports carry what the rules would have done (`computed`); the portal used to count observe-mode decisions as all "allow".
-- **30-day report.** `npx onehuman report` (from your own audit log, nothing sent anywhere), `nt.report()` / `nt.reportHtml()`, and the portal's "30-day report": sessions with an agent, which agents, which endpoints they touched, what the rules did or would have done, the effect on real people, the signed share. Printable to PDF.
+- **30-day report.** `npx onehuman report` (from your own audit log, nothing sent anywhere), `oh.report()` / `oh.reportHtml()`, and the portal's "30-day report": sessions with an agent, which agents, which endpoints they touched, what the rules did or would have done, the effect on real people, the signed share. Printable to PDF.
 - **`npx onehuman inspect`** prints what the page script sent in a session, from your own database; byte for byte with `recordRaw: true` / `ONEHUMAN_RECORD_RAW=1`.
 - **Agent signature updates** — signed, versioned, additive bundles fetched from the portal; see the README.
 - Decisions now record the agent tools seen and the connection state.
@@ -18,20 +18,20 @@
 - Changes that make real people confirm or be refused are treated like weakening ones: they wait for approval and the password.
 - Portal: the Policy page is now **Rules**, written for non-technical owners, with an assistant that edits existing rules from a plain-language request (never adds or removes one; for a new rule it writes a prompt for the coding agent).
 - The portal signs each version (Ed25519) for one API key; the server pins the portal key on first use, refuses unsigned or altered policies, and runs on its saved signed copy when the portal is unreachable.
-- `nt.protect()` names and resources seen in traffic are listed in the portal when no rule covers them, with a suggested protection.
-- `nt.policySource()`, `health().policy.source`, a log line on every change, and (outside production) the `X-NT-Policy-Source` response header say whether the running policy came from the portal, the saved copy or the file.
+- `oh.protect()` names and resources seen in traffic are listed in the portal when no rule covers them, with a suggested protection.
+- `oh.policySource()`, `health().policy.source`, a log line on every change, and (outside production) the `X-OH-Policy-Source` response header say whether the running policy came from the portal, the saved copy or the file.
 - New options: `policyFromPortal` (default `true` with an `apiKey`; `false` keeps the file as the only source), `portalUrl`. `policy` is optional when an `apiKey` is given.
 - Management API: `GET /api/v1/manage/policy?key=`, `POST /api/v1/manage/policy {key, policy}`.
 
 ## 0.5.0 — 2026-09-24
-- Package descriptions, landing, docs and portal wizard rewritten around one message: `npm i onehuman` is the only install; the engine comes with it and is never imported. Startup now refuses a mismatched `onehuman-engine` version with the exact command to fix it.
+- Package descriptions, landing, docs and portal wizard rewritten around one message: `npm i @onehumanai/express` is the only install; the engine comes with it and is never imported. Startup now refuses a mismatched `@onehumanai/engine` version with the exact command to fix it.
 
 ## 0.4.0 — 2026-09-24 (identical content also published as 0.5.0)
-- **Licence split.** `onehuman` (browser SDK, Express middleware, CLI, proof verifier) is now **Apache 2.0**. The engine moves to its own package, **`onehuman-engine`**, under the **Business Source License 1.1** with a production-use grant: run it in production, at any scale, to protect your own applications and the services you provide to your customers; offering OneHuman itself as a competing hosted or embedded product is not granted. Each engine version converts to Apache 2.0 four years after release. Versions up to 0.3.x remain MIT.
-- **Nothing changes in your code.** `npm i onehuman` installs the engine as a dependency; `import { onehuman } from 'onehuman/express'` and every option, method and endpoint are the same.
+- **Licence split.** `onehuman` (browser SDK, Express middleware, CLI, proof verifier) is now **Apache 2.0**. The engine moves to its own package, **`@onehumanai/engine`**, under the **Business Source License 1.1** with a production-use grant: run it in production, at any scale, to protect your own applications and the services you provide to your customers; offering OneHuman itself as a competing hosted or embedded product is not granted. Each engine version converts to Apache 2.0 four years after release. Versions up to 0.3.x remain MIT.
+- **Nothing changes in your code.** `npm i @onehumanai/express` installs the engine as a dependency; `import { onehuman } from '@onehumanai/express'` and every option, method and endpoint are the same.
 - The proof verifier (`npx onehuman verify-proof`) is entirely Apache 2.0 and contains no engine code: an auditor needs nothing under the BSL to check a proof.
 - **Grade decisions.** In the portal's Activity each decision has right/wrong marks; gated decisions marked wrong count as false stops, allows marked wrong as misses, both shown for the range. `POST /api/v1/manage/feedback` for agents.
-- **`GET <basePath>/health`** and `nt.health()`: policy version, reporter state, proof key id, and integration warnings — 503 while one stands.
+- **`GET <basePath>/health`** and `oh.health()`: policy version, reporter state, proof key id, and integration warnings — 503 while one stands.
 - **`identify()` guard.** When the same identity arrives from five different clients the middleware logs once, loudly, that it is a constant (every visitor would share one session) and flips health to 503.
 - `/trust`: a one-page data-flow summary for security and legal reviewers.
 - **Fixed: one visitor split into many sessions.** A page that calls several protected endpoints at load sent them all before the session cookie existed, and each opened its own session — the agent's traces landed in one, the data request in another, and the request looked like `NO_CLIENT_TELEMETRY`. The browser SDK now lets the first call establish the session and holds the others until it has (a later page in the same tab skips the wait).
@@ -41,13 +41,13 @@
 - SDK: transport state is declared before any probe can report during page load.
 
 ## 0.3.0 — 2026-09-24
-- **Decision proofs.** Every decision is signed server-side (Ed25519, compact JWS, key derived from `secret`) and stored with its audit row; the proof covers the decision, its reasons and its place in the hash chain, never the raw session id. `req.nt.proof`, `nt.proofBundle(sessionId)`, `nt.proofFor(id)`, `nt.verifyProof(jws)`, `nt.proofKeys()`; public key at `<basePath>/proof-keys`. Nothing changes for end users.
+- **Decision proofs.** Every decision is signed server-side (Ed25519, compact JWS, key derived from `secret`) and stored with its audit row; the proof covers the decision, its reasons and its place in the hash chain, never the raw session id. `req.onehuman.proof`, `oh.proofBundle(sessionId)`, `oh.proofFor(id)`, `oh.verifyProof(jws)`, `oh.proofKeys()`; public key at `<basePath>/proof-keys`. Nothing changes for end users.
 - Telemetry carries the proof; the portal verifies each one at ingest (and that it belongs to its event), marks it ✓ in Activity, and exports an auditor bundle. `npx onehuman verify-proof <bundle> [--keys <url>]` checks one offline.
 - Portal: key rotation, revoked-key history and deletion, password change, paged log with CSV export.
 - A single click unlocks a session only with the learned model's agreement, not on rule points alone.
 
 ## 0.2.2 — 2026-09-23
-- **Management API** for agents and CI: `nt_admin_…` keys administer an account over HTTP — list/create/revoke project keys, read overview and per-key stats; `GET /api/v1/manage/me` describes itself. Project keys gained an environment tag and an optional expiry.
+- **Management API** for agents and CI: `oh_admin_…` keys administer an account over HTTP — list/create/revoke project keys, read overview and per-key stats; `GET /api/v1/manage/me` describes itself. Project keys gained an environment tag and an optional expiry.
 - `apiKey` option (or `ONEHUMAN_API_KEY`): the middleware reports each decision to the OneHuman portal — batched, off the request path, metadata only — and the portal shows the share of sessions with an AI agent, decisions over time, agents seen, resources reached, and a live log.
 - Isolated-world reading detection: a side panel taking viewport width plus main-thread work with no input is an attach indicator (`PANEL_PAGE_READ`); each alone is environment evidence.
 
@@ -75,6 +75,6 @@
 - Same content as 0.1.0 (release-process runs).
 
 ## 0.1.0 — 2026-09-21
-- First public build: Express/Connect middleware (`onehuman/express`), browser SDK (`/onehuman/sdk.js`).
+- First public build: Express/Connect middleware (`@onehumanai/express`), browser SDK (`/onehuman/sdk.js`).
 - Attach-time detection (control markers, tool globals, main-world read traps, focus-while-hidden), pointer kinematics (kin-v4), seal-on-attach for on-screen data, WebAuthn "I am human" reclaim, single-use download tokens, hash-chained audit.
 - Storage: node:sqlite (built in) or libSQL/Turso (optional dependency).

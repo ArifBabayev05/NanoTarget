@@ -21,14 +21,14 @@ const rules = [
   { resource: 'balance.read', title: 'Balance', onAgent: 'mask', onArtifact: 'mask', onUnknown: 'allow', onHumanLike: 'allow', actOn: ['verified', 'strong', 'control', 'behavioral'], minScore: 65 },
   { resource: 'report.export', title: 'Export', onAgent: 'block', onArtifact: 'step_up', onUnknown: 'step_up', onHumanLike: 'allow', actOn: ['verified', 'strong', 'control', 'behavioral'], minScore: 65 },
 ];
-const nt = await onehuman({ secret: 'test-secret-test-secret-test-secret-rprt', policy: { version: 'r1', enforcement: 'observe', rules } as never, db, recordRaw: true });
+const oh = await onehuman({ secret: 'test-secret-test-secret-test-secret-rprt', policy: { version: 'r1', enforcement: 'observe', rules } as never, db, recordRaw: true });
 const app = express();
-app.use(nt.middleware());
-app.get('/api/balance', nt.protect('balance.read'), (_q, r) => { r.json({ balance: 1 }); });
-app.get('/api/export', nt.protect('report.export'), (_q, r) => { r.json({ ok: true }); });
+app.use(oh.middleware());
+app.get('/api/balance', oh.protect('balance.read'), (_q, r) => { r.json({ balance: 1 }); });
+app.get('/api/export', oh.protect('report.export'), (_q, r) => { r.json({ ok: true }); });
 const server = app.listen(0);
 const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-after(async () => { server.close(); await nt.close(); });
+after(async () => { server.close(); await oh.close(); });
 
 const early = { startedMs: 0, observedMs: 500, webdriver: false, firstInteractionMs: null, dataDomMs: null, markers: [{ name: 'claude-stop', atMs: 100 }, { name: 'claude-cursor', atMs: 100 }], environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: [], focusWhileHiddenMs: null }, focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0, reading: { loadedHidden: false, readBursts: 0, firstReadBurstMs: null, lastReadBurstReads: 0, readBurstAnonymous: false, textExtracts: 0, firstTextExtractMs: null, visibilityFlickers: 0, firstFlickerMs: null, flickerResize: null, renderWhileHiddenMs: null, firstClick: null } };
 const CLI = new URL('../integrations/cli/index.ts', import.meta.url).pathname;
@@ -46,7 +46,7 @@ test('observe mode: nothing is blocked, and the report says what protect mode wo
   assert.equal(sig.status, 200);
   for (const p of ['/api/balance', '/api/export']) assert.equal((await fetch(`${base}${p}`, { headers: { cookie } })).status, 200);
 
-  const r = await nt.report({ days: 1 });
+  const r = await oh.report({ days: 1 });
   assert.equal(r.mode, 'observe');
   assert.equal(r.sessions.withAgent, 1);
   assert.ok(r.agents.some((a) => a.id === 'claude-chrome' && a.name === 'Claude in Chrome'), JSON.stringify(r.agents));

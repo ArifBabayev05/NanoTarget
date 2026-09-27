@@ -18,7 +18,7 @@
 <body>
 <div class="card">
   <h2>Acme Bank · Cari hesab</h2>
-  <!-- data-nt-sensitive="full" marks what the SDK redacts the instant an agent attaches -->
+  <!-- data-oh-sensitive="full" marks what the SDK redacts the instant an agent attaches -->
   <div class="amount" id="amount">•••• AZN</div>
   <div class="note" id="iban"></div>
   <button id="show">Balansı göstər</button>
@@ -41,9 +41,9 @@
     if (status === 200) {
       const full = body.balance !== null;
       $('#amount').textContent = full ? body.balance.toFixed(2) + ' ' + body.currency : '•••• ' + body.currency;
-      $('#amount').setAttribute('data-nt-sensitive', full ? 'full' : 'masked');
+      $('#amount').setAttribute('data-oh-sensitive', full ? 'full' : 'masked');
       $('#iban').textContent = body.iban;
-      $('#msg').innerHTML = full ? '' : '<div class="warn">Bəzi məlumatlar gizlədilib (' + body._nt.reasonCodes.join(', ') + ').</div>';
+      $('#msg').innerHTML = full ? '' : '<div class="warn">Bəzi məlumatlar gizlədilib (' + body._onehuman.reasonCodes.join(', ') + ').</div>';
     } else {
       $('#amount').textContent = '•••• AZN';
       $('#msg').innerHTML = '<div class="warn">' + (status === 403 ? 'Bu məlumat qorunur: sessiyanı AI agent idarə edir.' : 'Təsdiq tələb olunur.') + '</div>';
@@ -53,7 +53,7 @@
     const { status, body } = await call('/api/transfer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: 'AZ..1944', amount: 100 }) });
     $('#tmsg').innerHTML = status === 200 ? 'Köçürmə qəbul edildi.' : '<div class="warn">' + (status === 428 ? 'Əlavə təsdiq tələb olunur (kod: ' + (body.stepUp && body.stepUp.challenge) + ').' : 'Köçürmə bloklandı: AI agent.') + '</div>';
   };
-  document.addEventListener('nt:sealed', () => { $('#amount').textContent = '•••• AZN'; $('#msg').innerHTML = '<div class="warn">AI agent qoşuldu — ekrandakı məlumat gizlədildi.</div>'; });
+  document.addEventListener('onehuman:sealed', () => { $('#amount').textContent = '•••• AZN'; $('#msg').innerHTML = '<div class="warn">AI agent qoşuldu — ekrandakı məlumat gizlədildi.</div>'; });
 </script>
 </body>
 </html>

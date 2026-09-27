@@ -207,9 +207,9 @@ export function scan(root: string): ScanResult {
   const notes: string[] = [];
   if (!routes.length) notes.push('No HTTP route definitions recognised. If the server is not Node (Java/.NET/Go/Python), the middleware does not apply; run the OneHuman engine as a Node sidecar in front of the data endpoints instead.');
   if (!identityRanked.length) notes.push('No login/session expression found: OneHuman will fall back to a first-party cookie per browser. If the app has authentication, tell the integrator where the user id lives on the request.');
-  if (frontend.kind === 'spa' || frontend.kind === 'mixed') notes.push(`SPA detected: add <script src="/onehuman/sdk.js"> to ${frontend.entryHtml[0] ?? 'the entry HTML'} and mark rendered sensitive values with data-nt-sensitive in the components.`);
-  if (axios) notes.push('axios is used: add OneHuman.sessionHeaders() and X-NT-Sample from OneHuman.snapshot(true) in a request interceptor for protected calls, or switch those calls to OneHuman.fetch.');
-  if (routes.some((r) => r.kind === 'download' && r.sensitivity >= 30)) notes.push('Download/export routes found: decide on the request that issues the link (protect) and put req.nt.token() in the file URL; redeem it in the file route.');
+  if (frontend.kind === 'spa' || frontend.kind === 'mixed') notes.push(`SPA detected: add <script src="/onehuman/sdk.js"> to ${frontend.entryHtml[0] ?? 'the entry HTML'} and mark rendered sensitive values with data-oh-sensitive in the components.`);
+  if (axios) notes.push('axios is used: add OneHuman.sessionHeaders() and X-OH-Sample from OneHuman.snapshot(true) in a request interceptor for protected calls, or switch those calls to OneHuman.fetch.');
+  if (routes.some((r) => r.kind === 'download' && r.sensitivity >= 30)) notes.push('Download/export routes found: decide on the request that issues the link (protect) and put req.onehuman.token() in the file URL; redeem it in the file route.');
 
   const policyDraft = {
     version: 'draft-1',
@@ -252,7 +252,7 @@ export function renderProposal(r: ScanResult): string {
   if (rest.length) out.push('', `Left unprotected (low sensitivity or auth/health/static): ${rest.map((x) => `${x.method} ${x.path}`).join(', ')}`);
   out.push('');
   out.push(`Session identity: ${r.identity.length ? `use identify(req) → ${r.identity[0]!.expression} (found in ${r.identity[0]!.file}); return null when not logged in.` : 'no login expression found → per-browser cookie mode (tell me if the app has authentication).'}`);
-  out.push(`Front end: ${r.frontend.kind}${r.frontend.axios ? ', axios' : ''} → add <script src="/onehuman/sdk.js">, call protected endpoints through OneHuman.fetch (or an axios interceptor), mark rendered sensitive values with data-nt-sensitive so they are redacted the instant an agent attaches.`);
+  out.push(`Front end: ${r.frontend.kind}${r.frontend.axios ? ', axios' : ''} → add <script src="/onehuman/sdk.js">, call protected endpoints through OneHuman.fetch (or an axios interceptor), mark rendered sensitive values with data-oh-sensitive so they are redacted the instant an agent attaches.`);
   out.push('Rollout: start in observe mode (nothing blocked, every decision recorded with what would have happened); switch to enforce after review.');
   out.push('');
   out.push('Questions for you: (1) confirm/edit the protected list; (2) modes per route; (3) observe or enforce; (4) session identity expression; (5) storage (sqlite file vs libSQL); (6) built-in step-up/passkey or your own OTP; (7) where ONEHUMAN_SECRET lives.');

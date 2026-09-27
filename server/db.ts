@@ -789,7 +789,7 @@ export class Store {
       decidedBy: x.decided_by == null ? null : String(x.decided_by), decidedAt: x.decided_at == null ? null : Number(x.decided_at),
     }));
   }
-  /** The protected resources a key's server declared (every nt.protect() call it registered). */
+  /** The protected resources a key's server declared (every oh.protect() call it registered). */
   async noteKeyResources(keyId: string, resources: string[], now = Date.now()) {
     if (!resources.length) return;
     await this.sql.batch(resources.slice(0, 200).map((res) => ({ sql: 'INSERT INTO key_resources (key_id, resource, first_seen, last_seen) VALUES (?, ?, ?, ?) ON CONFLICT(key_id, resource) DO UPDATE SET last_seen = excluded.last_seen', args: [keyId, res, now, now] as SqlArg[] })));

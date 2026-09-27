@@ -44,7 +44,7 @@ export async function inspect(f: Flags) {
     const rows = (await sql.execute(`SELECT s.id, s.created, s.last_seen, s.agent_attached_at, (SELECT COUNT(*) FROM events e WHERE e.session = s.id AND e.kind IN ('signal','interaction','raw')) AS n
       FROM sessions s ORDER BY s.last_seen DESC LIMIT ?`, [Number(f.flag('--last') ?? 20)])).rows;
     if (f.has('--json')) { console.log(JSON.stringify(rows, null, 2)); return; }
-    console.log('Most recent sessions (the id is the nt_sid cookie in your browser):\n');
+    console.log('Most recent sessions (the id is the oh_sid cookie in your browser):\n');
     for (const r of rows) console.log(`  ${r.id}  last seen ${new Date(Number(r.last_seen)).toISOString().replace('T', ' ').slice(0, 19)}  ${String(r.n).padStart(4)} payloads${r.agent_attached_at ? '  · agent attached' : ''}`);
     return;
   }

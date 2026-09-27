@@ -6,7 +6,7 @@
     "declaration": true,
     "rewriteRelativeImportExtensions": true,
     "rootDir": ".",
-    "outDir": "packages/onehuman/dist/types"
+    "outDir": "packages/express/dist/types"
   },
   "include": [
     "integrations/express/index.ts",
