@@ -219,8 +219,8 @@ export async function onehuman(opts: OneHumanOptions) {
   if (PACKAGE_VERSION !== '0.0.0-dev' && ENGINE_VERSION !== '0.0.0-dev' && PACKAGE_VERSION !== ENGINE_VERSION) {
     throw new Error(`onehumanai: the middleware is ${PACKAGE_VERSION} but its engine is ${ENGINE_VERSION} — the install is broken; run \`npm i onehumanai@${PACKAGE_VERSION}\` again.`);
   }
-  const secret = Buffer.isBuffer(opts.secret) ? opts.secret : Buffer.from(opts.secret, 'utf8');
-  if (secret.length < 32) throw new Error('onehuman: secret must be at least 32 bytes');
+  const secret = Buffer.isBuffer(opts.secret) ? opts.secret : Buffer.from(opts.secret ?? '', 'utf8');
+  if (secret.length < 32) throw new Error(opts.secret ? 'onehuman: secret must be at least 32 bytes' : 'onehuman: no secret. Run `npx onehumanai init` in this project (it writes ONEHUMAN_SECRET to .env), or pass secret yourself.');
   const basePath = (opts.basePath ?? '/onehuman').replace(/\/$/, '');
   const cookieName = opts.cookie ?? 'oh_sid';
   const tenant = opts.tenant ?? 'default';
@@ -245,7 +245,8 @@ export async function onehuman(opts: OneHumanOptions) {
   await store.ensureRoom(room, `tenant:${tenant}`);
 
   async function loadPolicy(src: string | Policy): Promise<Policy> {
-    const raw = typeof src === 'string' ? JSON.parse(await readFile(src, 'utf8')) : src;
+    const text = typeof src === 'string' ? await readFile(src, 'utf8').catch((e: NodeJS.ErrnoException) => { throw new Error(e.code === 'ENOENT' ? `onehuman: no rules file at ${src}. Run \`npx onehumanai init\` in this project to create it.` : e.message); }) : null;
+    const raw = typeof src === 'string' ? JSON.parse(text!) : src;
     const version = typeof raw?.version === 'string' ? raw.version : `policy-${tenant}-${Date.now()}`;
     const checked = checkPolicy(raw, version);
     if ('error' in checked) throw new Error(`onehuman: the policy${typeof src === 'string' ? ` in ${src}` : ''} is invalid: ${checked.error}`);

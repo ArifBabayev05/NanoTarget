@@ -28,7 +28,8 @@ const positional = rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[
 async function main() {
   if (cmd === 'inspect') { await inspect({ flag, has }); return; }
   if (cmd === 'report') { await report({ flag, has }); return; }
-  if (cmd === 'init') { await runInit(positional[0] ?? process.cwd(), { yes: has('--yes'), install: !has('--no-install') }); return; }
+  // `npx onehumanai` on its own sets the project up: the one command people need to remember
+  if (cmd === 'init' || cmd === undefined) { await runInit(positional[0] ?? process.cwd(), { yes: has('--yes'), install: !has('--no-install') }); return; }
   if (cmd === 'scan') {
     const root = resolve(positional[0] ?? process.cwd());
     const r = scan(root);
