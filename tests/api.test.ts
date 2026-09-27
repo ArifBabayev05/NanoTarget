@@ -35,7 +35,7 @@ async function open(label?: 'human' | 'agent') {
   return { room, cookie, session, q: `?room=${room}` };
 }
 
-const withSample = (sample: unknown) => ({ 'X-NT-Sample': JSON.stringify(sample) });
+const withSample = (sample: unknown) => ({ 'X-OH-Sample': JSON.stringify(sample) });
 
 test('page has no account data; profile endpoint decides', async () => {
   const s = await open();
@@ -142,7 +142,7 @@ test('forged telemetry (isTrusted=false) cannot unlock; webdriver → agent', as
 
 test('malformed telemetry is ignored, not trusted', async () => {
   const s = await open();
-  const r = await fetch(`${base}/api/v1/account/profile${s.q}`, { headers: { cookie: s.cookie, 'X-NT-Sample': '{"early":{"webdriver":"no"}}' } });
+  const r = await fetch(`${base}/api/v1/account/profile${s.q}`, { headers: { cookie: s.cookie, 'X-OH-Sample': '{"early":{"webdriver":"no"}}' } });
   assert.equal(r.status, 200);
   assert.ok((await r.json()).assessment.reasons.some((x: { code: string }) => x.code === 'NO_CLIENT_TELEMETRY'));
 });
@@ -309,13 +309,13 @@ test('two tabs in one profile: the page-bound session header keeps signals apart
   const a = await open('agent');
   const b = await open('human');
   const pageA = await (await fetch(`${base}/bank${a.q}`, { headers: { cookie: a.cookie } })).text();
-  assert.ok(pageA.includes('<meta name="nt-session"'), 'session id is embedded in the page');
+  assert.ok(pageA.includes('<meta name="oh-session"'), 'session id is embedded in the page');
   // A keeps reporting with the newer cookie (B's) but with its own embedded session id
-  const r = await fetch(`${base}/api/v1/signals${a.q}`, { method: 'POST', headers: { cookie: b.cookie, 'Content-Type': 'application/json', 'X-NT-Session': a.session }, body: JSON.stringify({ early: { ...earlyBase, markers: [{ name: 'codex-overlay', atMs: 138 }] }, interaction: null }) });
+  const r = await fetch(`${base}/api/v1/signals${a.q}`, { method: 'POST', headers: { cookie: b.cookie, 'Content-Type': 'application/json', 'X-OH-Session': a.session }, body: JSON.stringify({ early: { ...earlyBase, markers: [{ name: 'codex-overlay', atMs: 138 }] }, interaction: null }) });
   assert.equal(r.status, 200);
-  const jb = await (await fetch(`${base}/api/v1/connection${b.q}`, { headers: { cookie: b.cookie, 'X-NT-Session': b.session } })).json();
+  const jb = await (await fetch(`${base}/api/v1/connection${b.q}`, { headers: { cookie: b.cookie, 'X-OH-Session': b.session } })).json();
   assert.equal(jb.connection.state, 'no_indication', 'B is untouched by A\'s signals');
-  const ja = await (await fetch(`${base}/api/v1/connection${a.q}`, { headers: { cookie: b.cookie, 'X-NT-Session': a.session } })).json();
+  const ja = await (await fetch(`${base}/api/v1/connection${a.q}`, { headers: { cookie: b.cookie, 'X-OH-Session': a.session } })).json();
   assert.equal(ja.connection.state, 'agent_attached');
   const bench = await (await fetch(`${base}/api/v1/benchmark${a.q}`)).json();
   assert.equal(bench.falseAttachSessions, 0);

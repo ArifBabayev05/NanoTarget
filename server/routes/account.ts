@@ -56,7 +56,7 @@ export function accountRoutes(engine: OneHuman) {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': 'attachment; filename="onehuman-demo-hesabat.csv"',
       'Cache-Control': 'no-store',
-      'X-NT-Decision': check.claims.decisionId,
+      'X-OH-Decision': check.claims.decisionId,
     });
     res.end(csv);
   };

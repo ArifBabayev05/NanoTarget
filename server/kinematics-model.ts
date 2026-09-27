@@ -75,7 +75,7 @@ export async function loadModel(): Promise<Model | null> {
     const { fileURLToPath } = await import('node:url');
     const { dirname, join } = await import('node:path');
     const here = dirname(fileURLToPath(import.meta.url));
-    for (const p of [join(here, 'kinematics-model.json'), join(here, '..', 'server', 'kinematics-model.json'), join(process.env.NT_ROOT ?? process.cwd(), 'server', 'kinematics-model.json')]) {
+    for (const p of [join(here, 'kinematics-model.json'), join(here, '..', 'server', 'kinematics-model.json'), join(process.env.ONEHUMAN_ROOT ?? process.cwd(), 'server', 'kinematics-model.json')]) {
       try { loaded = JSON.parse(await readFile(p, 'utf8')) as Model; return loaded; } catch { /* next */ }
     }
   } catch { /* ignore */ }

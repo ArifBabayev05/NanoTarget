@@ -8,9 +8,9 @@
 
   // ---------------------------------------------------------------- theme
   const applyTheme = (t) => { document.documentElement.dataset.theme = t === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : t; $$('#theme button').forEach((b) => b.classList.toggle('on', b.dataset.themeSet === t)); };
-  let theme = 'system'; try { theme = localStorage.getItem('nt-theme') || 'system'; } catch {}
+  let theme = 'system'; try { theme = localStorage.getItem('oh-theme') || 'system'; } catch {}
   applyTheme(theme);
-  $$('#theme button').forEach((b) => b.addEventListener('click', () => { theme = b.dataset.themeSet; try { localStorage.setItem('nt-theme', theme); } catch {} applyTheme(theme); }));
+  $$('#theme button').forEach((b) => b.addEventListener('click', () => { theme = b.dataset.themeSet; try { localStorage.setItem('oh-theme', theme); } catch {} applyTheme(theme); }));
   matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => theme === 'system' && applyTheme('system'));
 
   // the header knows whether you are signed in

@@ -2,7 +2,7 @@
 /**
  * OneHuman decision proofs — the open half: the format, and how to check one.
  *
- * A proof is a compact JWS (EdDSA / Ed25519), header { alg: "EdDSA", typ: "nt-proof", kid }, whose payload
+ * A proof is a compact JWS (EdDSA / Ed25519), header { alg: "EdDSA", typ: "oh-proof", kid }, whose payload
  * states one decision: what was decided and why, whether data was delivered, and its place in the
  * hash-chained audit log. Anyone can verify a proof with this file, any JOSE library, or
  * `npx onehuman verify-proof`. The signing side lives in the engine; checking needs nothing from it.
@@ -10,14 +10,13 @@
 import { createHash, createPublicKey, verify, type KeyObject } from 'node:crypto';
 
 export const PROOF_VERSION = 1;
-export const PROOF_TYP = 'nt-proof';
+export const PROOF_TYP = 'oh-proof';
 
 export type ProofJwk = { kty: 'OKP'; crv: 'Ed25519'; x: string; kid: string; use: 'sig'; alg: 'EdDSA' };
 
 export type ProofPayload = {
   v: number;
-  /** 'onehuman' on proofs signed before the rename to OneHuman */
-  iss: 'onehuman' | 'onehuman';
+  iss: 'onehuman';
   /** issued at, seconds */
   iat: number;
   /** the decision id — unique, the handle an auditor asks about */
@@ -68,7 +67,7 @@ export function verifyProof(jws: string, keys: { x: string; kid?: string }[]): P
   let header: { alg?: string; typ?: string; kid?: string };
   let payload: ProofPayload;
   try { header = JSON.parse(fromB64u(h).toString('utf8')); payload = JSON.parse(fromB64u(p).toString('utf8')); } catch { return { valid: false, reason: 'malformed' }; }
-  if (header.alg !== 'EdDSA' || header.typ !== PROOF_TYP || (payload?.iss !== 'onehuman' && payload?.iss !== 'onehuman')) return { valid: false, reason: 'wrong_type' };
+  if (header.alg !== 'EdDSA' || header.typ !== PROOF_TYP || payload?.iss !== 'onehuman') return { valid: false, reason: 'wrong_type' };
   const key = keys.find((k) => (k.kid ?? thumbprint(k.x)) === header.kid && thumbprint(k.x) === header.kid);
   if (!key) return { valid: false, reason: 'unknown_key' };
   let pub = keyCache.get(key.x);

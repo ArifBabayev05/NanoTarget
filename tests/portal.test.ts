@@ -24,7 +24,7 @@ test('passwords: scrypt round-trips and rejects the wrong one; keys hash determi
   assert.ok(verifyPassword('correct horse', h));
   assert.ok(!verifyPassword('wrong', h));
   const k = newApiKey();
-  assert.match(k.raw, /^nt_live_[a-f0-9]{40}$/);
+  assert.match(k.raw, /^oh_live_[a-f0-9]{40}$/);
   assert.equal(k.prefix, k.raw.slice(0, 15));
   assert.equal(k.hash, hashKey(k.raw));
 });
@@ -51,12 +51,12 @@ test('signup → key → ingest → stats', async () => {
   r = await fetch(`${base}/api/v1/portal/keys`, { method: 'POST', headers: hdr(), body: JSON.stringify({ name: 'production', expiresInDays: 30, env: 'staging' }) });
   assert.equal(r.status, 201); const k = await r.json(); rawKey = k.key; keyId = k.id;
   assert.equal(k.env, 'staging'); assert.ok(k.expires && k.expires > Date.now(), 'expiry is set 30 days out');
-  assert.match(rawKey, /^nt_live_/);
+  assert.match(rawKey, /^oh_live_/);
   r = await fetch(`${base}/api/v1/portal/me`, { headers: hdr() }); const me2 = await r.json();
   assert.equal(me2.keys.length, 1); assert.equal(me2.keys[0].prefix, rawKey.slice(0, 15)); assert.ok(!('key' in me2.keys[0]), 'raw key is never listed again');
 
   // a wrong key is refused; the right one accepts a batch, dropping malformed rows
-  r = await fetch(`${base}/api/v1/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer nt_live_' + '0'.repeat(40) }, body: JSON.stringify({ events: [] }) });
+  r = await fetch(`${base}/api/v1/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer oh_live_' + '0'.repeat(40) }, body: JSON.stringify({ events: [] }) });
   assert.equal(r.status, 401);
   const now = Date.now();
   const ev = (over: Record<string, unknown>) => ({ at: now, session: 'a1b2c3d4e5f60718', resource: 'balance.read', decision: 'allow', actor: 'human_like', state: 'no_indication', tools: [], reasons: ['HUMAN_KINEMATICS'], enforcement: 'observe', version: 'assess-v7', ...over });
@@ -132,7 +132,7 @@ test('login works with the right password, sign-out clears the session', async (
 
 test('management keys drive the whole account over HTTP, the way an agent would', async () => {
   const am = newAdminKey();
-  assert.match(am.raw, /^nt_admin_[a-f0-9]{40}$/);
+  assert.match(am.raw, /^oh_admin_[a-f0-9]{40}$/);
   assert.equal(am.hash, hashKey(am.raw));
 
   // sign in as a fresh account and mint a management key from the portal
@@ -141,11 +141,11 @@ test('management keys drive the whole account over HTTP, the way an agent would'
   const c = r.headers.get('set-cookie')!.split(';')[0]!;
   r = await fetch(`${base}/api/v1/portal/admin-keys`, { method: 'POST', headers: { ...H, Cookie: c }, body: JSON.stringify({ name: 'claude-code' }) });
   assert.equal(r.status, 201); const admin = await r.json();
-  assert.match(admin.key, /^nt_admin_/);
+  assert.match(admin.key, /^oh_admin_/);
   const A = { 'Content-Type': 'application/json', Authorization: `Bearer ${admin.key}` };
 
   // an unknown management key is refused
-  r = await fetch(`${base}/api/v1/manage/keys`, { headers: { Authorization: 'Bearer nt_admin_' + '0'.repeat(40) } });
+  r = await fetch(`${base}/api/v1/manage/keys`, { headers: { Authorization: 'Bearer oh_admin_' + '0'.repeat(40) } });
   assert.equal(r.status, 401);
 
   // me → keys (empty) → create → list → stats → revoke, all without touching the portal UI
@@ -158,7 +158,7 @@ test('management keys drive the whole account over HTTP, the way an agent would'
   assert.deepEqual((await r.json()).keys, []);
   r = await fetch(`${base}/api/v1/manage/keys`, { method: 'POST', headers: A, body: JSON.stringify({ name: 'from-agent', expiresInDays: 7, env: 'development' }) });
   assert.equal(r.status, 201); const made = await r.json();
-  assert.match(made.key, /^nt_live_/); assert.equal(made.env, 'development');
+  assert.match(made.key, /^oh_live_/); assert.equal(made.env, 'development');
 
   // the key it just made really works for ingest
   r = await fetch(`${base}/api/v1/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${made.key}` }, body: JSON.stringify({ events: [{ at: Date.now(), session: 'abcdef0123456789', resource: 'balance.read', decision: 'mask', actor: 'agent_likely', state: 'agent_attached', tools: ['claude-chrome'], reasons: ['AGENT_CONTROL_MARKER'], enforcement: 'observe', version: 'assess-v7' }] }) });
@@ -174,7 +174,7 @@ test('management keys drive the whole account over HTTP, the way an agent would'
   r = await fetch(`${base}/api/v1/manage/keys/${made.id}/rotate`, { method: 'POST', headers: A, body: '{}' });
   assert.equal(r.status, 200);
   const spun = await r.json();
-  assert.match(spun.key, /^nt_live_[a-f0-9]{40}$/);
+  assert.match(spun.key, /^oh_live_[a-f0-9]{40}$/);
   assert.notEqual(spun.key, made.key);
   r = await fetch(`${base}/api/v1/manage/events?key=${made.id}&range=7d&limit=5`, { headers: A });
   assert.equal(r.status, 200);
@@ -235,7 +235,7 @@ test('rotating a key issues a new secret, retires the old one and keeps the hist
   r = await fetch(`${base}/api/v1/portal/keys/rotate`, { method: 'POST', headers: hdr(), body: JSON.stringify({ id: k.id }) });
   assert.equal(r.status, 200);
   const rotated = await r.json();
-  assert.match(rotated.key, /^nt_live_[a-f0-9]{40}$/);
+  assert.match(rotated.key, /^oh_live_[a-f0-9]{40}$/);
   assert.notEqual(rotated.key, k.key);
   assert.equal((await send(k.key)).status, 401, 'the old secret is dead the moment it is rotated');
   assert.equal((await send(rotated.key)).status, 202);

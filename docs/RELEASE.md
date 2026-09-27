@@ -1,28 +1,31 @@
-# Buraxılış — `onehuman` npm paketi
+# Buraxılış — npm paketləri (`onehumanai` təşkilatı)
 
-Paket: https://www.npmjs.com/package/onehuman  · mənbə: `integrations/express/`, `sdk/onehuman.js`, `server/**` → bir ESM bundle (`dist/express.js`, ~120 KB) + tiplər + SDK.
+Dörd paket, hamısı eyni versiyada:
+
+| Paket | Lisenziya | Nədir |
+|---|---|---|
+| `@onehumanai/engine` | BUSL-1.1 | engine (`server/public.ts`) |
+| `@onehumanai/sdk` | Apache-2.0 | brauzer SDK-sı tək (`sdk/onehuman.js`) |
+| `@onehumanai/express` | Apache-2.0 | müştərinin quraşdırdığı: middleware + SDK + CLI |
+| `onehuman` | Apache-2.0 | qısa əmr: `npx onehuman init` |
 
 ## Bir dəfə
 ```bash
-npm login          # npm hesabı (2FA tövsiyə olunur)
+npm login          # onehumanai təşkilatının üzvü olan hesab (2FA)
 ```
 
 ## Hər buraxılış
 ```bash
-npm run release -- current   # ilk dəfə: package.json-dakı 0.1.0 nəşr olunur
-npm run release -- patch     # sonra: 0.1.0 → 0.1.1 (düzəlişlər)
-npm run release -- minor     # 0.1.x → 0.2.0 (yeni imkan)
+npm run release -- current           # package.json-dakı versiya nəşr olunur
+npm run release -- patch             # 0.6.0 → 0.6.1
 npm run release -- patch --dry-run   # nəşr etmədən hər şeyi yoxla
 ```
-Skript: `npm run check` (tip + 96 test) → paketi yığ → versiya → `npm publish` → git commit + tag `onehuman-vX.Y.Z`. Hər buraxılışdan əvvəl `packages/onehuman/CHANGELOG.md`-yə bir sətir yaz.
+Skript: `npm run check` → versiyalar → `node scripts/build-package.mjs` → `npm publish` (engine → sdk → express → onehuman) → git commit + tag `onehuman-vX.Y.Z`. Hər buraxılışdan əvvəl `packages/express/CHANGELOG.md`-yə bir sətir yaz.
 
 ## Müştəri tərəfində
 ```bash
-npm i onehuman            # Node ≥ 22.13; sqlite daxildir, libSQL istəyə görə
+npx onehuman init                    # və ya: npm i @onehumanai/express
 ```
 ```js
-import { onehuman } from 'onehuman/express';
+import { onehuman } from '@onehumanai/express';
 ```
-
-## Yoxlanılıb (21.09.2026)
-`npm pack` → boş layihədə `npm i ./onehuman-0.1.0.tgz express` → server: allow 200, AI-brauzer UA ilə mask, `/onehuman/sdk.js` 200. Tarball 124 KB, 24 fayl.

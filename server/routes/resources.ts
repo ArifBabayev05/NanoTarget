@@ -43,7 +43,7 @@ export function resourceRoutes(engine: OneHuman) {
       const check = await engine.redeemToken(t, resolved.session.id, def.id);
       if (!check.ok) { json(res, 403, { error: 'token_rejected', reason: check.reason, message: 'Endirmə linki etibarsızdır, vaxtı bitib və ya artıq istifadə olunub.' }); return true; }
       const out = def.file(resolved.session.id);
-      res.writeHead(200, { 'Content-Type': out.mime, 'Content-Disposition': `attachment; filename="${out.filename}"`, 'Cache-Control': 'no-store', 'X-NT-Decision': check.claims.decisionId });
+      res.writeHead(200, { 'Content-Type': out.mime, 'Content-Disposition': `attachment; filename="${out.filename}"`, 'Cache-Control': 'no-store', 'X-OH-Decision': check.claims.decisionId });
       res.end(out.body);
       return true;
     }

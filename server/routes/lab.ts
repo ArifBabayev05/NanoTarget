@@ -99,7 +99,7 @@ export function labRoutes(engine: OneHuman, labOperator: LabOperator) {
     const cookie = `${engine.sessionCookie}=${r.session.id}`;
     const runs: { status: number; body: unknown }[] = [];
     for (let i = 0; i < 2; i++) {
-      const resp = await fetch(target, { headers: { ...headers, cookie, 'x-nt-lab-simulated': engine.simulationToken }, cache: 'no-store' });
+      const resp = await fetch(target, { headers: { ...headers, cookie, 'x-oh-lab-simulated': engine.simulationToken }, cache: 'no-store' });
       runs.push({ status: resp.status, body: await resp.json() });
     }
     json(res, 200, { operator: labOperator.operator, note: 'Lab operator açarı ilə imzalanmış iki eyni sorğu: birincisi verified, ikincisi replay.', runs });

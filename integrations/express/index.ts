@@ -2,13 +2,13 @@
 /**
  * OneHuman for Express / Connect / plain Node http.
  *
- *   import { onehuman } from 'onehuman/express';
- *   const nt = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db' });
- *   app.use(nt.middleware());                       // serves /onehuman/sdk.js + the SDK's API
- *   app.get('/api/balance', nt.protect('balance.read'), (req, res) => nt.send(req, res, balance, maskBalance));
+ *   import { onehuman } from '@onehumanai/express';
+ *   const oh = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db' });
+ *   app.use(oh.middleware());                       // serves /onehuman/sdk.js + the SDK's API
+ *   app.get('/api/balance', oh.protect('balance.read'), (req, res) => oh.send(req, res, balance, maskBalance));
  *
  * The company keeps full control: the policy is its JSON file, `mask` is its own function, the decision
- * arrives on `req.nt` and nothing here touches its authentication. Storage is local (sqlite) or libSQL, so the
+ * arrives on `req.onehuman` and nothing here touches its authentication. Storage is local (sqlite) or libSQL, so the
  * package runs on-prem; telemetry never has to leave the company's network.
  */
 import { createHash, createHmac, randomUUID } from 'node:crypto';
@@ -17,7 +17,7 @@ import { readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-// The engine is a separate package (onehuman-engine, BUSL-1.1); this adapter talks to it only through its
+// The engine is a separate package (@onehumanai/engine, BUSL-1.1); this adapter talks to it only through its
 // public surface. In this repository that is ../../server/public.ts; the build rewrites it to the package.
 import {
   ENGINE_VERSION, OneHuman, SERVER_LIMITS, Store, applySignatures, attachModel, clientSignatureRules, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
@@ -30,7 +30,7 @@ import { createSignatureSync } from './signature-sync.ts';
 import { buildReport, type Report } from '../report/build.ts';
 import { renderReportHtml } from '../report/html.ts';
 
-export type Req = IncomingMessage & { nt?: ProtectResult };
+export type Req = IncomingMessage & { onehuman?: ProtectResult };
 export type Res = ServerResponse;
 export type Next = (err?: unknown) => void;
 
@@ -60,7 +60,7 @@ export type OneHumanOptions = {
    * first-party cookie identifies the browser.
    */
   identify?: (req: IncomingMessage) => string | null | undefined | Promise<string | null | undefined>;
-  /** cookie name (default 'nt_sid') */
+  /** cookie name (default 'oh_sid') */
   cookie?: string;
   /** set the Secure flag on the cookie; default: when the request is https or behind x-forwarded-proto=https */
   secure?: boolean;
@@ -74,7 +74,7 @@ export type OneHumanOptions = {
    * Report decisions to your OneHuman portal (https://onehuman.ai/portal) so you can see how
    * many of your sessions had an AI agent in them. Metadata only — hashed session id, resource, decision,
    * actor, connection state, detected tools, reason codes. Never payloads, identities or IPs.
-   * Default: process.env.ONEHUMAN_API_KEY (the old NT_API_KEY still works). Without a key nothing leaves your server.
+   * Default: process.env.ONEHUMAN_API_KEY. Without a key nothing leaves your server.
    */
   apiKey?: string;
   /**
@@ -209,15 +209,15 @@ declare const __ONEHUMAN_VERSION__: string | undefined;
 const PACKAGE_VERSION: string = typeof __ONEHUMAN_VERSION__ === 'string' ? __ONEHUMAN_VERSION__ : '0.0.0-dev';
 
 export async function onehuman(opts: OneHumanOptions) {
-  // `onehuman` and `onehuman-engine` ship together at one version. A lockfile that pins an older engine, or an
+  // `@onehumanai/express` and `@onehumanai/engine` ship together at one version. A lockfile that pins an older engine, or an
   // engine added by hand, is the one install mistake that would fail somewhere deep and late — fail here instead.
   if (PACKAGE_VERSION !== '0.0.0-dev' && ENGINE_VERSION !== '0.0.0-dev' && PACKAGE_VERSION !== ENGINE_VERSION) {
-    throw new Error(`onehuman ${PACKAGE_VERSION} found onehuman-engine ${ENGINE_VERSION}. The two are released together at the same version — run \`npm i onehuman@${PACKAGE_VERSION}\` (it installs the matching engine) and do not add onehuman-engine to your dependencies yourself.`);
+    throw new Error(`onehuman ${PACKAGE_VERSION} found @onehumanai/engine ${ENGINE_VERSION}. The two are released together at the same version — run \`npm i @onehumanai/express@${PACKAGE_VERSION}\` (it installs the matching engine) and do not add @onehumanai/engine to your dependencies yourself.`);
   }
   const secret = Buffer.isBuffer(opts.secret) ? opts.secret : Buffer.from(opts.secret, 'utf8');
   if (secret.length < 32) throw new Error('onehuman: secret must be at least 32 bytes');
   const basePath = (opts.basePath ?? '/onehuman').replace(/\/$/, '');
-  const cookieName = opts.cookie ?? 'nt_sid';
+  const cookieName = opts.cookie ?? 'oh_sid';
   const tenant = opts.tenant ?? 'default';
   const respond = opts.respond ?? true;
   const decisionTimeoutMs = opts.decisionTimeoutMs ?? (Number(process.env.ONEHUMAN_TIMEOUT_MS) || 1000);
@@ -225,7 +225,7 @@ export async function onehuman(opts: OneHumanOptions) {
   const recordRaw = opts.recordRaw ?? process.env.ONEHUMAN_RECORD_RAW === '1';
   const failures = { count: 0, lastReason: null as string | null, lastError: null as string | null, lastAt: null as number | null };
   let lastFailWarn = 0;
-  const apiKey = opts.apiKey ?? process.env.ONEHUMAN_API_KEY ?? process.env.NT_API_KEY ?? '';
+  const apiKey = opts.apiKey ?? process.env.ONEHUMAN_API_KEY ?? '';
   const sessionHash = (id: string) => createHash('sha256').update(apiKey).update('\0').update(id).digest('hex').slice(0, 16);
 
   // one room holds every visitor of this app: limits are per session and by age, never a cap on visitors
@@ -233,7 +233,7 @@ export async function onehuman(opts: OneHumanOptions) {
   const model = await loadModel();
   attachModel(model ? { predict: (f) => predict(model, f), humanAbove: model.humanAbove, syntheticBelow: model.syntheticBelow } : null);
   const engine = new OneHuman({ store, secret, sessionCookie: cookieName });
-  const telemetryUrl = opts.telemetryUrl ?? process.env.ONEHUMAN_TELEMETRY_URL ?? process.env.NT_TELEMETRY_URL ?? 'https://onehuman.ai/api/v1/ingest';
+  const telemetryUrl = opts.telemetryUrl ?? process.env.ONEHUMAN_TELEMETRY_URL ?? 'https://onehuman.ai/api/v1/ingest';
   const reporter = apiKey ? createReporter(apiKey, telemetryUrl, engine.proofKeys().keys, opts.telemetryImmediate ?? SERVERLESS) : null;
   engine.webauthnReclaimEnabled = opts.webauthnReclaim ?? true;
   const room = derivedUuid(secret, 'room', tenant);
@@ -246,7 +246,7 @@ export async function onehuman(opts: OneHumanOptions) {
     if (!parsed) throw new Error('onehuman: policy file is invalid (see docs/INTEGRATION.md for the schema)');
     return parsed;
   }
-  const portalUrl = opts.portalUrl ?? process.env.ONEHUMAN_PORTAL_URL ?? process.env.NT_PORTAL_URL ?? new URL(telemetryUrl).origin;
+  const portalUrl = opts.portalUrl ?? process.env.ONEHUMAN_PORTAL_URL ?? new URL(telemetryUrl).origin;
   const fromPortal = !!apiKey && opts.policyFromPortal !== false;
   if (opts.policy === undefined && !fromPortal) throw new Error('onehuman: give a `policy` file, or an `apiKey` so the policy can come from the portal');
   let filePolicy: Policy | null = opts.policy === undefined ? null : await loadPolicy(opts.policy);
@@ -388,10 +388,10 @@ export async function onehuman(opts: OneHumanOptions) {
   }
 
   /**
-   * Decide for `resource`; the result is on `req.nt`. Block → 403, step-up → 428 (unless `respond: false`).
+   * Decide for `resource`; the result is on `req.onehuman`. Block → 403, step-up → 428 (unless `respond: false`).
    * `mask`: what to send when the decision is mask and the handler answers with Express's `res.json()` —
    * `'auto'` hides every value and keeps the shape and ids, or pass your own function. Without it, the
-   * handler decides (check `req.nt.masked`, or use `nt.send()`).
+   * handler decides (check `req.onehuman.masked`, or use `oh.send()`).
    */
   function protect(resource: string, local: { respond?: boolean; mask?: 'auto' | ((body: unknown) => unknown) } = {}) {
     const answer = local.respond ?? respond;
@@ -412,10 +412,10 @@ export async function onehuman(opts: OneHumanOptions) {
           console.warn(`onehuman: ${resource} — ${reason === 'ENGINE_TIMEOUT' ? `no decision within ${decisionTimeoutMs} ms` : `engine error: ${failures.lastError}`}; the request went on without one (${failures.count} so far, see /health).`);
         }
         const enforce = currentPolicy().enforcement === 'enforce';
-        if (!res.headersSent) res.setHeader('X-NT-Decision', `failed-open:${reason}`);
+        if (!res.headersSent) res.setHeader('X-OH-Decision', `failed-open:${reason}`);
         reporter?.push({ at: Date.now(), session: sessionHash(cookies(req)[cookieName] ?? 'failed-open'), resource, decision: 'allow', computed: 'allow', actor: 'unknown', state: 'none', tools: [], reasons: [reason], enforcement: currentPolicy().enforcement, version: 'failed-open' });
         if (enforce && !failOpen) { if (!res.headersSent) json(res, 503, { error: 'onehuman_unavailable', resource }); return; }
-        req.nt = {
+        req.onehuman = {
           decision: 'allow', masked: false, blocked: false, stepUp: null as unknown as DecideResult['stepUp'], actor: 'unknown', score: null,
           reasonCodes: [reason], session: null as unknown as SessionRow, full: null as unknown as DecisionRow, assessment: null as unknown as Assessment,
           token: () => '', proof: null, failedOpen: reason,
@@ -424,8 +424,8 @@ export async function onehuman(opts: OneHumanOptions) {
       }
       (async () => {
         const session = await sessionFor(req, res);
-        const sample = req.headers['x-nt-sample'];
-        if (recordRaw && typeof sample === 'string') await store.addEvent(room, session.id, 'raw', { source: `X-NT-Sample header on ${resource}`, body: sample });
+        const sample = req.headers['x-oh-sample'];
+        if (recordRaw && typeof sample === 'string') await store.addEvent(room, session.id, 'raw', { source: `X-OH-Sample header on ${resource}`, body: sample });
         const result = await engine.decide({ room, session, resource, request: req, snapshot: engine.snapshotFrom(req) });
         return { session, result };
       })().then(({ session, result }) => {
@@ -433,14 +433,14 @@ export async function onehuman(opts: OneHumanOptions) {
         settled = true; clearTimeout(timer);
         try {
           const d = result.decision;
-          req.nt = {
+          req.onehuman = {
             decision: d.decision, masked: d.decision === 'mask', blocked: d.decision === 'block', stepUp: result.stepUp,
             actor: d.actor, score: d.score, reasonCodes: d.reasonCodes, session, full: d, assessment: result.assessment,
             token: () => engine.issueToken(d), proof: result.proof,
           };
-          res.setHeader('X-NT-Decision', d.id);
-          res.setHeader('X-NT-Policy', d.policyVersion);
-          if (debugPolicyHeader) res.setHeader('X-NT-Policy-Source', sync ? sync.source : 'file');
+          res.setHeader('X-OH-Decision', d.id);
+          res.setHeader('X-OH-Policy', d.policyVersion);
+          if (debugPolicyHeader) res.setHeader('X-OH-Policy-Source', sync ? sync.source : 'file');
           if (reporter) report(session, resource, d, result);
           if (answer && d.decision === 'block') return json(res, 403, { error: 'blocked', resource, decision: publicDecision(d), stepUp: result.stepUp });
           if (answer && d.decision === 'step_up') return json(res, 428, { error: 'step_up_required', resource, decision: publicDecision(d), stepUp: result.stepUp });
@@ -468,14 +468,14 @@ export async function onehuman(opts: OneHumanOptions) {
     }).catch(() => {});
   }
 
-  /** Respond with `full`, or with `mask(full)` when the decision says mask. Adds the decision summary under `_nt`. */
+  /** Respond with `full`, or with `mask(full)` when the decision says mask. Adds the decision summary under `_onehuman`. */
   function send<T>(req: Req, res: Res, full: T, mask: (full: T) => unknown) {
-    const nt = req.nt;
-    const body = nt?.masked ? mask(full) : full;
-    json(res, 200, { ...(body as object), _nt: nt ? { decision: nt.decision, actor: nt.actor, score: nt.score, reasonCodes: nt.reasonCodes } : null });
+    const oh = req.onehuman;
+    const body = oh?.masked ? mask(full) : full;
+    json(res, 200, { ...(body as object), _onehuman: oh ? { decision: oh.decision, actor: oh.actor, score: oh.score, reasonCodes: oh.reasonCodes } : null });
   }
 
-  /** the background reporter (null without an apiKey): `await nt.telemetry?.flush()` before exit if you want the last events delivered */
+  /** the background reporter (null without an apiKey): `await oh.telemetry?.flush()` before exit if you want the last events delivered */
   const telemetry = reporter ? { flush: () => reporter.flush(), get pending() { return reporter.pending; } } : null;
   /** Liveness and configuration in one object; `${basePath}/health` serves it (503 while an integration warning stands). */
   function health() {
@@ -493,7 +493,7 @@ export async function onehuman(opts: OneHumanOptions) {
   // --- proofs: what a business hands an auditor --------------------------------------------------
   /** the JWK Set that verifies this deployment's proofs (also served at `${basePath}/proof-keys`) */
   const proofKeys = () => engine.proofKeys();
-  /** the signed proof of one decision, by its id (`req.nt.full.id`, or the `X-NT-Decision` header you log) */
+  /** the signed proof of one decision, by its id (`req.onehuman.full.id`, or the `X-OH-Decision` header you log) */
   const proofFor = (decisionId: string) => store.decisionProof(decisionId);
   /** every signed decision for one session, as a self-contained file an auditor can check offline */
   async function proofBundleFor(sessionId: string) {
@@ -541,21 +541,21 @@ export function onehumanDeferred(opts: OneHumanOptions) {
   return {
     ready,
     middleware() {
-      return (req: Req, res: Res, next: Next) => { ready.then((nt) => { mw ??= nt.middleware(); mw(req, res, next); }, next); };
+      return (req: Req, res: Res, next: Next) => { ready.then((oh) => { mw ??= oh.middleware(); mw(req, res, next); }, next); };
     },
     protect(resource: string, local?: Parameters<OneHumanInstance['protect']>[1]) {
       let h: ReturnType<OneHumanInstance['protect']> | null = null;
-      return (req: Req, res: Res, next: Next) => { ready.then((nt) => { h ??= nt.protect(resource, local); return h(req, res, next); }, next); };
+      return (req: Req, res: Res, next: Next) => { ready.then((oh) => { h ??= oh.protect(resource, local); return h(req, res, next); }, next); };
     },
-    send<T>(req: Req, res: Res, full: T, mask: (full: T) => unknown) { ready.then((nt) => nt.send(req, res, full, mask), (e) => json(res, 500, { error: 'onehuman_not_started', message: String((e as Error).message) })); },
-    close: () => ready.then((nt) => nt.close(), () => {}),
+    send<T>(req: Req, res: Res, full: T, mask: (full: T) => unknown) { ready.then((oh) => oh.send(req, res, full, mask), (e) => json(res, 500, { error: 'onehuman_not_started', message: String((e as Error).message) })); },
+    close: () => ready.then((oh) => oh.close(), () => {}),
   };
 }
 
-// Express users get `req.nt` typed without importing anything else.
+// Express users get `req.onehuman` typed without importing anything else.
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
-    interface Request { nt?: ProtectResult }
+    interface Request { onehuman?: ProtectResult }
   }
 }

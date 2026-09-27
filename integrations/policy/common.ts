@@ -10,7 +10,7 @@
 import { createHash, createPublicKey, verify, type KeyObject } from 'node:crypto';
 import { thumbprint } from '../proof/verify.ts';
 
-export const POLICY_TYP = 'nt-policy';
+export const POLICY_TYP = 'oh-policy';
 
 export type PolicyMode = 'allow' | 'mask' | 'step_up' | 'block';
 export type PolicyRuleLike = {
@@ -23,8 +23,7 @@ export type PolicyLike = { version: string; enforcement: 'observe' | 'enforce'; 
 /** What the portal signs: the policy, its version number, and which API key it belongs to. */
 export type PolicyEnvelopePayload = {
   v: 1;
-  /** 'onehuman-portal' on envelopes signed before the rename to OneHuman */
-  iss: 'onehuman-portal' | 'onehuman-portal';
+  iss: 'onehuman-portal';
   /** first 16 hex of sha256(raw API key): binds the envelope to one key, so one key's policy cannot be replayed to another */
   kh: string;
   /** portal version number; the policy's own `version` string is `portal-v<n>` */
@@ -117,7 +116,7 @@ export function verifyPolicyEnvelope(jws: string, keys: { x: string }[], expecte
   const [h, p, s] = parts as [string, string, string];
   let header: { alg?: string; typ?: string; kid?: string }, payload: PolicyEnvelopePayload;
   try { header = JSON.parse(Buffer.from(h, 'base64url').toString('utf8')); payload = JSON.parse(Buffer.from(p, 'base64url').toString('utf8')); } catch { return { ok: false, reason: 'malformed' }; }
-  if (header.alg !== 'EdDSA' || header.typ !== POLICY_TYP || (payload?.iss !== 'onehuman-portal' && payload?.iss !== 'onehuman-portal') || payload.v !== 1) return { ok: false, reason: 'wrong_type' };
+  if (header.alg !== 'EdDSA' || header.typ !== POLICY_TYP || payload?.iss !== 'onehuman-portal' || payload.v !== 1) return { ok: false, reason: 'wrong_type' };
   const key = keys.find((k) => thumbprint(k.x) === header.kid);
   if (!key) return { ok: false, reason: 'unknown_key' };
   let pub = keyCache.get(key.x);

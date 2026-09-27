@@ -8,8 +8,8 @@ api/
 .vercel
 .env
 .env.*
-packages/onehuman/dist/
-packages/onehuman/sdk/
+packages/express/dist/
+packages/express/sdk/
 examples/express-bank/onehuman.db*
 .claude/
 .agents/
@@ -22,3 +22,4 @@ packages/engine/dist/
 
 # local debug queries against the production database — never commit
 q*.mjs
+packages/sdk/onehuman.js

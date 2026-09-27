@@ -12,9 +12,9 @@
   };
   // ---------------------------------------------------------------- theme
   const applyTheme = (t) => { document.documentElement.dataset.theme = t === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : t; $$('#theme button').forEach((b) => b.classList.toggle('on', b.dataset.themeSet === t)); };
-  let theme = 'system'; try { theme = localStorage.getItem('nt-theme') || 'system'; } catch {}
+  let theme = 'system'; try { theme = localStorage.getItem('oh-theme') || 'system'; } catch {}
   applyTheme(theme);
-  $$('#theme button').forEach((b) => b.addEventListener('click', () => { theme = b.dataset.themeSet; try { localStorage.setItem('nt-theme', theme); } catch {} applyTheme(theme); if (currentView() === 'activity') loadStats(); }));
+  $$('#theme button').forEach((b) => b.addEventListener('click', () => { theme = b.dataset.themeSet; try { localStorage.setItem('oh-theme', theme); } catch {} applyTheme(theme); if (currentView() === 'activity') loadStats(); }));
   matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (theme === 'system') { applyTheme('system'); if (currentView() === 'activity') loadStats(); } });
   const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
@@ -94,8 +94,8 @@
   addEventListener('hashchange', () => { if (me) show(currentView()); });
   $$('#range-ov button').forEach((b) => b.addEventListener('click', () => { ovRange = b.dataset.r; $('#usage-title').textContent = { '24h': 'Last 24 hours', '7d': 'Last 7 days', '30d': 'Last 30 days' }[ovRange]; $$('#range-ov button').forEach((x) => x.classList.toggle('on', x === b)); loadOverview(); }));
   $$('#range button').forEach((b) => b.addEventListener('click', () => { range = b.dataset.r; $$('#range button').forEach((x) => x.classList.toggle('on', x === b)); loadStats(); }));
-  $('#banner-x').onclick = () => { $('#banner').hidden = true; try { localStorage.setItem('nt-portal-banner', '1'); } catch {} };
-  try { if (localStorage.getItem('nt-portal-banner')) $('#banner').hidden = true; } catch {}
+  $('#banner-x').onclick = () => { $('#banner').hidden = true; try { localStorage.setItem('oh-portal-banner', '1'); } catch {} };
+  try { if (localStorage.getItem('oh-portal-banner')) $('#banner').hidden = true; } catch {}
   $('#search').addEventListener('input', () => { const v = currentView(); if (v === 'keys') { $('#key-search').value = $('#search').value; renderKeyTable(); } if (v === 'activity') filterLog($('#search').value); });
   addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); ($('#search-wrap').hidden ? $('#key-search') : $('#search')).focus(); } });
 
@@ -159,7 +159,7 @@
     const v = $('#key-search').value.trim();
     pastedKeyId = null;
     clearTimeout(lookupT);
-    if (/^nt_(live|admin)_[a-f0-9]{40}$/.test(v)) {
+    if (/^oh_(live|admin)_[a-f0-9]{40}$/.test(v)) {
       lookupT = setTimeout(async () => {
         try { const d = await api('/api/v1/portal/keys/lookup', { method: 'POST', body: JSON.stringify({ key: v }) }); pastedKeyId = d.id; toast(d.id ? `That key is "${keyName(d.id)}"` : 'That key does not belong to this account'); }
         catch (e) { toast(e.message); }
@@ -261,8 +261,8 @@
     el.innerHTML = keys.length ? keys.map((k) => `<div class="bar ${cls ? cls : esc(k)}"><span>${esc(cls === 'tool' ? k : (ACTOR_WORD[k] || k.replace('_', ' ')))}</span><span class="track"><i style="width:${Math.round(obj[k] / total * 100)}%"></i></span><span class="n">${obj[k]}</span></div>`).join('') : '<div class="fine">nothing yet</div>';
   };
   function codeSnippet(prefix) {
-    const key = prefix ? `${prefix}…` : 'nt_live_…';
-    return `<span class="c">// server.js</span>\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'onehuman/express'</span>;\n\n<span class="k">const</span> nt = <span class="k">await</span> onehuman({\n  secret: process.env.ONEHUMAN_SECRET,\n  policy: <span class="s">'./onehuman.policy.json'</span>,\n  apiKey: process.env.ONEHUMAN_API_KEY,        <span class="c">// ${esc(key)} — from this portal</span>\n});\napp.use(nt.middleware());\napp.get(<span class="s">'/api/balance'</span>, nt.protect(<span class="s">'balance.read'</span>), (req, res) =&gt; nt.send(req, res, balance, maskBalance));`;
+    const key = prefix ? `${prefix}…` : 'oh_live_…';
+    return `<span class="c">// server.js</span>\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'@onehumanai/express'</span>;\n\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({\n  secret: process.env.ONEHUMAN_SECRET,\n  policy: <span class="s">'./onehuman.policy.json'</span>,\n  apiKey: process.env.ONEHUMAN_API_KEY,        <span class="c">// ${esc(key)} — from this portal</span>\n});\napp.use(oh.middleware());\napp.get(<span class="s">'/api/balance'</span>, oh.protect(<span class="s">'balance.read'</span>), (req, res) =&gt; oh.send(req, res, balance, maskBalance));`;
   }
   function drawChart(series, since, bucketMs, now) {
     const cv = $('#chart'); const dpr = Math.min(2, devicePixelRatio || 1); const W = cv.clientWidth || 600, H = 220;
@@ -438,21 +438,21 @@
     const base = ($('#st-base').value.trim() || 'https://app.yourcompany.com').replace(/\s+/g, '');
     const path = ($('#st-path').value.trim() || '/api/balance').replace(/\s+/g, '');
     $('#cmd-selftest').textContent = `npx onehuman verify ${base} ${path.startsWith('/') ? path : '/' + path}`;
-    try { localStorage.setItem('nt-selftest', JSON.stringify({ base: $('#st-base').value, path: $('#st-path').value })); } catch {}
+    try { localStorage.setItem('oh-selftest', JSON.stringify({ base: $('#st-base').value, path: $('#st-path').value })); } catch {}
   };
-  try { const saved = JSON.parse(localStorage.getItem('nt-selftest') || 'null'); if (saved) { $('#st-base').value = saved.base || ''; $('#st-path').value = saved.path || ''; } } catch {}
+  try { const saved = JSON.parse(localStorage.getItem('oh-selftest') || 'null'); if (saved) { $('#st-base').value = saved.base || ''; $('#st-path').value = saved.path || ''; } } catch {}
   $('#st-base').addEventListener('input', selftest); $('#st-path').addEventListener('input', selftest); selftest();
 
   // ------------------------------------------------------------------ integration + settings
   // ------------------------------------------------------------------ setup wizard
   let setupKeyId = null, fw = 'express', waitTimer = 0;
   const FRAMEWORKS = {
-    express: (key) => `<span class="c">// server.js</span>\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'onehuman/express'</span>;\n\n<span class="k">const</span> nt = <span class="k">await</span> onehuman({\n  secret: process.env.ONEHUMAN_SECRET,\n  policy: <span class="s">'./onehuman.policy.json'</span>,\n  apiKey: process.env.ONEHUMAN_API_KEY,\n  identify: (req) =&gt; req.session?.userId ?? <span class="k">null</span>,\n});\napp.use(nt.middleware());\napp.get(<span class="s">'/api/balance'</span>, nt.protect(<span class="s">'balance.read'</span>), (req, res) =&gt;\n  nt.send(req, res, balance, (b) =&gt; ({ ...b, amount: <span class="k">null</span> })));`,
-    next: (key) => `<span class="c">// server.mjs — Next.js custom server</span>\n<span class="k">import</span> next <span class="k">from</span> <span class="s">'next'</span>;\n<span class="k">import</span> express <span class="k">from</span> <span class="s">'express'</span>;\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'onehuman/express'</span>;\n\n<span class="k">const</span> nt = <span class="k">await</span> onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: <span class="s">'./onehuman.policy.json'</span>, apiKey: process.env.ONEHUMAN_API_KEY });\n<span class="k">const</span> app = express();\napp.use(nt.middleware());                       <span class="c">// before next()</span>\napp.get(<span class="s">'/api/balance'</span>, nt.protect(<span class="s">'balance.read'</span>), handler);\napp.all(<span class="s">'*'</span>, (req, res) =&gt; nextHandle(req, res));`,
-    fastify: (key) => `<span class="c">// server.js — Fastify uses the raw request/response</span>\n<span class="k">const</span> nt = <span class="k">await</span> onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: <span class="s">'./onehuman.policy.json'</span>, apiKey: process.env.ONEHUMAN_API_KEY });\n\nfastify.addHook(<span class="s">'onRequest'</span>, (req, reply, done) =&gt; nt.middleware()(req.raw, reply.raw, done));\nfastify.get(<span class="s">'/api/balance'</span>, { onRequest: (req, reply, done) =&gt; nt.protect(<span class="s">'balance.read'</span>)(req.raw, reply.raw, done) },\n  (req, reply) =&gt; nt.send(req.raw, reply.raw, balance, mask));`,
+    express: (key) => `<span class="c">// server.js</span>\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'@onehumanai/express'</span>;\n\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({\n  secret: process.env.ONEHUMAN_SECRET,\n  policy: <span class="s">'./onehuman.policy.json'</span>,\n  apiKey: process.env.ONEHUMAN_API_KEY,\n  identify: (req) =&gt; req.session?.userId ?? <span class="k">null</span>,\n});\napp.use(oh.middleware());\napp.get(<span class="s">'/api/balance'</span>, oh.protect(<span class="s">'balance.read'</span>), (req, res) =&gt;\n  oh.send(req, res, balance, (b) =&gt; ({ ...b, amount: <span class="k">null</span> })));`,
+    next: (key) => `<span class="c">// server.mjs — Next.js custom server</span>\n<span class="k">import</span> next <span class="k">from</span> <span class="s">'next'</span>;\n<span class="k">import</span> express <span class="k">from</span> <span class="s">'express'</span>;\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'@onehumanai/express'</span>;\n\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: <span class="s">'./onehuman.policy.json'</span>, apiKey: process.env.ONEHUMAN_API_KEY });\n<span class="k">const</span> app = express();\napp.use(oh.middleware());                       <span class="c">// before next()</span>\napp.get(<span class="s">'/api/balance'</span>, oh.protect(<span class="s">'balance.read'</span>), handler);\napp.all(<span class="s">'*'</span>, (req, res) =&gt; nextHandle(req, res));`,
+    fastify: (key) => `<span class="c">// server.js — Fastify uses the raw request/response</span>\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: <span class="s">'./onehuman.policy.json'</span>, apiKey: process.env.ONEHUMAN_API_KEY });\n\nfastify.addHook(<span class="s">'onRequest'</span>, (req, reply, done) =&gt; oh.middleware()(req.raw, reply.raw, done));\nfastify.get(<span class="s">'/api/balance'</span>, { onRequest: (req, reply, done) =&gt; oh.protect(<span class="s">'balance.read'</span>)(req.raw, reply.raw, done) },\n  (req, reply) =&gt; oh.send(req.raw, reply.raw, balance, mask));`,
     docker: (key) => `<span class="c"># docker-compose.yml</span>\nservices:\n  api:\n    environment:\n      ONEHUMAN_SECRET: <span class="s">\"\${ONEHUMAN_SECRET}\"</span>\n      ONEHUMAN_API_KEY: <span class="s">\"${esc(key)}\"</span>\n\n<span class="c"># or plain docker</span>\ndocker run -e ONEHUMAN_API_KEY=${esc(key)} -e ONEHUMAN_SECRET=$ONEHUMAN_SECRET my-api`,
   };
-  const agentPrompt = (key, admin) => `https://www.npmjs.com/package/onehuman — install this into my app.\n\n\`npm i onehuman\` is the only install (its engine dependency comes with it). Follow the README protocol: scan the app as if you were an AI browser agent holding a customer's\nlogged-in session, show me the exposure map and what you propose to gate, ask me the nine decisions,\nthen implement the server wiring, the page tags, the policy file and every mask function, verify with\n\`npx onehuman verify\`, and report what you left open.\n\nReport telemetry to my OneHuman portal: set apiKey: process.env.ONEHUMAN_API_KEY${key ? ` (${key})` : ''}.\n${admin ? `\nYou can administer my account yourself with the management API:\n  curl -H "Authorization: Bearer ${admin}" ${location.origin}/api/v1/manage/me\nGET /api/v1/manage/keys · POST /api/v1/manage/keys {name, expiresInDays, env} · DELETE /api/v1/manage/keys/:id\nGET /api/v1/manage/overview?range=7d · GET /api/v1/manage/stats?key=:id&range=7d\nGET /api/v1/manage/policy?key=:id · POST /api/v1/manage/policy {key, policy}  (the key's policy lives in the portal; your server reads it from there)` : ''}`;
+  const agentPrompt = (key, admin) => `https://www.npmjs.com/package/@onehumanai/express — install this into my app.\n\n\`npm i @onehumanai/express\` is the only install (its engine dependency comes with it). Follow the README protocol: scan the app as if you were an AI browser agent holding a customer's\nlogged-in session, show me the exposure map and what you propose to gate, ask me the nine decisions,\nthen implement the server wiring, the page tags, the policy file and every mask function, verify with\n\`npx onehuman verify\`, and report what you left open.\n\nReport telemetry to my OneHuman portal: set apiKey: process.env.ONEHUMAN_API_KEY${key ? ` (${key})` : ''}.\n${admin ? `\nYou can administer my account yourself with the management API:\n  curl -H "Authorization: Bearer ${admin}" ${location.origin}/api/v1/manage/me\nGET /api/v1/manage/keys · POST /api/v1/manage/keys {name, expiresInDays, env} · DELETE /api/v1/manage/keys/:id\nGET /api/v1/manage/overview?range=7d · GET /api/v1/manage/stats?key=:id&range=7d\nGET /api/v1/manage/policy?key=:id · POST /api/v1/manage/policy {key, policy}  (the key's policy lives in the portal; your server reads it from there)` : ''}`;
   function renderIntegration() {
     const keys = liveKeys();
     if (!keys.length) { $('#setup-key').innerHTML = '<option>no keys yet</option>'; }
@@ -461,7 +461,7 @@
       $('#setup-key').innerHTML = keys.map((k) => `<option value="${esc(k.id)}" ${k.id === setupKeyId ? 'selected' : ''}>${esc(k.name)} · ${esc(k.prefix)}…</option>`).join('');
     }
     const k = keys.find((x) => x.id === setupKeyId);
-    const shown = freshKey && freshKey.id === setupKeyId ? freshKey.raw : `${k ? k.prefix : 'nt_live_'}…`;
+    const shown = freshKey && freshKey.id === setupKeyId ? freshKey.raw : `${k ? k.prefix : 'oh_live_'}…`;
     $('#cmd-env').textContent = `ONEHUMAN_API_KEY=${shown}\nNT_SECRET=$(npx onehuman secret)`;
     $('#cmd-code').innerHTML = (FRAMEWORKS[fw] || FRAMEWORKS.express)(shown);
     $('#int-prompt').textContent = agentPrompt(freshKey && freshKey.id === setupKeyId ? freshKey.raw : (k ? `${k.prefix}…` : ''), null);

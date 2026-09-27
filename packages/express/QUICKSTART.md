@@ -9,7 +9,7 @@
 **Install.**
 
 ```bash
-npm i onehuman
+npm i @onehumanai/express
 npx onehuman init                       # asks what to protect; shows every change before writing it
 npm start                               # starts in observe mode: nothing is blocked, everything is recorded
 npx onehuman verify http://localhost:3000 /api/balance

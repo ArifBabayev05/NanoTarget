@@ -17,7 +17,7 @@ let handlerPromise: Promise<Handler> | null = null;
 async function boot(): Promise<Handler> {
   const url = process.env.TURSO_DATABASE_URL;
   const token = process.env.TURSO_AUTH_TOKEN;
-  const secret = process.env.NT_SECRET ? Buffer.from(process.env.NT_SECRET, 'utf8') : undefined;
+  const secret = process.env.ONEHUMAN_SECRET ? Buffer.from(process.env.ONEHUMAN_SECRET, 'utf8') : undefined;
   if (url) {
     const client = await libsqlClient(url, token);
     const app = await createApp({ client, secret, labOperator: true, serverless: true });

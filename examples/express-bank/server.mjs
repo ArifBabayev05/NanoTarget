@@ -11,8 +11,8 @@ const app = express();
 app.use(express.json());
 
 // --- 1. one line: SDK + its API under /onehuman, policy from your file, storage on your disk ---
-const nt = await onehuman({ secret: process.env.ONEHUMAN_SECRET ?? 'dev-secret-change-me-dev-secret-change-me', policy: join(here, 'onehuman.policy.json'), db: 'sqlite:./examples/express-bank/onehuman.db' });
-app.use(nt.middleware());
+const oh = await onehuman({ secret: process.env.ONEHUMAN_SECRET ?? 'dev-secret-change-me-dev-secret-change-me', policy: join(here, 'onehuman.policy.json'), db: 'sqlite:./examples/express-bank/onehuman.db' });
+app.use(oh.middleware());
 
 // --- 2. your data and your own mask functions ---
 const account = { owner: 'Aysel Məmmədova', iban: 'AZ21NABZ00000000137010001944', balance: 2920.74, currency: 'AZN' };
@@ -20,12 +20,12 @@ const maskBalance = (a) => ({ ...a, balance: null, iban: a.iban.slice(0, 4) + ' 
 const maskProfile = (a) => ({ owner: a.owner.split(' ')[0] + ' •.', iban: '•••• ' + a.iban.slice(-4) });
 
 // --- 3. protect the endpoints that return the data ---
-app.get('/api/balance', nt.protect('balance.read'), (req, res) => nt.send(req, res, account, maskBalance));
-app.get('/api/profile', nt.protect('profile.read'), (req, res) => nt.send(req, res, { owner: account.owner, iban: account.iban }, maskProfile));
-app.post('/api/transfer', nt.protect('transfer.make'), (req, res) => {
-  // req.nt.decision is allow here (block / step_up were answered by protect); your own business checks follow
-  res.json({ ok: true, to: req.body?.to ?? null, amount: req.body?.amount ?? 0, _nt: { decision: req.nt.decision, actor: req.nt.actor } });
+app.get('/api/balance', oh.protect('balance.read'), (req, res) => oh.send(req, res, account, maskBalance));
+app.get('/api/profile', oh.protect('profile.read'), (req, res) => oh.send(req, res, { owner: account.owner, iban: account.iban }, maskProfile));
+app.post('/api/transfer', oh.protect('transfer.make'), (req, res) => {
+  // req.onehuman.decision is allow here (block / step_up were answered by protect); your own business checks follow
+  res.json({ ok: true, to: req.body?.to ?? null, amount: req.body?.amount ?? 0, _onehuman: { decision: req.onehuman.decision, actor: req.onehuman.actor } });
 });
 
 app.use(express.static(join(here, 'public')));
-app.listen(3000, () => console.log('Acme Bank on http://localhost:3000  (OneHuman at', nt.basePath + ')'));
+app.listen(3000, () => console.log('Acme Bank on http://localhost:3000  (OneHuman at', oh.basePath + ')'));

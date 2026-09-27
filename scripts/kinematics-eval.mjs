@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 /**
  * Evaluate the kinematics judge on the sandbox dataset.
- *   node scripts/kinematics-eval.mjs            # uses TURSO_* or NT_DB from the environment / .env.local
+ *   node scripts/kinematics-eval.mjs            # uses TURSO_* or ONEHUMAN_DB from the environment / .env.local
  * Prints a confusion matrix per label and source, feature quantiles per label, and every
  * misjudged sample with its features, so thresholds in server/kinematics.ts can be tuned.
  */
 import { readFileSync, existsSync } from 'node:fs';
-if (!process.env.NT_DB && existsSync('.env.local')) for (const line of readFileSync('.env.local', 'utf8').split('\n')) { const m = line.match(/^\s*(?:export\s+)?([A-Z_]+)=(.*)$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ''); }
+if (!process.env.ONEHUMAN_DB && existsSync('.env.local')) for (const line of readFileSync('.env.local', 'utf8').split('\n')) { const m = line.match(/^\s*(?:export\s+)?([A-Z_]+)=(.*)$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ''); }
 const { clientFromEnv } = await import('../server/sql.ts');
 const { Store } = await import('../server/db.ts');
 const { clickFeatures, judgeClick } = await import('../server/kinematics.ts');

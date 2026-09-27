@@ -10,10 +10,10 @@
  * for approval when the key's owner turned that on. A change that weakens protection is held unless the owner
  * turned that check off; weakening from the portal itself needs the account password. Every step is journalled.
  *
- * Endpoints for the customer's server (Authorization: Bearer nt_live_…):
+ * Endpoints for the customer's server (Authorization: Bearer oh_live_…):
  *   GET  /api/v1/key-policy          the signed policy (304 when the server already runs it)
  *   POST /api/v1/key-policy/propose  { policy, fileHash, origin }   the policy file changed
- *   POST /api/v1/key-policy/resources { resources }                 every nt.protect() the server registered
+ *   POST /api/v1/key-policy/resources { resources }                 every oh.protect() the server registered
  *   GET  /api/v1/policy-keys         the portal's public key (JWK Set)
  * For the portal (cookie): GET/POST /api/v1/portal/policy, POST …/policy/settings, POST …/policy/decide.
  */
@@ -34,7 +34,7 @@ const CONFIRM = 'This change lowers protection or affects real people. Confirm w
 
 /** The portal's policy-signing key, derived from the deployment secret: the same on every instance. */
 export function policySigner(secret: Buffer) {
-  const seed = Buffer.from(hkdfSync('sha256', secret, 'onehuman', /* historic label, kept on purpose: changing it changes every derived key */ 'portal-policy-ed25519', 32));
+  const seed = Buffer.from(hkdfSync('sha256', secret, 'onehuman', 'portal-policy-ed25519', 32));
   const priv = createPrivateKey({ key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), seed]), format: 'der', type: 'pkcs8' });
   const x = (createPublicKey(priv).export({ format: 'jwk' }) as { x: string }).x;
   const jwk = { kty: 'OKP' as const, crv: 'Ed25519' as const, x, kid: thumbprint(x), use: 'sig' as const, alg: 'EdDSA' as const };
@@ -53,7 +53,7 @@ type Deps = {
   accountOf: (req: Req) => Promise<string | null>;
   /** checks the account password (the second confirmation for weakening changes) */
   checkPassword: (account: string, password: string) => Promise<boolean>;
-  /** resolves `Authorization: Bearer nt_live_…` to a live key, or answers 401 itself */
+  /** resolves `Authorization: Bearer oh_live_…` to a live key, or answers 401 itself */
   serverKey: (req: Req, res: Res) => Promise<{ id: string; account: string; tag: string } | null>;
 };
 
@@ -126,8 +126,8 @@ export function policyRoutes(engine: OneHuman, deps: Deps) {
   const getForServer = async (req: Req, res: Res) => {
     const k = await deps.serverKey(req, res); if (!k) return;
     const kp = await store.keyPolicy(k.id);
-    const version = String(req.headers['x-nt-policy-version'] ?? '');
-    const source = String(req.headers['x-nt-policy-source'] ?? '');
+    const version = String(req.headers['x-oh-policy-version'] ?? '');
+    const source = String(req.headers['x-oh-policy-source'] ?? '');
     if (kp && version) await store.setKeyPolicySeen(k.id, version, /^(portal|cache|file|none)$/.test(source) ? source : 'unknown');
     if (!kp) return json(res, 404, { error: 'no_policy', message: 'No policy for this key yet: the server proposes its policy file on first start.', keys: [signer.jwk] });
     const etag = `"${portalVersion(kp.n)}"`;

@@ -18,29 +18,29 @@ const cookie = signup.headers.get('set-cookie')!.split(';')[0]!;
 const key = await (await fetch(`${pbase}/api/v1/portal/keys`, { method: 'POST', headers: { ...H, Cookie: cookie }, body: JSON.stringify({ name: 'staging' }) })).json();
 
 const policy = { version: 'tele-1', enforcement: 'observe', rules: [{ resource: 'balance.read', title: 'Balance', onAgent: 'mask', onArtifact: 'mask', onUnknown: 'allow', onHumanLike: 'allow', actOn: ['verified', 'strong', 'control', 'behavioral'], minScore: 65 }] };
-const nt = await onehuman({ secret: 'test-secret-test-secret-test-secret-1234', policy: policy as never, db: 'memory', apiKey: key.key, telemetryUrl: `${pbase}/api/v1/ingest` });
+const oh = await onehuman({ secret: 'test-secret-test-secret-test-secret-1234', policy: policy as never, db: 'memory', apiKey: key.key, telemetryUrl: `${pbase}/api/v1/ingest` });
 const app = express();
-app.use(nt.middleware());
-app.get('/api/balance', nt.protect('balance.read'), (req, res) => nt.send(req, res, { balance: 10 }, (a) => ({ ...a, balance: null })));
+app.use(oh.middleware());
+app.get('/api/balance', oh.protect('balance.read'), (req, res) => oh.send(req, res, { balance: 10 }, (a) => ({ ...a, balance: null })));
 const server = app.listen(0);
 const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-after(async () => { server.close(); await nt.close(); portal.server.close(); portal.store.close(); });
+after(async () => { server.close(); await oh.close(); portal.server.close(); portal.store.close(); });
 
 test('decisions made by the middleware arrive in the portal under the right key', async () => {
-  assert.ok(nt.telemetry, 'reporter exists when an apiKey is given');
+  assert.ok(oh.telemetry, 'reporter exists when an apiKey is given');
   const r1 = await fetch(`${base}/api/balance`); assert.equal(r1.status, 200);
   const c = (r1.headers.get('set-cookie') ?? '').split(';')[0]!;
   const r2 = await fetch(`${base}/api/balance`, { headers: { Cookie: c } }); assert.equal(r2.status, 200);
   // the event is queued after an async connection lookup; give it a tick, then push the batch
   await new Promise((r) => setTimeout(r, 150));
-  await nt.telemetry!.flush();
+  await oh.telemetry!.flush();
   const st = await (await fetch(`${pbase}/api/v1/portal/stats?key=${key.id}&range=24h`, { headers: { Cookie: cookie } })).json();
   assert.equal(st.decisions.allow, 2, JSON.stringify(st.decisions));
   assert.equal(st.sessions.total, 1, 'both requests came from one browser session');
   assert.equal(st.recent[0].resource, 'balance.read');
   assert.equal(st.recent[0].enforcement, 'observe');
   assert.match(st.recent[0].session, /^[a-f0-9]{16}$/, 'session ids are hashed before they leave the server');
-  assert.equal(nt.telemetry!.pending, 0);
+  assert.equal(oh.telemetry!.pending, 0);
 });
 
 test('without an apiKey nothing is reported and no reporter exists', async () => {
@@ -53,7 +53,7 @@ test('every decision is signed server-side, reaches the portal verified, and exp
   // the end user sees nothing new: no proof header, no proof in the body
   const r = await fetch(`${base}/api/balance`);
   const body = await r.json();
-  assert.equal(r.headers.get('x-nt-proof'), null, 'no proof is sent to the browser');
+  assert.equal(r.headers.get('x-oh-proof'), null, 'no proof is sent to the browser');
   assert.equal(JSON.stringify(body).includes('eyJ'), false, 'no JWS in the response body');
 
   // the public key is published next to the SDK, for an auditor
@@ -63,7 +63,7 @@ test('every decision is signed server-side, reaches the portal verified, and exp
   assert.equal('d' in jwks.keys[0], false, 'never the private part');
 
   await new Promise((res) => setTimeout(res, 150));
-  await nt.telemetry!.flush();
+  await oh.telemetry!.flush();
   const st = await (await fetch(`${pbase}/api/v1/portal/stats?key=${key.id}&range=24h`, { headers: { Cookie: cookie } })).json();
   assert.equal(st.recent[0].signed, true, 'the portal checked the signature at ingest');
 
@@ -86,10 +86,10 @@ test('every decision is signed server-side, reaches the portal verified, and exp
   assert.equal(v2.results[0].reason, 'bad_signature');
 
   // the middleware exposes the same bundle for its own records
-  const firstSession = (await nt.store.listSessions(nt.room))[0]!;
-  const local = await nt.proofBundle(firstSession.id);
+  const firstSession = (await oh.store.listSessions(oh.room))[0]!;
+  const local = await oh.proofBundle(firstSession.id);
   assert.ok(local.proofs.length >= 1);
-  assert.equal(nt.verifyProof(local.proofs[0]!).valid, true);
+  assert.equal(oh.verifyProof(local.proofs[0]!).valid, true);
 });
 
 test('a batch sent twice (retry after a timeout) is stored and counted once', async () => {
@@ -121,7 +121,7 @@ test('immediate mode (serverless) delivers without waiting for the batch timer',
 
 test('a customer grades a decision; false stops are counted on the stats', async () => {
   await fetch(`${base}/api/balance`);
-  await new Promise((r) => setTimeout(r, 150)); await nt.telemetry!.flush();
+  await new Promise((r) => setTimeout(r, 150)); await oh.telemetry!.flush();
   let st = await (await fetch(`${pbase}/api/v1/portal/stats?key=${key.id}&range=24h`, { headers: { Cookie: cookie } })).json();
   const row = st.recent[0];
   assert.equal(row.feedback, null);
@@ -166,7 +166,7 @@ test('health reports the policy and the reporter; a constant identify() flips it
 
 test('the portal builds the 30-day report from what the server reported, as JSON and as a printable page', async () => {
   await fetch(`${base}/api/balance`);
-  await new Promise((r) => setTimeout(r, 150)); await nt.telemetry!.flush();
+  await new Promise((r) => setTimeout(r, 150)); await oh.telemetry!.flush();
   let r = await fetch(`${pbase}/api/v1/portal/report?key=${key.id}&days=30`, { headers: { Cookie: cookie } });
   assert.equal(r.status, 200);
   const rep = await r.json();

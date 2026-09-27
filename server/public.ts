@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 /**
- * onehuman-engine — the engine's public surface.
+ * @onehumanai/engine — the engine's public surface.
  *
  * Everything the open integrations (the Express middleware, future adapters) need from the engine is
  * exported here and nowhere else. The open package imports only this module, so the build can publish it
@@ -20,7 +20,7 @@ export { proverFromSecret, sessionDigest, type Prover } from './proof.ts';
 export { applySignatures, clientSignatureRules, signatureState } from './signatures.ts';
 
 /**
- * The engine's package version, stamped by the build (`0.0.0-dev` when run from source). `onehuman/express`
+ * The engine's package version, stamped by the build (`0.0.0-dev` when run from source). `@onehumanai/express`
  * compares it with its own at startup: the two packages are released together and a mismatch means a broken
  * install (a lockfile pinning an old engine, or the engine added by hand).
  */

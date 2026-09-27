@@ -2,13 +2,13 @@
 /**
  * Training-environment evaluation: how the real assessment treated every recorded run, per task.
  *   node scripts/training-eval.mjs                # Turso (.env.local)
- *   NT_DB=data/lab.db node scripts/training-eval.mjs
+ *   ONEHUMAN_DB=data/lab.db node scripts/training-eval.mjs
  *   node scripts/training-eval.mjs t-2yl22gmc     # one run (client id prefix), step by step with features
  * Human runs: every step the engine would have called agent_likely is a false positive → listed with reason codes
  * and the click's kinematic features so the rule that misfired can be named. Agent runs: the inverse.
  */
 import { readFileSync, existsSync } from 'node:fs';
-if (!process.env.NT_DB && existsSync('.env.local')) for (const line of readFileSync('.env.local', 'utf8').split('\n')) { const m = line.match(/^\s*(?:export\s+)?([A-Z_]+)=(.*)$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ''); }
+if (!process.env.ONEHUMAN_DB && existsSync('.env.local')) for (const line of readFileSync('.env.local', 'utf8').split('\n')) { const m = line.match(/^\s*(?:export\s+)?([A-Z_]+)=(.*)$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ''); }
 const { clientFromEnv } = await import('../server/sql.ts');
 const { Store } = await import('../server/db.ts');
 const { clickFeatures, judgeClick } = await import('../server/kinematics.ts');

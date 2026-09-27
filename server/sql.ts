@@ -65,6 +65,6 @@ export async function libsqlClient(url: string, authToken?: string): Promise<Sql
 export async function clientFromEnv(env: NodeJS.ProcessEnv = process.env): Promise<{ client: SqlClient; kind: 'libsql' | 'sqlite'; label: string }> {
   const url = env.TURSO_DATABASE_URL || env.LIBSQL_URL;
   if (url) return { client: await libsqlClient(url, env.TURSO_AUTH_TOKEN || env.LIBSQL_AUTH_TOKEN), kind: 'libsql', label: url.replace(/\?.*$/, '') };
-  const path = env.NT_DB ?? 'data/lab.db';
+  const path = env.ONEHUMAN_DB ?? 'data/lab.db';
   return { client: await sqliteClient(path), kind: 'sqlite', label: path };
 }

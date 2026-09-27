@@ -143,7 +143,7 @@ test('agent→human handover: blocked session is reclaimed by a user-verified pa
   assert.equal(ok.status, 200);
 
   // 4. the session is human-verified: balance allowed, actor human_like, agent evidence suppressed
-  const r = await fetch(`${base}/api/v1/account/balance${s.q}`, { headers: { cookie: s.cookie, 'X-NT-Sample': JSON.stringify({ early: { ...earlyBase, observedMs: 5000 }, interaction: null }) } });
+  const r = await fetch(`${base}/api/v1/account/balance${s.q}`, { headers: { cookie: s.cookie, 'X-OH-Sample': JSON.stringify({ early: { ...earlyBase, observedMs: 5000 }, interaction: null }) } });
   assert.equal(r.status, 200);
   const d = await r.json();
   assert.equal(d.decision.actor, 'human_like');
@@ -164,7 +164,7 @@ test('reclaim expires: after HUMAN_RECLAIM_TTL the sticky agent evidence applies
   // simulate a verification that happened 10 minutes ago
   await app.store.exec('UPDATE sessions SET human_verified_at = ? WHERE id = ?', [Date.now() - 10 * 60000, sess.id]);
   // agent has left (marker gone in this snapshot) but the stale verification does not help
-  const r = await fetch(`${base}/api/v1/account/balance${s.q}`, { headers: { cookie: s.cookie, 'X-NT-Sample': JSON.stringify({ early: { ...earlyBase, observedMs: 9000 }, interaction: null }) } });
+  const r = await fetch(`${base}/api/v1/account/balance${s.q}`, { headers: { cookie: s.cookie, 'X-OH-Sample': JSON.stringify({ early: { ...earlyBase, observedMs: 9000 }, interaction: null }) } });
   assert.equal(r.status, 403);
   const codes = (await r.json()).decision.reasonCodes;
   assert.ok(codes.includes('AGENT_ATTACHED_EARLIER'), codes.join(','));

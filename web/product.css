@@ -135,7 +135,7 @@ dialog .code{font:600 22px var(--mono);letter-spacing:.14em;background:var(--sur
 .guard.agent{animation:guard-pulse 1.2s ease 1}
 @keyframes guard-pulse{0%{transform:scale(.96)}40%{transform:scale(1.04)}100%{transform:none}}
 .amount,.kpi{transition:color .3s,filter .3s}
-[data-nt-sensitive="sealed"]{filter:blur(0);animation:seal .4s ease both}
+[data-oh-sensitive="sealed"]{filter:blur(0);animation:seal .4s ease both}
 @keyframes seal{from{filter:blur(6px);opacity:.4}to{filter:blur(0);opacity:1}}
 .chip:empty,.placeholder{background:linear-gradient(90deg,var(--surface-2) 25%,#e6e8ec 50%,var(--surface-2) 75%);background-size:200% 100%;animation:shimmer 1.6s linear infinite}
 @keyframes shimmer{to{background-position:-200% 0}}

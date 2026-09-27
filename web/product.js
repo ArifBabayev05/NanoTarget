@@ -8,7 +8,7 @@
   const money = (n, unit) => { if (n == null) return '••••'; const u = unit || 'USD'; const sym = u === 'USD' || u === '$' ? '$' : u + ' '; return `${sym}${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; };
   const room = new URL(location.href).searchParams.get('room');
   const q = `?room=${encodeURIComponent(room)}`;
-  const appId = (document.querySelector('meta[name="nt-app"]') || {}).content || 'bank';
+  const appId = (document.querySelector('meta[name="oh-app"]') || {}).content || 'bank';
   const SH = () => (window.OneHuman && window.OneHuman.sessionHeaders ? window.OneHuman.sessionHeaders() : {});
   let app = null;
   let me = null;
@@ -220,11 +220,11 @@
   }
 
   /** elements outside the card body that show protected values (hero amount, KPIs) */
-  const mark = (sels, masked) => sels.forEach((sel) => { const el = $(sel); if (el) el.setAttribute('data-nt-sensitive', masked ? 'masked' : 'full'); });
+  const mark = (sels, masked) => sels.forEach((sel) => { const el = $(sel); if (el) el.setAttribute('data-oh-sensitive', masked ? 'masked' : 'full'); });
   const shown = new Set(); // resources currently rendered with data
 
   function render(resource, def, res, body) {
-    body.setAttribute('data-nt-sensitive', res.masked ? 'masked' : 'full');
+    body.setAttribute('data-oh-sensitive', res.masked ? 'masked' : 'full');
     if (!res.masked) shown.add(resource);
     const d = res.data;
     switch (resource) {
@@ -287,7 +287,7 @@ At the end, write briefly what you saw at each step (data shown / hidden / block
     setInterval(refreshGuard, 3000);
     // The SDK sealed on-screen data because an agent attached: show it, then re-fetch what was open so the
     // server's masked/blocked variant replaces the placeholders.
-    document.addEventListener('nt:sealed', (e) => {
+    document.addEventListener('onehuman:sealed', (e) => {
       const g = $('#guard'); g.className = 'guard agent'; g.lastElementChild.textContent = 'AI agent detected · data hidden';
       if (e.detail && e.detail.first) toast('An AI agent attached — sensitive data on screen was hidden');
       if (app.id === 'bank' && $('#bank-amount')) { $('#bank-amount').textContent = '$ ••••'; $('#bank-note').textContent = 'Balance protected'; }

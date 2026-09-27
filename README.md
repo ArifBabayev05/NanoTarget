@@ -7,8 +7,8 @@
   Detect the moment an agent attaches to a signed-in session, decide per endpoint what it may see, and let the person take the session back.
 </p>
 <p align="center">
-  <a href="https://www.npmjs.com/package/onehuman"><img alt="npm" src="https://img.shields.io/npm/v/onehuman?color=3ddc84&label=npm"></a>
-  <a href="https://github.com/ArifBabayev05/OneHuman/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ArifBabayev05/OneHuman/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://www.npmjs.com/package/@onehumanai/express"><img alt="npm" src="https://img.shields.io/npm/v/onehuman?color=3ddc84&label=npm"></a>
+  <a href="https://github.com/onehumanai/onehuman/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/onehumanai/onehuman/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="Apache-2.0 SDK, BUSL-1.1 engine" src="https://img.shields.io/badge/license-Apache--2.0%20SDK%20%C2%B7%20BUSL--1.1%20engine-blue"></a>
   <a href="https://onehuman.ai"><img alt="demo" src="https://img.shields.io/badge/live-demo-0f8a4b"></a>
 </p>
@@ -27,28 +27,28 @@ OneHuman works inside the session:
 - **Seal on attach** — data already on screen is redacted in the browser the instant an indicator appears.
 - **Passkey reclaim** — once an agent attached, the session stays "agent" until the person proves presence with WebAuthn (Touch ID) and takes it back.
 
-Live demo: **https://onehuman.ai** · Package: **https://www.npmjs.com/package/onehuman**
+Live demo: **https://onehuman.ai** · Package: **https://www.npmjs.com/package/@onehumanai/express**
 
 ## Install
 
 ```bash
-npm i onehuman          # Node ≥ 22.13 · Express 4/5, Connect, Next.js custom server, plain node:http
+npm i @onehumanai/express          # Node ≥ 22.13 · Express 4/5, Connect, Next.js custom server, plain node:http
 npx onehuman scan .     # what an AI agent could reach in this codebase + a draft policy
 ```
 
-One install. `onehuman` (Apache-2.0) depends on [`onehuman-engine`](https://www.npmjs.com/package/onehuman-engine) (BUSL-1.1, production use granted), which comes with it — you never import the engine yourself.
+One install. `@onehumanai/express` (Apache-2.0) depends on [`@onehumanai/engine`](https://www.npmjs.com/package/@onehumanai/engine) (BUSL-1.1, production use granted), which comes with it — you never import the engine yourself.
 
 ```js
-import { onehuman } from 'onehuman/express';
+import { onehuman } from '@onehumanai/express';
 
-const nt = await onehuman({
+const oh = await onehuman({
   secret: process.env.ONEHUMAN_SECRET,
   policy: './onehuman.policy.json',
   db: 'sqlite:./onehuman.db',
   identify: (req) => req.session?.userId ?? null,
 });
-app.use(nt.middleware());                                            // serves /onehuman/sdk.js + its API
-app.get('/api/balance', nt.protect('balance.read'), (req, res) => nt.send(req, res, balance, maskBalance));
+app.use(oh.middleware());                                            // serves /onehuman/sdk.js + its API
+app.get('/api/balance', oh.protect('balance.read'), (req, res) => oh.send(req, res, balance, maskBalance));
 ```
 
 ```html
@@ -75,9 +75,9 @@ signals (untrusted, from the SDK) + server observations (trusted)
 | --- | --- |
 | `server/` | Engine: signals, assessment, kinematics + model, policy, audit, WebAuthn, Web Bot Auth, storage (sqlite / libSQL) |
 | `sdk/onehuman.js` | Browser SDK: attach-time probes, pointer trajectories, seal-on-attach |
-| `integrations/express/` | The `onehuman/express` middleware |
+| `integrations/express/` | The `@onehumanai/express` middleware |
 | `integrations/cli/` | `npx onehuman scan | verify | secret` |
-| `packages/onehuman/` | Published npm package (built by `scripts/build-package.mjs`) |
+| `packages/express/` | Published npm package (built by `scripts/build-package.mjs`) |
 | `web/` | Landing, three demo applications, training lab, sandbox |
 | `scripts/` | Training, evaluation, adversarial generation, reports |
 | `tests/` | 105 tests (`npm test`) |
@@ -90,7 +90,7 @@ npm install
 npm run dev            # http://localhost:8787
 npm run check          # typecheck + tests
 npm run eval           # regenerate docs/EVAL.md from the sample store
-npm run build:package  # packages/onehuman/dist
+npm run build:package  # packages/express/dist
 ```
 
 The engine has no runtime dependencies beyond Node. `@libsql/client` is optional (Turso/serverless storage).
@@ -111,7 +111,7 @@ OneHuman is licensed in two parts. © 2026 Arif Babayev.
 
 | Part | Licence | What it means for you |
 | --- | --- | --- |
-| Browser SDK, Express middleware, CLI, proof verifier — the `onehuman` package | [Apache 2.0](LICENSE-APACHE) | Use, modify and ship it anywhere, including closed-source products. Patent grant included. |
-| Engine, portal, tooling — the `onehuman-engine` package and the rest of this repository | [Business Source License 1.1](LICENSE-BSL) | **Production use is granted**, including protecting your own apps and the services you give your customers. Not granted: offering OneHuman itself to others as a competing hosted or embedded product. Each version becomes Apache 2.0 four years after release. |
+| Browser SDK, Express middleware, CLI, proof verifier — `@onehumanai/express`, `@onehumanai/sdk` and the `onehuman` command | [Apache 2.0](LICENSE-APACHE) | Use, modify and ship it anywhere, including closed-source products. Patent grant included. |
+| Engine, portal, tooling — the `@onehumanai/engine` package and the rest of this repository | [Business Source License 1.1](LICENSE-BSL) | **Production use is granted**, including protecting your own apps and the services you give your customers. Not granted: offering OneHuman itself to others as a competing hosted or embedded product. Each version becomes Apache 2.0 four years after release. |
 
 Versions before 0.4.0 were published under MIT and stay available under it. Contributions need the one-line [CLA](CLA.md). Alternative licensing: see [SECURITY.md](SECURITY.md) for the contact.

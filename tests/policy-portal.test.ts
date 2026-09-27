@@ -41,15 +41,15 @@ test('diffPolicy names every change and flags the ones that weaken protection', 
 test('a policy envelope is accepted only when genuine and for this key', () => {
   const s = policySigner(Buffer.alloc(32, 7));
   const p = doc('portal-v1', [rule('balance.read')]) as PolicyLike;
-  const env = s.envelope(keyTag('nt_live_a'), 1, p);
-  const ok = verifyPolicyEnvelope(env, [s.jwk], keyTag('nt_live_a'));
+  const env = s.envelope(keyTag('oh_live_a'), 1, p);
+  const ok = verifyPolicyEnvelope(env, [s.jwk], keyTag('oh_live_a'));
   assert.equal(ok.ok, true);
-  assert.deepEqual(verifyPolicyEnvelope(env, [s.jwk], keyTag('nt_live_b')), { ok: false, reason: 'wrong_key_tag' }, 'another key cannot replay it');
+  assert.deepEqual(verifyPolicyEnvelope(env, [s.jwk], keyTag('oh_live_b')), { ok: false, reason: 'wrong_key_tag' }, 'another key cannot replay it');
   const [h, body, sig] = env.split('.');
   const forged = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(body!, 'base64url').toString()), policy: { ...p, enforcement: 'observe' } })).toString('base64url');
-  assert.deepEqual(verifyPolicyEnvelope(`${h}.${forged}.${sig}`, [s.jwk], keyTag('nt_live_a')), { ok: false, reason: 'bad_signature' });
-  assert.deepEqual(verifyPolicyEnvelope(env, [policySigner(Buffer.alloc(32, 8)).jwk], keyTag('nt_live_a')), { ok: false, reason: 'unknown_key' });
-  assert.deepEqual(verifyPolicyEnvelope('nope', [s.jwk], keyTag('nt_live_a')), { ok: false, reason: 'malformed' });
+  assert.deepEqual(verifyPolicyEnvelope(`${h}.${forged}.${sig}`, [s.jwk], keyTag('oh_live_a')), { ok: false, reason: 'bad_signature' });
+  assert.deepEqual(verifyPolicyEnvelope(env, [policySigner(Buffer.alloc(32, 8)).jwk], keyTag('oh_live_a')), { ok: false, reason: 'unknown_key' });
+  assert.deepEqual(verifyPolicyEnvelope('nope', [s.jwk], keyTag('oh_live_a')), { ok: false, reason: 'malformed' });
 });
 
 // ------------------------------------------------------------------ portal + a customer's server
@@ -63,35 +63,35 @@ const cookie = signup.headers.get('set-cookie')!.split(';')[0]!;
 const C = { ...H, Cookie: cookie };
 const key = await (await fetch(`${pbase}/api/v1/portal/keys`, { method: 'POST', headers: C, body: JSON.stringify({ name: 'prod' }) })).json();
 
-const dir = mkdtempSync(join(tmpdir(), 'nt-policy-'));
+const dir = mkdtempSync(join(tmpdir(), 'oh-policy-'));
 const file = join(dir, 'onehuman.policy.json');
-const dbPath = `sqlite:${join(dir, 'nt.db')}`;
+const dbPath = `sqlite:${join(dir, 'oh.db')}`;
 writeFileSync(file, JSON.stringify(doc('pp-1', [rule('balance.read')])));
 
 const logs: string[] = [];
 const origLog = console.log;
 console.log = (...a: unknown[]) => { const m = a.join(' '); if (m.startsWith('onehuman:')) logs.push(m); else origLog(...a); };
 const opts = { secret: 'test-secret-test-secret-test-secret-7777', policy: file, db: dbPath, apiKey: key.key, telemetryUrl: `${pbase}/api/v1/ingest` };
-const nt = await onehuman(opts);
+const oh = await onehuman(opts);
 const app = express();
-app.use(nt.middleware());
-app.get('/api/balance', nt.protect('balance.read'), (req, res) => nt.send(req, res, { balance: 1 }, (x) => ({ ...x, balance: null })));
-app.get('/api/export', nt.protect('export.csv'), (_req, res) => { res.json({ ok: true }); });
+app.use(oh.middleware());
+app.get('/api/balance', oh.protect('balance.read'), (req, res) => oh.send(req, res, { balance: 1 }, (x) => ({ ...x, balance: null })));
+app.get('/api/export', oh.protect('export.csv'), (_req, res) => { res.json({ ok: true }); });
 const server = app.listen(0);
 const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-after(async () => { console.log = origLog; server.close(); await nt.close(); portal.server.close(); portal.store.close(); });
+after(async () => { console.log = origLog; server.close(); await oh.close(); portal.server.close(); portal.store.close(); });
 
 const view = async () => (await fetch(`${pbase}/api/v1/portal/policy?key=${key.id}`, { headers: { Cookie: cookie } })).json();
 const post = (path: string, body: unknown) => fetch(`${pbase}/api/v1/portal/policy${path}`, { method: 'POST', headers: C, body: JSON.stringify({ key: key.id, ...(body as object) }) });
 
 test('first start: the policy file becomes version 1 in the portal, no approval, and the server runs the signed copy', async () => {
-  assert.equal(nt.policySource().source, 'portal');
-  assert.equal(nt.policy.version, 'portal-v1');
+  assert.equal(oh.policySource().source, 'portal');
+  assert.equal(oh.policy.version, 'portal-v1');
   assert.ok(logs.some((l) => l.includes('now version 1 there')), logs.join('\n'));
   assert.ok(logs.some((l) => l.includes('portal-v1') && l.includes('from the portal')));
   const r = await fetch(`${base}/api/balance`);
-  assert.equal(r.headers.get('x-nt-policy-source'), 'portal', 'outside production the response says where the policy came from');
-  await nt.reloadPolicy(); // reports what it runs
+  assert.equal(r.headers.get('x-oh-policy-source'), 'portal', 'outside production the response says where the policy came from');
+  await oh.reloadPolicy(); // reports what it runs
   const v = await view();
   assert.equal(v.n, 1);
   assert.equal(v.history[0].origin, 'install');
@@ -111,14 +111,14 @@ test('an endpoint with no rule is listed in the portal as needing one', async ()
 
 test('a file edit that strengthens protection applies at once; one that weakens it waits for a password-confirmed approval', async () => {
   writeFileSync(file, JSON.stringify(doc('pp-2', [rule('balance.read'), rule('export.csv', 'block')])));
-  await nt.reloadPolicy();
-  assert.equal(nt.policy.version, 'portal-v2');
-  assert.equal(nt.policy.rules.length, 2);
+  await oh.reloadPolicy();
+  assert.equal(oh.policy.version, 'portal-v2');
+  assert.equal(oh.policy.rules.length, 2);
 
   writeFileSync(file, JSON.stringify(doc('pp-3', [rule('balance.read', 'allow'), rule('export.csv', 'block')])));
-  await nt.reloadPolicy();
-  assert.equal(nt.policy.version, 'portal-v2', 'the weakening edit is not in force yet');
-  assert.equal(nt.policySource().lastProposal?.reason, 'weakens_protection');
+  await oh.reloadPolicy();
+  assert.equal(oh.policy.version, 'portal-v2', 'the weakening edit is not in force yet');
+  assert.equal(oh.policySource().lastProposal?.reason, 'weakens_protection');
   let v = await view();
   assert.equal(v.pending.length, 1);
   assert.match(v.pending[0].weakening[0], /balance\.read: an AI agent sees it with sensitive details hidden → sees everything/);
@@ -129,22 +129,22 @@ test('a file edit that strengthens protection applies at once; one that weakens 
   assert.equal(r.status, 401);
   r = await post('/decide', { id: v.pending[0].id, approve: true, password: PASSWORD });
   assert.deepEqual(await r.json(), { status: 'applied', n: 3 });
-  await nt.reloadPolicy();
-  assert.equal(nt.policy.version, 'portal-v3');
+  await oh.reloadPolicy();
+  assert.equal(oh.policy.version, 'portal-v3');
   v = await view();
   assert.equal(v.pending.length, 0);
   assert.equal(v.history.find((h: { toN: number }) => h.toN === 3).decidedBy, 'owner@saas.example');
 
   // the same file again is not a new proposal
-  await nt.reloadPolicy();
+  await oh.reloadPolicy();
   assert.equal((await view()).history.length, v.history.length);
 });
 
 test('a change that makes real people confirm waits too, even with approval off', async () => {
   writeFileSync(file, JSON.stringify(doc('pp-3b', [{ ...rule('balance.read', 'allow'), onHumanLike: 'step_up' }, rule('export.csv', 'block')])));
-  await nt.reloadPolicy();
-  assert.equal(nt.policySource().lastProposal?.reason, 'affects_people');
-  assert.equal(nt.policy.version, 'portal-v3');
+  await oh.reloadPolicy();
+  assert.equal(oh.policySource().lastProposal?.reason, 'affects_people');
+  assert.equal(oh.policy.version, 'portal-v3');
   const v = await view();
   const r = await post('/decide', { id: v.pending[0].id, approve: false });
   assert.deepEqual(await r.json(), { status: 'rejected' });
@@ -155,14 +155,14 @@ test('with approval on, every change from code waits; a rejected one never runs'
   let r = await post('/settings', { requireApproval: true });
   assert.equal(r.status, 200);
   writeFileSync(file, JSON.stringify(doc('pp-4', [rule('balance.read', 'allow'), rule('export.csv', 'block'), rule('users.list')])));
-  await nt.reloadPolicy();
-  assert.equal(nt.policy.version, 'portal-v3');
-  assert.equal(nt.policySource().lastProposal?.reason, 'approval_required');
+  await oh.reloadPolicy();
+  assert.equal(oh.policy.version, 'portal-v3');
+  assert.equal(oh.policySource().lastProposal?.reason, 'approval_required');
   const v = await view();
   r = await post('/decide', { id: v.pending[0].id, approve: false });
   assert.deepEqual(await r.json(), { status: 'rejected' });
-  await nt.reloadPolicy();
-  assert.equal(nt.policy.version, 'portal-v3');
+  await oh.reloadPolicy();
+  assert.equal(oh.policy.version, 'portal-v3');
   const statuses = (await view()).history.map((h: { status: string }) => h.status);
   assert.ok(statuses.includes('rejected') && statuses.includes('settings'), statuses.join(','));
 });
@@ -189,9 +189,9 @@ test('turning the weakening check off, or weakening from the portal, needs the p
   // strengthening from the portal goes through, and the server picks it up
   r = await post('', { policy: doc('x', [rule('balance.read', 'block'), rule('export.csv', 'block'), rule('users.list', 'step_up')]) });
   assert.deepEqual(await r.json(), { status: 'applied', n: 5 });
-  await nt.reloadPolicy();
-  assert.equal(nt.policy.version, 'portal-v5');
-  assert.equal(nt.policy.rules.find((x) => x.resource === 'balance.read')?.onAgent, 'block');
+  await oh.reloadPolicy();
+  assert.equal(oh.policy.version, 'portal-v5');
+  assert.equal(oh.policy.rules.find((x) => x.resource === 'balance.read')?.onAgent, 'block');
 });
 
 test('portal down: a restarted server runs its saved signed copy; a tampered copy is refused', async () => {
@@ -223,7 +223,7 @@ test('the assistant edits existing rules only; a new rule becomes a prompt for t
     let body = ''; req.on('data', (c) => (body += c)); req.on('end', () => {
       const sent = JSON.parse(body);
       assert.match(sent.messages[1].content, /balance\.read/, 'the rules are sent');
-      assert.doesNotMatch(sent.messages[1].content, /nt_live_/, 'the API key is not');
+      assert.doesNotMatch(sent.messages[1].content, /oh_live_/, 'the API key is not');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
         reply: 'Agentlər balansı gizli məbləğlə görəcək.',
@@ -235,7 +235,7 @@ test('the assistant edits existing rules only; a new rule becomes a prompt for t
   });
   await new Promise<void>((r) => fake.listen(0, '127.0.0.1', () => r()));
   process.env.OPENROUTER_API_KEY = 'test';
-  process.env.NT_ASSIST_URL = `http://127.0.0.1:${(fake.address() as AddressInfo).port}/`;
+  process.env.ONEHUMAN_ASSIST_URL = `http://127.0.0.1:${(fake.address() as AddressInfo).port}/`;
   try {
     const before = await view();
     assert.equal(before.assistant, true);
@@ -251,7 +251,7 @@ test('the assistant edits existing rules only; a new rule becomes a prompt for t
     // empty and oversized messages are refused before any model call
     assert.equal((await post('/assist', { message: '' })).status, 400);
   } finally {
-    delete process.env.OPENROUTER_API_KEY; delete process.env.NT_ASSIST_URL; fake.close();
+    delete process.env.OPENROUTER_API_KEY; delete process.env.ONEHUMAN_ASSIST_URL; fake.close();
   }
   assert.equal((await post('/assist', { message: 'x' })).status, 503, 'without a model key the assistant is off');
 });

@@ -23,7 +23,7 @@ const SHORT = /^[a-zA-Z0-9_.:\-\/ ]{1,80}$/;
 const NAME = /^[^\x00-\x1f\x7f<>]{1,80}$/;   // key names: any printable text, no angle brackets
 const TOKEN = /^[a-z0-9_]{1,40}$/i;
 const SESSION_TTL_MS = 30 * 24 * 3600 * 1000;
-const COOKIE = 'nt_portal';
+const COOKIE = 'oh_portal';
 const RANGES: Record<string, { since: number; bucket: number }> = {
   '24h': { since: 24 * 3600e3, bucket: 3600e3 },
   '7d': { since: 7 * 24 * 3600e3, bucket: 6 * 3600e3 },
@@ -41,14 +41,14 @@ export function verifyPassword(pw: string, stored: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 export const hashKey = (raw: string) => createHash('sha256').update(raw).digest('hex');
-/** `nt_live_` + 40 hex chars; the prefix (first 15 chars) is what the portal shows afterwards */
+/** `oh_live_` + 40 hex chars; the prefix (first 15 chars) is what the portal shows afterwards */
 export function newApiKey(): { raw: string; prefix: string; hash: string } {
-  const raw = `nt_live_${randomBytes(20).toString('hex')}`;
+  const raw = `oh_live_${randomBytes(20).toString('hex')}`;
   return { raw, prefix: raw.slice(0, 15), hash: hashKey(raw) };
 }
-/** `nt_admin_` + 40 hex chars: administers the account over HTTP, so an agent or a CI job can do everything the portal can. */
+/** `oh_admin_` + 40 hex chars: administers the account over HTTP, so an agent or a CI job can do everything the portal can. */
 export function newAdminKey(): { raw: string; prefix: string; hash: string } {
-  const raw = `nt_admin_${randomBytes(20).toString('hex')}`;
+  const raw = `oh_admin_${randomBytes(20).toString('hex')}`;
   return { raw, prefix: raw.slice(0, 16), hash: hashKey(raw) };
 }
 const EXPIRY_DAYS = new Set([0, 7, 30, 90, 365]);
@@ -76,7 +76,7 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
     serverKey: async (req, res) => {
       const auth = (req.headers.authorization ?? '').toString();
       const raw = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-      if (!/^nt_live_[a-f0-9]{40}$/.test(raw)) { json(res, 401, { error: 'bad_key' }); return null; }
+      if (!/^oh_live_[a-f0-9]{40}$/.test(raw)) { json(res, 401, { error: 'bad_key' }); return null; }
       const hash = hashKey(raw);
       const key = await store.apiKeyByHash(hash);
       if (!key || key.revoked) { json(res, 401, { error: 'bad_key' }); return null; }
@@ -91,7 +91,7 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
   const signaturesGet = async (req: Req, res: Res) => {
     const auth = (req.headers.authorization ?? '').toString();
     const raw = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-    const key = /^nt_live_[a-f0-9]{40}$/.test(raw) ? await store.apiKeyByHash(hashKey(raw)) : null;
+    const key = /^oh_live_[a-f0-9]{40}$/.test(raw) ? await store.apiKeyByHash(hashKey(raw)) : null;
     if (!key || key.revoked || (key.expires && key.expires < Date.now())) return json(res, 401, { error: 'bad_key' });
     const b = await signatureBundleFor(key.account);
     if (!b) return json(res, 404, { error: 'none', message: 'No signature bundle published yet; the built-in signatures are in use.' });
@@ -194,7 +194,7 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
     if (!account) return json(res, 401, { error: 'unauthenticated' });
     const b = (await readJson(req, 4000).catch(() => null)) as Record<string, unknown> | null | undefined;
     const raw = typeof b?.key === 'string' ? b.key.trim() : '';
-    if (!/^nt_(live|admin)_[a-f0-9]{40}$/.test(raw)) return json(res, 400, { error: 'bad_key', message: 'That is not a OneHuman key.' });
+    if (!/^oh_(live|admin)_[a-f0-9]{40}$/.test(raw)) return json(res, 400, { error: 'bad_key', message: 'That is not a OneHuman key.' });
     json(res, 200, { id: await store.apiKeyIdByHash(hashKey(raw), account) });
   };
 
@@ -427,11 +427,11 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
     json(res, 200, { range: { since: now - range.since, bucketMs: range.bucket }, now, keys: await store.listApiKeys(account), ...(await store.telemetryOverview(account, now - range.since, range.bucket)) });
   };
 
-  /** POST /api/v1/ingest — Authorization: Bearer nt_live_…; body { events: [...] } */
+  /** POST /api/v1/ingest — Authorization: Bearer oh_live_…; body { events: [...] } */
   const ingest = async (req: Req, res: Res) => {
     const auth = (req.headers.authorization ?? '').toString();
     const raw = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-    if (!/^nt_live_[a-f0-9]{40}$/.test(raw)) return json(res, 401, { error: 'bad_key' });
+    if (!/^oh_live_[a-f0-9]{40}$/.test(raw)) return json(res, 401, { error: 'bad_key' });
     const key = await store.apiKeyByHash(hashKey(raw));
     if (!key || key.revoked) return json(res, 401, { error: 'bad_key' });
     const now = Date.now();
@@ -464,13 +464,13 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
   };
 
   /**
-   * Management API — everything the portal can do, over HTTP, with `Authorization: Bearer nt_admin_…`.
+   * Management API — everything the portal can do, over HTTP, with `Authorization: Bearer oh_admin_…`.
    * This is what lets a coding agent set OneHuman up end to end without a human opening the portal.
    */
   const manage = async (req: Req, res: Res) => {
     const auth = (req.headers.authorization ?? '').toString();
     const raw = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-    if (!/^nt_admin_[a-f0-9]{40}$/.test(raw)) return json(res, 401, { error: 'bad_key', message: 'Send Authorization: Bearer nt_admin_… (create one in the portal under Management keys).' });
+    if (!/^oh_admin_[a-f0-9]{40}$/.test(raw)) return json(res, 401, { error: 'bad_key', message: 'Send Authorization: Bearer oh_admin_… (create one in the portal under Management keys).' });
     const admin = await store.adminKeyByHash(hashKey(raw));
     if (!admin || admin.revoked) return json(res, 401, { error: 'bad_key' });
     void store.touchAdminKey(admin.id).catch(() => {});
@@ -586,7 +586,7 @@ export function integrationChecks(h: TelemetryHealth, now: number): Check[] {
   }
 
   if (!h.events) checks.push({ id: 'signed', status: 'off', title: 'Signed decisions', detail: 'Waits for the first decision.' });
-  else if (!h.proofs) checks.push({ id: 'signed', status: 'warn', title: 'Signed decisions', detail: 'Decisions arrive without a signature. Update to the latest onehuman package.' });
+  else if (!h.proofs) checks.push({ id: 'signed', status: 'warn', title: 'Signed decisions', detail: 'Decisions arrive without a signature. Update to the latest @onehumanai/express.' });
   else if (h.proofsOk < h.proofs) checks.push({ id: 'signed', status: 'warn', title: 'Signed decisions', detail: `${h.proofs - h.proofsOk} of ${h.proofs} signatures did not verify. Every server instance must use the same ONEHUMAN_SECRET.` });
   else checks.push({ id: 'signed', status: 'ok', title: 'Signed decisions', detail: `${h.proofsOk.toLocaleString('en-US')} decisions signed and verified. Export them for an auditor from Activity.` });
 

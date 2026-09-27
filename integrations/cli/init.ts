@@ -175,9 +175,9 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   ], apiKey ? 0 : 1);
   if (portal === 'key' && !apiKey) {
     for (;;) {
-      apiKey = await text('Paste the API key from https://onehuman.ai/portal (starts with nt_live_):');
-      if (!apiKey || /^nt_live_[a-f0-9]{40}$/.test(apiKey)) break;
-      say(yellow('  That does not look like a key. It starts with nt_live_ and has 40 more characters. Leave it empty to skip.'));
+      apiKey = await text('Paste the API key from https://onehuman.ai/portal (starts with oh_live_):');
+      if (!apiKey || /^oh_live_[a-f0-9]{40}$/.test(apiKey)) break;
+      say(yellow('  That does not look like a key. It starts with oh_live_ and has 40 more characters. Leave it empty to skip.'));
     }
   }
 
@@ -250,8 +250,8 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
     const header = '// OneHuman — written by `npx onehuman init`. Import `onehuman` wherever a route needs protection.\n// The rules are in onehuman.policy.json; with an API key they live in the portal after the first start.\n';
     if (!existsSync(setupFile)) {
       put(setupFile, entryStyle.esm || entryStyle.ts
-        ? `${header}import { onehumanDeferred } from 'onehuman/express';\n\nexport const onehuman = onehumanDeferred(${opts});\n`
-        : `${header}const { onehumanDeferred } = require('onehuman/express');\n\nconst onehuman = onehumanDeferred(${opts});\nmodule.exports = { onehuman };\n`, 'creates the OneHuman instance');
+        ? `${header}import { onehumanDeferred } from '@onehumanai/express';\n\nexport const onehuman = onehumanDeferred(${opts});\n`
+        : `${header}const { onehumanDeferred } = require('@onehumanai/express');\n\nconst onehuman = onehumanDeferred(${opts});\nmodule.exports = { onehuman };\n`, 'creates the OneHuman instance');
     }
     const importLine = (file: string) => {
       const st = styleOf(file, readFileSync(file, 'utf8'), pkgType);
@@ -306,9 +306,9 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
     if (chosen.some((x) => PRESETS[presetFor.get(x)!]!.m.includes('mask'))) notes.push("Routes that hide details use mask: 'auto' — every value hidden, shape and ids kept. For a precise mask, replace it with your own function: onehuman.protect('balance.read', { mask: (body) => ({ ...body, amount: null }) }).");
   } else {
     const snippet = {
-      fastify: "import { onehuman } from 'onehuman/express';\nconst oh = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', apiKey: process.env.ONEHUMAN_API_KEY });\nfastify.addHook('onRequest', (req, reply, done) => oh.middleware()(req.raw, reply.raw, done));\n// on each protected route: { onRequest: (req, reply, done) => oh.protect('balance.read')(req.raw, reply.raw, done) }",
+      fastify: "import { onehuman } from '@onehumanai/express';\nconst oh = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', apiKey: process.env.ONEHUMAN_API_KEY });\nfastify.addHook('onRequest', (req, reply, done) => oh.middleware()(req.raw, reply.raw, done));\n// on each protected route: { onRequest: (req, reply, done) => oh.protect('balance.read')(req.raw, reply.raw, done) }",
       next: '// Next.js: run the app through a small Express server (server.mjs) and add app.use(oh.middleware()) before the Next handler — see https://onehuman.ai/docs',
-      other: '// Paste this into your coding agent:\n// https://www.npmjs.com/package/onehuman — integrate it into my app. Use the rules in onehuman.policy.json and the keys in .env.',
+      other: '// Paste this into your coding agent:\n// https://www.npmjs.com/package/@onehumanai/express — integrate it into my app. Use the rules in onehuman.policy.json and the keys in .env.',
     }[framework as 'fastify' | 'next' | 'other'];
     notes.push(`Add this to your server:\n${snippet}`);
   }
@@ -317,11 +317,11 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
     put(html, t.replace(/<\/head>/i, '  <script src="/onehuman/sdk.js"></script>\n</head>'), 'adds the page script in <head>');
     if (r.frontend.kind === 'spa') notes.push('If the page is served by a separate dev server (Vite, webpack), proxy /onehuman to your API server so /onehuman/sdk.js loads.');
   }
-  const installed = !!deps.onehuman;
+  const installed = !!deps['@onehumanai/express'];
 
   // ---------------------------------------------------------------- show it, then do it
   say(`\n${bold('Here is what will change:')}`);
-  if (!installed && flags.install) say(`  ${cyan('install')}  onehuman  ${dim('(its engine comes with it)')}`);
+  if (!installed && flags.install) say(`  ${cyan('install')}  @onehumanai/express  ${dim('(its engine comes with it)')}`);
   for (const e of edits) {
     say(`  ${e.before === null ? green('new    ') : yellow('change ')} ${relative(root, e.file) || basename(e.file)}`);
     for (const ch of e.changes) say(`           ${dim('· ' + ch)}`);
@@ -337,9 +337,9 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
 
   if (!installed && flags.install) {
     const pm = existsSync(join(root, 'pnpm-lock.yaml')) ? ['pnpm', 'add'] : existsSync(join(root, 'yarn.lock')) ? ['yarn', 'add'] : existsSync(join(root, 'bun.lockb')) ? ['bun', 'add'] : ['npm', 'install'];
-    say(dim(`\n$ ${pm.join(' ')} onehuman`));
-    const res = spawnSync(pm[0]!, [...pm.slice(1), 'onehuman'], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
-    if (res.status !== 0) notes.push(`Installing failed — run \`${pm.join(' ')} onehuman\` yourself.`);
+    say(dim(`\n$ ${pm.join(' ')} @onehumanai/express`));
+    const res = spawnSync(pm[0]!, [...pm.slice(1), '@onehumanai/express'], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
+    if (res.status !== 0) notes.push(`Installing failed — run \`${pm.join(' ')} @onehumanai/express\` yourself.`);
   }
   for (const e of edits) writeFileSync(e.file, e.after);
 

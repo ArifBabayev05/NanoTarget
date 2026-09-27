@@ -8,24 +8,24 @@ Customers now hand their logged-in bank, CRM and insurance sessions to Claude, C
 - **Detects at attach time, before the first click.** Agent-tool DOM markers, injected globals, evaluated-script read bursts, focus emulation, Web Bot Auth signatures. Measured: Claude in Chrome 0.1–0.5 s after attach; Codex 0.14 s; in-app agent browsers at first read.
 - **Tells hands from programs per click.** Pointer kinematics — trajectory curvature, tremor, sub-movements, deceleration onto the target, hold time, pressure, teleport. Humans hold 83–225 ms with ≥35 trajectory points; agents 1–4 ms with none. Measured on our own set: 397 human clicks from 22 browsers and devices, 2 read as a program; 824 agent clicks, 2 read as human. Not an independent study — method and limits: https://onehuman.ai/measurements
 - **Never treats "unknown" as human.** Decisions need evidence in both directions; a person inside an AI browser is unlocked by their own first click, not by default.
-- **Protects data already on screen.** Elements marked `data-nt-sensitive="full"` are redacted in the browser the instant an indicator appears — a read already in flight sees `••••`.
+- **Protects data already on screen.** Elements marked `data-oh-sensitive="full"` are redacted in the browser the instant an indicator appears — a read already in flight sees `••••`.
 - **Session memory with a human exit.** Once an agent attached, the session stays "agent" until a WebAuthn user-verified passkey (Touch ID / Windows Hello) reclaims it for 5 minutes.
 - **Yours to run.** Express middleware + browser SDK; policy is your JSON, masking is your function, storage is `node:sqlite` on your disk (or libSQL). Telemetry is metadata only and never has to leave your network. Start in `observe` mode: nothing is blocked, every decision is recorded with what *would* have happened.
 
 ```bash
-npm i onehuman            # Node ≥ 22.13 · Express 4/5, Connect, Next.js custom server, plain node:http
+npm i @onehumanai/express            # Node ≥ 22.13 · Express 4/5, Connect, Next.js custom server, plain node:http
 npx onehuman init         # asks what to protect and how, shows every change, applies it on yes
 ```
 
 `init` reads your project, lists the routes an AI agent could misuse with a customer's login, and asks: which to protect, how (from "hide details" to "passkey for everyone"), where your login id is, whether to start by only watching, and whether to connect the portal. It then shows each file it would write or change and waits for your yes. For Express it wires the code itself (a small `onehuman.js`, `app.use(onehuman.middleware())`, `onehuman.protect()` on each route); for other servers it writes the rules and `.env` and prints the lines to add. `npx onehuman init --yes` takes the recommended answers (CI, coding agents). `npx onehuman scan .` only reports, and writes a draft policy.
 
 ```js
-import { onehuman } from 'onehuman/express';
+import { onehuman } from '@onehumanai/express';
 
-const nt = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db',
+const oh = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db',
                               identify: (req) => req.session?.userId ?? null });
-app.use(nt.middleware());                                                        // serves /onehuman/sdk.js + its API
-app.get('/api/balance', nt.protect('balance.read'), (req, res) => nt.send(req, res, balance, maskBalance));
+app.use(oh.middleware());                                                        // serves /onehuman/sdk.js + its API
+app.get('/api/balance', oh.protect('balance.read'), (req, res) => oh.send(req, res, balance, maskBalance));
 ```
 ```html
 <script src="/onehuman/sdk.js"></script>   <!-- then call protected endpoints with OneHuman.fetch(url) -->
@@ -40,7 +40,7 @@ Three lines on the server, one tag on the page, one policy file. **Integration i
 OneHuman is designed to fail open. A protected request waits at most `decisionTimeoutMs` (default 1000 ms, or `ONEHUMAN_TIMEOUT_MS`) for a decision. If the engine is slower, or throws (a locked database, a bug, anything):
 
 - the request **continues as if allowed** — your handler runs, your users see nothing;
-- `req.nt.failedOpen` is `'ENGINE_TIMEOUT'` or `'ENGINE_ERROR'`, the response carries `X-NT-Decision: failed-open:<reason>`;
+- `req.onehuman.failedOpen` is `'ENGINE_TIMEOUT'` or `'ENGINE_ERROR'`, the response carries `X-OH-Decision: failed-open:<reason>`;
 - it is logged once a minute (`onehuman: … the request went on without one`), counted in `GET /onehuman/health` → `failOpen: { count, lastReason, lastError, lastAt }`, and reported to the portal as an `unknown` visitor;
 - OneHuman's own routes (`/onehuman/*`) answer 503 themselves and never reach your error handler.
 
@@ -57,7 +57,7 @@ OneHuman answers it at the endpoint: attach-time detection (agent-tool markers, 
 
 ### Step 1 — Install and scan (no questions yet)
 ```bash
-npm i onehuman
+npm i @onehumanai/express
 npx onehuman scan .              # full report + onehuman.policy.draft.json (observe mode)
 npx onehuman scan . --proposal   # plain-language proposal for the product owner
 npx onehuman scan . --json       # machine-readable, if you prefer to parse
@@ -67,7 +67,7 @@ The scanner finds every HTTP route an agent could call with the user's session (
 Then read the code yourself and **correct the scan** — it is a starting point, you are the analyst:
 - Add handlers it missed: anything returning balances, statements, personal or contact data, documents, exports/downloads, health or HR records, credentials/tokens, or performing transfers, payments, deletions, permission or settings changes, bulk reads (list/search endpoints over customer data).
 - Follow the data, not just the URL: a `GET /api/dashboard` that embeds the balance is a balance endpoint; a GraphQL or RPC endpoint with sensitive fields is several resources behind one URL — name them by field group.
-- Look at what the front end renders: every element showing a protected value must later carry `data-nt-sensitive`.
+- Look at what the front end renders: every element showing a protected value must later carry `data-oh-sensitive`.
 - Drop false positives (health checks, static, auth flows, public content).
 
 ### Step 2 — Present the analysis (before asking anything)
@@ -105,33 +105,33 @@ Send the user a short document, in their language and with their route names, st
 ### Step 4 — Implement everything (server, page, policy, masks)
 **Server**
 ```js
-import { onehuman } from 'onehuman/express';
+import { onehuman } from '@onehumanai/express';
 
-const nt = await onehuman({
+const oh = await onehuman({
   secret: process.env.ONEHUMAN_SECRET,                    // ≥ 32 bytes, stable across restarts
   policy: './onehuman.policy.json',               // the confirmed draft, renamed
   db: 'sqlite:./onehuman.db',                     // or 'libsql://…?authToken=…'
   identify: (req) => req.session?.userId ?? null,   // decision 5 — null when not logged in
 });
-app.use(nt.middleware());                           // before your routes: serves /onehuman/sdk.js + the SDK API
+app.use(oh.middleware());                           // before your routes: serves /onehuman/sdk.js + the SDK API
 
-app.get('/api/balance', nt.protect('balance.read'), (req, res) =>
-  nt.send(req, res, fullBalance, (full) => ({ ...full, amount: null, iban: full.iban.slice(0, 4) + ' •••• ' + full.iban.slice(-4) })));
+app.get('/api/balance', oh.protect('balance.read'), (req, res) =>
+  oh.send(req, res, fullBalance, (full) => ({ ...full, amount: null, iban: full.iban.slice(0, 4) + ' •••• ' + full.iban.slice(-4) })));
 ```
-- `protect()` answers `block` → **403** and `step_up` → **428** itself; pass `{ respond: false }` to branch on `req.nt.decision` yourself (response envelopes, custom error shapes, GraphQL resolvers).
+- `protect()` answers `block` → **403** and `step_up` → **428** itself; pass `{ respond: false }` to branch on `req.onehuman.decision` yourself (response envelopes, custom error shapes, GraphQL resolvers).
 - Write **one mask function per masked resource** following the mask design you presented. Keep the shape so the UI still renders. Never mask in the front end.
-- **Downloads/exports**: protect the request that *issues* the link, put `req.nt.token()` in the file URL, redeem with `nt.engine.redeemToken(token, req.nt.session.id, resource)` in the file route.
+- **Downloads/exports**: protect the request that *issues* the link, put `req.onehuman.token()` in the file URL, redeem with `oh.engine.redeemToken(token, req.onehuman.session.id, resource)` in the file route.
 - **Writes** (transfers, deletes): protect the mutating endpoint; on `step_up` the client shows the confirmation flow, then retries.
-- Next.js custom server (`server.mjs` + `next()`): mount `nt.middleware()` and protected routes on Express **before** `app.all('*', handle)`. Fastify/Koa: `protect()`/`middleware()` are `(req, res, next)` over Node's raw request/response — use the framework's raw adapter.
+- Next.js custom server (`server.mjs` + `next()`): mount `oh.middleware()` and protected routes on Express **before** `app.all('*', handle)`. Fastify/Koa: `protect()`/`middleware()` are `(req, res, next)` over Node's raw request/response — use the framework's raw adapter.
 
 **Front end** (every page that shows or requests protected data)
 ```html
 <script src="/onehuman/sdk.js"></script>
 ```
-- **Call protected endpoints with `OneHuman.fetch(url, init)`** (same signature as `fetch`). It carries the click's pointer trajectory; without it human evidence never reaches the server and a person inside an AI browser stays masked. axios/ky: add `OneHuman.sessionHeaders()` and `'X-NT-Sample': JSON.stringify(OneHuman.snapshot(true))` in a request interceptor. React/Next: guard with `window.OneHuman?.fetch ?? fetch`.
-- Mark every rendered sensitive element `data-nt-sensitive="full"` (real values) or `"masked"` (placeholders). The SDK redacts every `"full"` element the instant an agent attaches and dispatches the `document` event `nt:sealed` → show a notice and re-fetch.
+- **Call protected endpoints with `OneHuman.fetch(url, init)`** (same signature as `fetch`). It carries the click's pointer trajectory; without it human evidence never reaches the server and a person inside an AI browser stays masked. axios/ky: add `OneHuman.sessionHeaders()` and `'X-OH-Sample': JSON.stringify(OneHuman.snapshot(true))` in a request interceptor. React/Next: guard with `window.OneHuman?.fetch ?? fetch`.
+- Mark every rendered sensitive element `data-oh-sensitive="full"` (real values) or `"masked"` (placeholders). The SDK redacts every `"full"` element the instant an agent attaches and dispatches the `document` event `onehuman:sealed` → show a notice and re-fetch.
 - **403**: show "protected — an AI agent is operating this session"; if `body.stepUp?.reclaim`, offer "I'm human — verify with passkey": `POST /onehuman/webauthn/assert/options` → `navigator.credentials.get` → `POST /onehuman/webauthn/assert` → `OneHuman.unseal(response.reclaim)` → retry. `unseal()` accepts only that server proof; never wire it to a plain button. Registration: `/onehuman/webauthn/register/options` → `navigator.credentials.create` → `/onehuman/webauthn/register`.
-- **428**: step-up dialog; demo answer → `POST /onehuman/step-up {id, answer}`; own OTP → verify your way, then server-side `nt.engine.store.grantStepUp(sessionId, resource, ttlMs)`, then retry.
+- **428**: step-up dialog; demo answer → `POST /onehuman/step-up {id, answer}`; own OTP → verify your way, then server-side `oh.engine.store.grantStepUp(sessionId, resource, ttlMs)`, then retry.
 - CSP: `script-src 'self'`, `connect-src 'self'`; add `chrome-extension:` to `img-src`/`connect-src` for installed-extension detection.
 
 **Policy**: apply the answers to `onehuman.policy.draft.json`, rename to `onehuman.policy.json`. Branches: `onAgent` proven agent · `onArtifact` environment only · `onUnknown` not enough signal (never treated as human) · `onHumanLike` kinematic/behavioral human evidence or passkey. Keep `actOn`/`minScore` defaults. Unlisted resources stay unprotected — list that explicitly in your report.
@@ -140,7 +140,7 @@ app.get('/api/balance', nt.protect('balance.read'), (req, res) =>
 ```bash
 npx onehuman verify http://localhost:3000 /api/balance     # --base /prefix if you changed basePath
 ```
-Four checks: SDK served · protected endpoint returns a decision (`X-NT-Decision`) · AI-app browser UA reaches the environment branch · a simulated attached agent (control markers posted to `/signals`) changes that session's decision (in `observe` it is recorded, not enforced). Run it for at least one masked, one blocked and one step-up resource. Then open the page in a normal browser and click the real button: data shows, `OneHuman.lastConnection.state` is `no_indication`, the app's own tests still pass.
+Four checks: SDK served · protected endpoint returns a decision (`X-OH-Decision`) · AI-app browser UA reaches the environment branch · a simulated attached agent (control markers posted to `/signals`) changes that session's decision (in `observe` it is recorded, not enforced). Run it for at least one masked, one blocked and one step-up resource. Then open the page in a normal browser and click the real button: data shows, `OneHuman.lastConnection.state` is `no_indication`, the app's own tests still pass.
 
 Report to the user: the exposure map with the final handling per resource, the mask design as implemented, files changed, how to read the decision log and flip `observe` → `enforce`, that `ONEHUMAN_SECRET` must be set in production, and every route deliberately left open.
 
@@ -153,15 +153,15 @@ Move the decision into the front end (the SDK is untrusted input) · protect log
 - **Attach time, before the first click:** agent-tool DOM markers (Claude in Chrome / Codex overlays), tool-injected globals, evaluated-script DOM read bursts, focus emulation, Web Bot Auth signatures (verified operators).
 - **Per click:** pointer kinematics — trajectory curvature, tremor, sub-movements, deceleration onto the target, hold time, pressure, teleport. Measured: humans hold 83–225 ms with ≥35 trajectory points; agents 1–4 ms with none. Measured on our own set: 397 human clicks from 22 browsers and devices, 2 read as a program; 824 agent clicks, 2 read as human. Not an independent study — method and limits: https://onehuman.ai/measurements
 - **Session memory:** once an agent attached, the session stays "agent" until a WebAuthn user-verified passkey (Touch ID) reclaims it for 5 minutes.
-- **Seal-on-attach:** `data-nt-sensitive="full"` elements are redacted in the browser the instant an indicator appears — even a read that is already in flight sees `••••`.
+- **Seal-on-attach:** `data-oh-sensitive="full"` elements are redacted in the browser the instant an indicator appears — even a read that is already in flight sees `••••`.
 
 ## API surface
 `onehuman(options)` (or `onehumanDeferred(options)` without `await`, for CommonJS) → `{ middleware(), protect(resource, {respond?}), send(req,res,full,mask), sessionFor(req,res), reloadPolicy(), policy, engine, store, room, basePath, close() }`
-`req.nt` → `{ decision, masked, blocked, stepUp, actor, score, reasonCodes, session, full, assessment, token() }`
-SDK: `OneHuman.fetch`, `.snapshot(withInteraction)`, `.sessionHeaders()`, `.onAssessment(fn)`, `.seal()`, `.unseal(proof)`, `.sealed`, `.lastConnection`; event `nt:sealed`.
+`req.onehuman` → `{ decision, masked, blocked, stepUp, actor, score, reasonCodes, session, full, assessment, token() }`
+SDK: `OneHuman.fetch`, `.snapshot(withInteraction)`, `.sessionHeaders()`, `.onAssessment(fn)`, `.seal()`, `.unseal(proof)`, `.sealed`, `.lastConnection`; event `onehuman:sealed`.
 CLI: `npx onehuman init [dir] [--yes]` · `npx onehuman report [--days 30]` (the design-partner report from your own audit log) · `npx onehuman inspect [--sessions]` (exactly what the page script collected; byte for byte with `recordRaw`) · `npx onehuman scan [dir] [--json]` · `npx onehuman verify <baseUrl> <protectedPath> [--base /onehuman]` · `npx onehuman secret`.
 Routes under `basePath`: `GET /sdk.js`, `POST /signals`, `GET /connection`, `GET /session`, `POST /step-up`, `POST /webauthn/register/options|register|assert/options|assert`, `GET /webauthn/status`.
 
-Options: `secret` (required, ≥32 B) · `policy` (path or object, required) · `db` (`sqlite:./file` | `memory` | `libsql://…`) · `identify(req)` · `basePath` (`/onehuman`) · `cookie` (`nt_sid`) · `secure` · `tenant` · `respond` (`true`) · `webauthnReclaim` (`true`).
+Options: `secret` (required, ≥32 B) · `policy` (path or object, required) · `db` (`sqlite:./file` | `memory` | `libsql://…`) · `identify(req)` · `basePath` (`/onehuman`) · `cookie` (`oh_sid`) · `secure` · `tenant` · `respond` (`true`) · `webauthnReclaim` (`true`).
 
-Live demo: https://onehuman.ai · Source and docs: https://github.com/ArifBabayev05/OneHuman (SDK and middleware Apache-2.0; engine BUSL-1.1 — production use granted) · `docs/INTEGRATION.md`, `docs/EVAL.md`.
+Live demo: https://onehuman.ai · Source and docs: https://github.com/onehumanai/onehuman (SDK and middleware Apache-2.0; engine BUSL-1.1 — production use granted) · `docs/INTEGRATION.md`, `docs/EVAL.md`.

@@ -8,13 +8,13 @@ try { process.loadEnvFile('.env'); } catch { /* none */ }
 
 const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? '127.0.0.1';
-if (!process.env.TURSO_DATABASE_URL && (process.env.NT_DB ?? 'data/lab.db') !== ':memory:') mkdirSync('data', { recursive: true });
+if (!process.env.TURSO_DATABASE_URL && (process.env.ONEHUMAN_DB ?? 'data/lab.db') !== ':memory:') mkdirSync('data', { recursive: true });
 
 const db = await clientFromEnv();
 const { server } = await createApp({
   client: db.client,
-  secret: process.env.NT_SECRET ? Buffer.from(process.env.NT_SECRET, 'utf8') : undefined,
-  labOperator: process.env.NT_LAB_OPERATOR !== '0',
+  secret: process.env.ONEHUMAN_SECRET ? Buffer.from(process.env.ONEHUMAN_SECRET, 'utf8') : undefined,
+  labOperator: process.env.ONEHUMAN_LAB_OPERATOR !== '0',
 });
 
 server.listen(port, host, () => {

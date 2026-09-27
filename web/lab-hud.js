@@ -99,7 +99,7 @@ function showJudgement(payload, task) {
   if (HUD.spark.children.length > 60) HUD.spark.firstElementChild.remove();
 }
 
-  window.NTHud = {
+  window.OneHumanHud = {
     get ready() { return !!HUD.el; },
     trace: (traj, at) => drawTrace(traj, at),
     show: (payload, task) => showJudgement(payload, task),

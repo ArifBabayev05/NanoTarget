@@ -5,7 +5,7 @@
   const params = new URLSearchParams(location.search);
   const TOTAL = 10;
   const client = (() => {
-    const k = 'nt-sandbox-client';
+    const k = 'oh-sandbox-client';
     try { const v = sessionStorage.getItem(k); if (v) return v; } catch {}
     const id = 'c-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36);
     try { sessionStorage.setItem(k, id); } catch {}
@@ -15,11 +15,11 @@
   let sourceParam = params.get('source');
   const isAgentApp = /\bClaude\/\d|\bCodex\/\d|ChatGPT/i.test(navigator.userAgent);
 
-  const labKey = document.querySelector('meta[name="nt-lab-key"]')?.content || '';
+  const labKey = document.querySelector('meta[name="oh-lab-key"]')?.content || '';
   const promptText = `${location.origin}/sandbox?as=agent${labKey ? `&key=${encodeURIComponent(labKey)}` : ''} səhifəsini aç. Səhifədə bir nömrəli dairəvi düymə görünür. Ona kliklə; klikdən sonra başqa yerdə yeni nömrəli düymə çıxır. Bu şəkildə 1-dən 10-a qədər bütün düymələrə ardıcıl kliklə. Sonda "bitdi" yazısı çıxanda dayan və kodu mənə yaz.`;
   $('#agent-prompt').value = promptText;
   $('#copy-prompt').onclick = async () => { try { await navigator.clipboard.writeText(promptText); $('#copy-prompt').textContent = 'Kopyalandı ✓'; } catch { $('#agent-prompt').select(); } };
-  $('#restart').onclick = () => { try { sessionStorage.removeItem('nt-sandbox-client'); } catch {} location.href = location.pathname + (label ? `?as=${label}` : ''); };
+  $('#restart').onclick = () => { try { sessionStorage.removeItem('oh-sandbox-client'); } catch {} location.href = location.pathname + (label ? `?as=${label}` : ''); };
 
   // ------------------------------------------------ capture (same format as the SDK, v3)
   let points = [], down = null, coalesced = 0;
@@ -27,15 +27,15 @@
   // The hand's approach survives a reload of this tab: a person who refreshes and clicks without moving still
   // arrived here by hand. Kept 60 s at most, in this tab only (sessionStorage), never across sites.
   try {
-    const saved = JSON.parse(sessionStorage.getItem('nt-approach-sandbox') || 'null');
+    const saved = JSON.parse(sessionStorage.getItem('oh-approach-sandbox') || 'null');
     if (saved && Array.isArray(saved.p) && Date.now() - saved.at < 60000) {
       const shift = performance.now() - (Date.now() - saved.at) - saved.span; // map absolute ages onto this page's clock
       for (const q of saved.p) points.push({ t: shift + q[0], x: q[1], y: q[2] });
     }
-    sessionStorage.removeItem('nt-approach-sandbox');
+    sessionStorage.removeItem('oh-approach-sandbox');
   } catch { /* ignore */ }
   window.addEventListener('pagehide', () => {
-    try { const p = points.slice(-60); if (p.length) sessionStorage.setItem('nt-approach-sandbox', JSON.stringify({ at: Date.now(), span: p[p.length - 1].t - p[0].t, p: p.map((q) => [Math.round(q.t - p[0].t), Math.round(q.x), Math.round(q.y)]) })); } catch { /* ignore */ }
+    try { const p = points.slice(-60); if (p.length) sessionStorage.setItem('oh-approach-sandbox', JSON.stringify({ at: Date.now(), span: p[p.length - 1].t - p[0].t, p: p.map((q) => [Math.round(q.t - p[0].t), Math.round(q.x), Math.round(q.y)]) })); } catch { /* ignore */ }
   });
   const opts = { capture: true, passive: true };
   board.addEventListener('pointermove', (e) => {
@@ -107,7 +107,7 @@
 
   async function onTarget(e, el) {
     const click = buildClick(e, el);
-    window.NTHud?.trace(click.traj, click.at);
+    window.OneHumanHud?.trace(click.traj, click.at);
     step++;
     placeTarget();
     const chip = document.createElement('span'); chip.className = 'res'; chip.textContent = `${step} …`; $('#results').appendChild(chip);
@@ -116,7 +116,7 @@
       const d = await r.json();
       const v = d.judgement ? d.judgement.verdict : 'uncertain';
       results.push({ step, v, d });
-      window.NTHud?.show(d, `target-${step}`);
+      window.OneHumanHud?.show(d, `target-${step}`);
       chip.className = 'res ' + v;
       chip.textContent = `${step} · ${v === 'human' ? 'insan' : v === 'synthetic' ? 'sintetik' : 'qeyri-müəyyən'}`;
       chip.title = `${d.judgement.flags.join(', ')} | n=${d.features.n} straight=${d.features.straightness} dtCv=${d.features.dtCv} tremor=${d.features.tremor} hold=${d.features.holdMs} pr=${d.features.pressure} off=${d.features.centreOffset}`;
@@ -125,7 +125,7 @@
   }
 
   function finish() {
-    window.NTHud?.hide();
+    window.OneHumanHud?.hide();
     $('#progress').textContent = `${TOTAL}/${TOTAL} · bitdi`;
     $('#hint').hidden = false; $('#hint').textContent = 'Bitdi. Təşəkkür!';
     const s = $('#summary'); s.hidden = false;

@@ -4,13 +4,13 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const params = new URLSearchParams(location.search);
-  const client = (() => { const k = 'nt-training-client'; try { const v = sessionStorage.getItem(k); if (v) return v; } catch {} const id = 't-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36); try { sessionStorage.setItem(k, id); } catch {} return id; })();
+  const client = (() => { const k = 'oh-training-client'; try { const v = sessionStorage.getItem(k); if (v) return v; } catch {} const id = 't-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36); try { sessionStorage.setItem(k, id); } catch {} return id; })();
   let label = params.get('as') === 'agent' ? 'agent' : params.get('as') === 'human' ? 'human' : null;
   const isAgentApp = /\bClaude\/\d|\bCodex\/\d|ChatGPT/i.test(navigator.userAgent);
   const t0 = performance.now();
   const now = () => Math.round(performance.now() - t0);
 
-  const labKey = document.querySelector('meta[name="nt-lab-key"]')?.content || '';
+  const labKey = document.querySelector('meta[name="oh-lab-key"]')?.content || '';
   const labUrl = (path) => `${location.origin}${path}?as=agent${labKey ? `&key=${encodeURIComponent(labKey)}` : ''}`;
   const PROMPTS = {
     claude: `Brauzer alətinlə ${labUrl('/training')} səhifəsini aç. Səhifədə hər dəfə bir tapşırıq yazılır (məsələn "nömrəli düyməyə kliklə", "sahəyə mətn yaz və Göndər düyməsinə bas", "aşağı sürüşüb düyməni tap", "kartı sürüklə"). Tapşırığı olduğu kimi yerinə yetir; hər tapşırıqdan sonra növbətisi çıxır. Hamısı bitəndə "bitdi" yazısı və kod görünür — kodu mənə yaz. İlişsən, keç bilmirsənsə, nə ilişdiyini yaz və dayan.`,
@@ -23,7 +23,7 @@
   setPrompt();
   $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-agent]'); if (!b) return; agentKind = b.dataset.agent; $('#tabs').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); setPrompt(); });
   $('#copy-prompt').onclick = async () => { try { await navigator.clipboard.writeText($('#agent-prompt').value); $('#copy-prompt').textContent = 'Kopyalandı ✓'; setTimeout(() => ($('#copy-prompt').textContent = 'Promptu kopyala'), 1800); } catch {} };
-  $('#restart').onclick = () => { try { sessionStorage.removeItem('nt-training-client'); sessionStorage.removeItem('nt-training-steps'); } catch {} location.href = location.pathname + (label ? `?as=${label}` : ''); };
+  $('#restart').onclick = () => { try { sessionStorage.removeItem('oh-training-client'); sessionStorage.removeItem('oh-training-steps'); } catch {} location.href = location.pathname + (label ? `?as=${label}` : ''); };
 
   // ------------------------------------------------------------ raw capture (page-wide)
   const scene = $('#stage');            // the framed session: bar, sidebar, header
@@ -33,15 +33,15 @@
   // The hand's approach survives a reload of this tab: a person who refreshes and clicks without moving still
   // arrived here by hand. Kept 60 s at most, in this tab only (sessionStorage), never across sites.
   try {
-    const saved = JSON.parse(sessionStorage.getItem('nt-approach-training') || 'null');
+    const saved = JSON.parse(sessionStorage.getItem('oh-approach-training') || 'null');
     if (saved && Array.isArray(saved.p) && Date.now() - saved.at < 60000) {
       const shift = performance.now() - (Date.now() - saved.at) - saved.span; // map absolute ages onto this page's clock
       for (const q of saved.p) points.push({ t: shift + q[0], x: q[1], y: q[2] });
     }
-    sessionStorage.removeItem('nt-approach-training');
+    sessionStorage.removeItem('oh-approach-training');
   } catch { /* ignore */ }
   window.addEventListener('pagehide', () => {
-    try { const p = points.slice(-60); if (p.length) sessionStorage.setItem('nt-approach-training', JSON.stringify({ at: Date.now(), span: p[p.length - 1].t - p[0].t, p: p.map((q) => [Math.round(q.t - p[0].t), Math.round(q.x), Math.round(q.y)]) })); } catch { /* ignore */ }
+    try { const p = points.slice(-60); if (p.length) sessionStorage.setItem('oh-approach-training', JSON.stringify({ at: Date.now(), span: p[p.length - 1].t - p[0].t, p: p.map((q) => [Math.round(q.t - p[0].t), Math.round(q.x), Math.round(q.y)]) })); } catch { /* ignore */ }
   });
   const opts = { capture: true, passive: true };
   document.addEventListener('pointermove', (e) => {
@@ -107,13 +107,13 @@
     const repeatTarget = !!(lastTargetKey && key && (lastTargetKey === key || (click.target && lastTargetKey.startsWith(`${click.target.w}x${click.target.h}`))));
     lastTargetKey = key;
     steps.push({ task, repeatTarget, ...interaction, ...extra });
-    try { sessionStorage.setItem('nt-training-steps', JSON.stringify(steps)); } catch {}
-    window.NTHud?.trace(click.traj, click.at);
+    try { sessionStorage.setItem('oh-training-steps', JSON.stringify(steps)); } catch {}
+    window.OneHumanHud?.trace(click.traj, click.at);
     fetch('/api/v1/sandbox/samples', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client, label, source: $('#source').value, task, repeatTarget, click, context }) })
-      .then((r) => (r.ok ? r.json() : null)).then((d) => window.NTHud?.show(d, task)).catch(() => {});
+      .then((r) => (r.ok ? r.json() : null)).then((d) => window.OneHumanHud?.show(d, task)).catch(() => {});
   }
   // steps survive the reload task
-  try { const saved = sessionStorage.getItem('nt-training-steps'); if (saved) steps.push(...JSON.parse(saved)); } catch {}
+  try { const saved = sessionStorage.getItem('oh-training-steps'); if (saved) steps.push(...JSON.parse(saved)); } catch {}
 
   const rnd = (a, b) => Math.round(a + Math.random() * (b - a));
   const place = (n, size, cls = '') => { const bw = stage.clientWidth, bh = stage.clientHeight; const b = document.createElement('button'); b.className = 'target ' + cls; b.style.width = b.style.height = size + 'px'; b.style.left = rnd(10, Math.max(10, bw - size - 20)) + 'px'; b.style.top = rnd(10, Math.max(10, bh - size - 20)) + 'px'; b.textContent = String(n); b.setAttribute('aria-label', `Düymə ${n}`); return b; };
@@ -127,7 +127,7 @@
     { id: 'modal', title: 'Pəncərə', text: '“Detallar” düyməsinə kliklə, açılan pəncərəni sağ üstdəki ✕ ilə bağla.', run(done) { stage.innerHTML = `<div style="margin-top:120px;text-align:center"><button class="primary" id="mo">Detallar</button></div>`; $('#mo').onclick = (e) => { record('modal', e); const bg = document.createElement('div'); bg.className = 'modal-bg'; bg.innerHTML = `<div class="modal"><button class="x ghost" id="mx">✕</button><h3>Əməliyyat detalları</h3><p class="sub">Kommunal ödəniş · 42,10 AZN · 18 sentyabr</p></div>`; document.body.appendChild(bg); $('#mx').onclick = (e2) => { record('modal', e2); bg.remove(); done(); }; }; } },
     { id: 'double-click', title: 'İki dəfə klik', text: 'Kartın üstünə iki dəfə (double-click) kliklə.', run(done) { stage.innerHTML = `<div style="margin-top:90px;display:flex;justify-content:center"><div class="card-tile" id="dc" style="width:260px"><b>Yığım hesabı</b><br><span class="sub">•••• 4471</span></div></div>`; let n = 0; $('#dc').addEventListener('click', (e) => { record('double-click', e); n++; if (e.detail >= 2 || n >= 2) { $('#dc').classList.add('on'); setTimeout(done, 300); } }); } },
     { id: 'keyboard', title: 'Klaviatura ilə', text: 'Siçana toxunma: Tab düyməsi ilə “Davam et” düyməsinə keç, Enter bas.', run(done) { stage.innerHTML = `<div style="margin-top:110px;display:flex;gap:10px;justify-content:center"><input placeholder="Ad" style="width:160px"><button id="kb">Davam et</button></div>`; stage.querySelector('input').focus(); $('#kb').onclick = (e) => { record('keyboard', e); done(); }; } },
-    { id: 'reload-click', title: 'Səhifəni yenilə', text: '“Yenilə” düyməsinə kliklə — səhifə yenilənəcək. Yenilənən kimi, siçanı tərpətmədən eyni yerdəki düyməyə yenidən kliklə.', run(done) { const after = sessionStorage.getItem('nt-training-reload') === '1'; stage.innerHTML = `<div style="margin-top:120px;text-align:center"><button class="primary" id="rl" style="padding:16px 28px">${after ? 'Balansı göstər' : 'Yenilə'}</button></div>`; $('#rl').onclick = (e) => { if (!after) { record('reload-click', e); try { sessionStorage.setItem('nt-training-reload', '1'); sessionStorage.setItem('nt-training-index', String(taskIndex)); } catch {} setTimeout(() => location.reload(), 150); } else { record('reload-click', e); try { sessionStorage.removeItem('nt-training-reload'); } catch {} done(); } }; } },
+    { id: 'reload-click', title: 'Səhifəni yenilə', text: '“Yenilə” düyməsinə kliklə — səhifə yenilənəcək. Yenilənən kimi, siçanı tərpətmədən eyni yerdəki düyməyə yenidən kliklə.', run(done) { const after = sessionStorage.getItem('oh-training-reload') === '1'; stage.innerHTML = `<div style="margin-top:120px;text-align:center"><button class="primary" id="rl" style="padding:16px 28px">${after ? 'Balansı göstər' : 'Yenilə'}</button></div>`; $('#rl').onclick = (e) => { if (!after) { record('reload-click', e); try { sessionStorage.setItem('oh-training-reload', '1'); sessionStorage.setItem('oh-training-index', String(taskIndex)); } catch {} setTimeout(() => location.reload(), 150); } else { record('reload-click', e); try { sessionStorage.removeItem('oh-training-reload'); } catch {} done(); } }; } },
     { id: 'hover-dwell', title: 'Gözlə, sonra bas', text: 'Siçanı “Köçür” düyməsinin üstünə gətir, 2 saniyə gözlə, sonra kliklə.', run(done) { stage.innerHTML = `<div style="margin-top:120px;text-align:center"><button class="primary" id="hv" style="padding:16px 28px">Köçür</button></div>`; $('#hv').onclick = (e) => { record('hover-dwell', e); done(); }; } },
     { id: 'slider', title: 'Sürüşdürücü', text: 'Sürüşdürücünü təxminən 70-ə çək, sonra “Təsdiqlə” düyməsinə kliklə.', run(done) { stage.innerHTML = `<div style="margin-top:110px;display:flex;gap:16px;justify-content:center;align-items:center"><input type="range" id="sl" min="0" max="100" value="20"><b id="sv">20</b><button class="primary" id="sb">Təsdiqlə</button></div>`; $('#sl').oninput = () => { $('#sv').textContent = $('#sl').value; }; $('#sb').onclick = (e) => { const v = Number($('#sl').value); if (v < 60 || v > 80) return; record('slider', e, { slider: v }); done(); }; } },
     { id: 'small-target', title: 'Kiçik hədəf', text: 'Mətnin içindəki kiçik “şərtlər” linkinə kliklə.', run(done) { stage.innerHTML = `<p style="margin-top:130px;text-align:center;color:var(--muted)">Davam etməklə siz <span class="tiny" id="tl">şərtlər</span> ilə razılaşırsınız.</p>`; $('#tl').onclick = (e) => { record('small-target', e); done(); }; } },
@@ -157,7 +157,7 @@
   if (params.get('mode') === 'short') for (let i = TASKS.length - 1; i >= 0; i--) if (!SHORT.has(TASKS[i].id)) TASKS.splice(i, 1);
   // touch devices: keyboard/drag/select tasks are replaced by touch-friendly wording handled by the same code
   let taskIndex = 0;
-  try { const saved = sessionStorage.getItem('nt-training-index'); if (saved !== null && sessionStorage.getItem('nt-training-reload') === '1') taskIndex = Number(saved); } catch {}
+  try { const saved = sessionStorage.getItem('oh-training-index'); if (saved !== null && sessionStorage.getItem('oh-training-reload') === '1') taskIndex = Number(saved); } catch {}
 
   function setWho() {
     const pill = $('#who-pill'); pill.className = 'pill ' + (label === 'agent' ? 'agent' : 'human'); pill.lastElementChild.textContent = label === 'agent' ? 'AI agent işləyir' : 'İnsan işləyir';
@@ -199,7 +199,7 @@
     scene.classList.remove('tall');
     $('#progress').textContent = `${steps.length} hadisə yazıldı`;
     stage.classList.remove('tall'); stage.innerHTML = '';
-    t.run(() => { taskIndex++; try { sessionStorage.setItem('nt-training-index', String(taskIndex)); } catch {} setTimeout(runTask, 250); });
+    t.run(() => { taskIndex++; try { sessionStorage.setItem('oh-training-index', String(taskIndex)); } catch {} setTimeout(runTask, 250); });
   }
 
   async function finish() {
@@ -211,7 +211,7 @@
     let d = null;
     try { const r = await fetch('/api/v1/sandbox/assess-run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client, label, source: $('#source').value, early, steps }) }); d = await r.json(); } catch {}
     scene.hidden = true;
-    window.NTHud?.hide();
+    window.OneHumanHud?.hide();
     const res = $('#results'); res.hidden = false;
     if (!d || !d.steps) { res.innerHTML = `<div class="summary bad"><h2>Nəticə alınmadı</h2><p>Kod: <span class="code">${client}</span> — bu kodu göndər, hadisələr artıq yazılıb.</p></div>`; return; }
     const word = (a) => a === 'human_like' ? '<span class="res human">insan</span>' : a === 'agent_likely' ? '<span class="res agent">agent</span>' : '<span class="res unknown">bilinmir</span>';
@@ -225,7 +225,7 @@
     res.innerHTML = `<div class="summary ${ok ? 'ok' : 'bad'}"><div class="num" style="font-family:var(--mono);font-size:12px;color:var(--accent);letter-spacing:.06em;text-transform:uppercase">Nəticə · ${d.summary.version || ''}</div><h2>${title}</h2>${tiles}${trace}<p>Kod: <span class="code" id="code">${client}</span> <button class="ghost" id="copy-code" style="padding:6px 12px;margin-left:8px">Kodu kopyala</button></p></div><div class="timeline">${rows}</div>`;
     $('#copy-code').onclick = async () => { try { await navigator.clipboard.writeText(client); $('#copy-code').textContent = 'Kopyalandı ✓'; } catch {} };
     mountReplay(res, d);
-    try { sessionStorage.removeItem('nt-training-steps'); sessionStorage.removeItem('nt-training-index'); sessionStorage.removeItem('nt-training-client'); } catch {}
+    try { sessionStorage.removeItem('oh-training-steps'); sessionStorage.removeItem('oh-training-index'); sessionStorage.removeItem('oh-training-client'); } catch {}
   }
   /**
    * Replay: every trajectory this run recorded, redrawn in order on one canvas and coloured by

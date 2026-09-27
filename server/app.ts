@@ -26,7 +26,7 @@ import { webauthnRoutes } from './routes/webauthn.ts';
 import type { SqlClient } from './sql.ts';
 import { httpsDirectoryLoader, KNOWN_OPERATORS, type KeyLoader, type OperatorKey } from './web-bot-auth.ts';
 
-const ROOT = process.env.NT_ROOT ?? process.cwd();
+const ROOT = process.env.ONEHUMAN_ROOT ?? process.cwd();
 const WEB = join(ROOT, 'web');
 const SDK = join(ROOT, 'sdk');
 const DOCS = join(ROOT, 'docs');
@@ -50,7 +50,7 @@ export type Handler = (req: Req, res: Res) => Promise<void>;
  */
 async function labOperatorKeys(secret: Buffer | undefined): Promise<{ privateKey: CryptoKey; publicJwk: OperatorKey }> {
   if (secret) {
-    const seed = Buffer.from(hkdfSync('sha256', secret, 'onehuman', /* historic label, kept on purpose: changing it changes every derived key */ 'lab-operator-ed25519', 32));
+    const seed = Buffer.from(hkdfSync('sha256', secret, 'onehuman', 'lab-operator-ed25519', 32));
     const pkcs8 = Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), seed]);
     const jwk = createPrivateKey({ key: pkcs8, format: 'der', type: 'pkcs8' }).export({ format: 'jwk' }) as { x: string; d: string };
     const privateKey = await crypto.subtle.importKey('jwk', { kty: 'OKP', crv: 'Ed25519', x: jwk.x, d: jwk.d }, { name: 'Ed25519' }, false, ['sign']);
@@ -126,35 +126,35 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     const session = await store.createSession(room!, label, arrival, Date.now(), scenario);
     const headers: Record<string, string> = {};
     if (session) headers['Set-Cookie'] = `${engine.sessionCookie}=${session}; Path=/; HttpOnly; SameSite=Lax${secure(req) ? '; Secure' : ''}`;
-    await page(res, file, { 'nt-session': session ?? '', 'nt-app': app.id, 'nt-serverless': serverless ? '1' : '0', 'nt-ephemeral': ephemeral ? '1' : '0' }, headers);
+    await page(res, file, { 'oh-session': session ?? '', 'oh-app': app.id, 'oh-serverless': serverless ? '1' : '0', 'oh-ephemeral': ephemeral ? '1' : '0' }, headers);
   };
 
-  const landing = async (_req: Req, res: Res) => page(res, 'index.html', { 'nt-serverless': serverless ? '1' : '0', 'nt-ephemeral': ephemeral ? '1' : '0' });
+  const landing = async (_req: Req, res: Res) => page(res, 'index.html', { 'oh-serverless': serverless ? '1' : '0', 'oh-ephemeral': ephemeral ? '1' : '0' });
 
   const dashboard = async (req: Req, res: Res) => {
     const room = url(req).searchParams.get('room');
     if (!room || !UUID.test(room) || !(await store.roomExists(room))) { res.writeHead(302, { Location: '/' }); res.end(); return; }
-    await page(res, 'dashboard.html', { 'nt-app': (await store.roomApp(room)) ?? 'bank', 'nt-serverless': serverless ? '1' : '0' });
+    await page(res, 'dashboard.html', { 'oh-app': (await store.roomApp(room)) ?? 'bank', 'oh-serverless': serverless ? '1' : '0' });
   };
 
   const appsApi = async (_req: Req, res: Res) => json(res, 200, { apps: Object.values(APPS).map(publicApp) });
 
   type RouteHandler = (req: Req, res: Res) => void | Promise<void>;
-  // The lab (training + sandbox + dataset endpoints) is the operator's, not the public's. With NT_LAB_KEY set,
+  // The lab (training + sandbox + dataset endpoints) is the operator's, not the public's. With ONEHUMAN_LAB_KEY set,
   // it answers 404 unless the request carries the key (?key=… once, then a cookie); unset = open, for local work.
-  const LAB_KEY = process.env.NT_LAB_KEY ?? '';
+  const LAB_KEY = process.env.ONEHUMAN_LAB_KEY ?? '';
   const PUBLIC_DOCS = new Set(['INTEGRATION.md', 'INTEGRATION-AGENT.md']);
   const labOpen = (req: Req, res: Res): boolean => {
     if (!LAB_KEY) return true;
     if (url(req).searchParams.get('key') === LAB_KEY) {
-      res.setHeader('Set-Cookie', `nt_lab=${LAB_KEY}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure(req) ? '; Secure' : ''}`);
+      res.setHeader('Set-Cookie', `oh_lab=${LAB_KEY}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure(req) ? '; Secure' : ''}`);
       return true;
     }
-    return cookies(req).nt_lab === LAB_KEY;
+    return cookies(req).oh_lab === LAB_KEY;
   };
   const labPage = (file: string) => async (req: Req, res: Res) => {
     if (!labOpen(req, res)) return json(res, 404, { error: 'not_found' });
-    return page(res, file, { 'nt-serverless': serverless ? '1' : '0', 'nt-lab-key': LAB_KEY });
+    return page(res, file, { 'oh-serverless': serverless ? '1' : '0', 'oh-lab-key': LAB_KEY });
   };
   const labApi = (h: RouteHandler): RouteHandler => async (req, res) => (labOpen(req, res) ? h(req, res) : json(res, 404, { error: 'not_found' }));
 
@@ -178,7 +178,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['GET', '/privacy', async (_req, res) => page(res, 'trust.html', {})],
     ['GET', '/scorecard', async (_req, res) => page(res, 'scorecard.html', {})],
     ['GET', '/measurements', async (_req, res) => page(res, 'measurements.html', {})],
-    ['GET', '/portal', async (_req, res) => page(res, 'portal.html', { 'nt-serverless': serverless ? '1' : '0' })],
+    ['GET', '/portal', async (_req, res) => page(res, 'portal.html', { 'oh-serverless': serverless ? '1' : '0' })],
     ['POST', '/api/v1/portal/signup', portal.signup],
     ['POST', '/api/v1/portal/login', portal.login],
     ['POST', '/api/v1/portal/logout', portal.logout],

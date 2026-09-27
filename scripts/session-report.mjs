@@ -5,14 +5,14 @@
  *   node scripts/session-report.mjs                 # every session with activity in the last 60 minutes
  *   node scripts/session-report.mjs 90              # last 90 minutes
  *   node scripts/session-report.mjs fe533913        # one session (id prefix) or a room id prefix
- *   NT_DB=data/lab.db node scripts/session-report.mjs   # local database instead of Turso
+ *   ONEHUMAN_DB=data/lab.db node scripts/session-report.mjs   # local database instead of Turso
  *
  * For each session: arrival (browser, agent-app token), then a merged timeline of attach, seal, every
  * click with its kinematic judgement (exactly as the assessment computes it, repeat-click aware) and every
  * decision with actor/score/tiers/reasons and the notice the UI showed for it.
  */
 import { readFileSync, existsSync } from 'node:fs';
-if (!process.env.NT_DB && existsSync('.env.local')) for (const line of readFileSync('.env.local', 'utf8').split('\n')) { const m = line.match(/^\s*(?:export\s+)?([A-Z_]+)=(.*)$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ''); }
+if (!process.env.ONEHUMAN_DB && existsSync('.env.local')) for (const line of readFileSync('.env.local', 'utf8').split('\n')) { const m = line.match(/^\s*(?:export\s+)?([A-Z_]+)=(.*)$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ''); }
 const { clientFromEnv } = await import('../server/sql.ts');
 const { judgeClicks } = await import('../server/assess.ts');
 

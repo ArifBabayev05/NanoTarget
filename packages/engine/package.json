@@ -1,7 +1,7 @@
 {
-  "name": "onehuman-engine",
+  "name": "@onehumanai/engine",
   "version": "0.6.0",
-  "description": "The OneHuman engine \u2014 AI-agent detection inside signed-in sessions, per-resource policy (allow \u00b7 mask \u00b7 step-up \u00b7 block), hash-chained audit log and Ed25519-signed decision proofs. You do not install this directly: `npm i onehuman` (Apache-2.0) depends on it and is the API you use. Licence: Business Source License 1.1 with a production-use grant \u2014 run it in production at any scale to protect your own applications; only offering OneHuman itself as a competing hosted/embedded product is not granted; converts to Apache-2.0 after four years.",
+  "description": "The OneHuman engine — AI-agent detection inside signed-in sessions, per-resource policy (allow · mask · step-up · block), hash-chained audit log and Ed25519-signed decision proofs. You do not install this directly: `npm i @onehumanai/express` (Apache-2.0) depends on it and is the API you use. Licence: Business Source License 1.1 with a production-use grant — run it in production at any scale to protect your own applications; only offering OneHuman itself as a competing hosted/embedded product is not granted; converts to Apache-2.0 after four years.",
   "license": "BUSL-1.1",
   "type": "module",
   "main": "./dist/engine.js",
@@ -28,7 +28,7 @@
   "homepage": "https://onehuman.ai/docs",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ArifBabayev05/OneHuman.git"
+    "url": "git+https://github.com/onehumanai/onehuman.git"
   },
   "keywords": [
     "onehuman",
@@ -40,5 +40,12 @@
     "decision-proof",
     "audit-log",
     "policy-engine"
-  ]
+  ],
+  "author": "OneHuman <founders@onehuman.ai>",
+  "publishConfig": {
+    "access": "public"
+  },
+  "bugs": {
+    "url": "https://github.com/onehumanai/onehuman/issues"
+  }
 }

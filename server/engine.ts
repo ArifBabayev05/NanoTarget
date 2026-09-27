@@ -41,7 +41,7 @@ export type DecideInput = {
   session: SessionRow;
   resource: string;
   request: Req;
-  /** snapshot carried with the request (X-NT-Sample) — untrusted */
+  /** snapshot carried with the request (X-OH-Sample) — untrusted */
   snapshot: ClientSnapshot | null;
 };
 
@@ -72,7 +72,7 @@ export class OneHuman {
   readonly defaultPolicy: Policy;
   readonly keyLoader: KeyLoader | undefined;
   readonly sessionCookie: string;
-  /** requests carrying this token in X-NT-Lab-Simulated are lab simulations and are excluded from benchmarks */
+  /** requests carrying this token in X-OH-Lab-Simulated are lab simulations and are excluded from benchmarks */
   readonly simulationToken: string;
   /** signs every decision; the key is derived from `secret`, so it is the same on every instance */
   readonly prover: Prover;
@@ -84,7 +84,7 @@ export class OneHuman {
     this.secret = opts.secret ?? randomBytes(32);
     this.defaultPolicy = opts.defaultPolicy ?? DEFAULT_POLICY;
     this.keyLoader = opts.keyLoader;
-    this.sessionCookie = opts.sessionCookie ?? 'nt_sid';
+    this.sessionCookie = opts.sessionCookie ?? 'oh_sid';
     this.simulationToken = randomBytes(16).toString('hex');
     this.prover = proverFromSecret(this.secret);
   }
@@ -135,12 +135,12 @@ export class OneHuman {
   }
 
   /**
-   * Resolve the lab session. The page-bound X-NT-Session header wins over the profile-wide
+   * Resolve the lab session. The page-bound X-OH-Session header wins over the profile-wide
    * cookie, so two tabs in one browser profile never report under each other's session.
    * Production replaces this with the application's own authenticated session lookup.
    */
   async resolveSession(req: Req): Promise<{ room: string; session: SessionRow } | null> {
-    const header = req.headers['x-nt-session'];
+    const header = req.headers['x-oh-session'];
     const fromHeader = typeof header === 'string' && /^[0-9a-f-]{36}$/i.test(header) ? header : null;
     const sid = fromHeader ?? cookies(req)[this.sessionCookie];
     if (!sid) return null;
@@ -153,7 +153,7 @@ export class OneHuman {
 
   /** Parse the untrusted snapshot header. Malformed → null (treated as no telemetry). */
   snapshotFrom(req: Req): ClientSnapshot | null {
-    const raw = req.headers['x-nt-sample'];
+    const raw = req.headers['x-oh-sample'];
     if (typeof raw !== 'string' || raw.length > 12000) return null;
     try {
       return parseSnapshot(JSON.parse(raw));
@@ -190,7 +190,7 @@ export class OneHuman {
     if (input.snapshot?.early) await this.store.addEvent(input.room, input.session.id, 'signal', input.snapshot.early, now);
     if (input.snapshot?.interaction) await this.store.addEvent(input.room, input.session.id, 'interaction', input.snapshot.interaction, now);
     await this.store.touchSession(input.session.id, now);
-    const simulated = input.request.headers['x-nt-lab-simulated'] === this.simulationToken;
+    const simulated = input.request.headers['x-oh-lab-simulated'] === this.simulationToken;
     const conn = simulated ? null : await this.connectionFor(input.session, now);
     // Once an agent has attached to this session, the fact sticks: a control indicator that
     // disappeared (agent paused, or a person took over) does not make the session clean again.
@@ -262,7 +262,7 @@ export class OneHuman {
       }
       const result = await this.decide({ room: resolved.room, session: resolved.session, resource, request: req, snapshot: this.snapshotFrom(req) });
       const { decision, assessment } = result;
-      const headers = { 'X-NT-Decision': decision.id, 'X-NT-Policy': decision.policyVersion };
+      const headers = { 'X-OH-Decision': decision.id, 'X-OH-Policy': decision.policyVersion };
       if (decision.decision === 'block') {
         json(res, 403, { error: 'blocked', resource, decision: publicDecision(decision), assessment, stepUp: result.stepUp }, headers);
         return;
@@ -271,8 +271,8 @@ export class OneHuman {
         json(res, 428, { error: 'step_up_required', resource, decision: publicDecision(decision), assessment, stepUp: result.stepUp }, headers);
         return;
       }
-      res.setHeader('X-NT-Decision', decision.id);
-      res.setHeader('X-NT-Policy', decision.policyVersion);
+      res.setHeader('X-OH-Decision', decision.id);
+      res.setHeader('X-OH-Policy', decision.policyVersion);
       await handler(req, res, {
         room: resolved.room,
         session: resolved.session,

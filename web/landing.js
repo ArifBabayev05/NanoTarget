@@ -10,7 +10,7 @@
   const toastEl = $('#toast'); let toastT;
   const toast = (m) => { toastEl.textContent = m; toastEl.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('show'), 1800); };
   async function copy(text, msg = 'Copied') { try { await navigator.clipboard.writeText(text); toast(msg); } catch { toast('Could not copy'); } }
-  $('#copy-npm').addEventListener('click', () => copy('npm i onehuman'));
+  $('#copy-npm').addEventListener('click', () => copy('npm i @onehumanai/express'));
   $$('[data-copy]').forEach((b) => b.addEventListener('click', () => copy(b.dataset.copy)));
 
   // ---------------------------------------------------------------- signed in? the nav becomes a way back to the portal
@@ -258,7 +258,7 @@
     cancelRun(); step = i;
     S.steps.forEach((el, k) => el.classList.toggle('on', k === i));
     typeLog(LOGS[i]);
-    window.NTMorph && window.NTMorph.setState(i === 1 || i === 2 ? 1 : 0);
+    window.OneHumanMorph && window.OneHumanMorph.setState(i === 1 || i === 2 ? 1 : 0);
     run(i).catch((e) => { if (e !== CANCELLED) throw e; });
   }
   async function run(i) {
@@ -357,7 +357,7 @@
       gl.uniform1f(uM, m); gl.uniform1f(uT, (now - t0) / 1000); gl.uniform2f(uR, cv.width, cv.height); gl.uniform1f(uD, dpr);
       gl.drawArrays(gl.POINTS, 0, N); requestAnimationFrame(frame);
     }
-    window.NTMorph = { setState: (v) => { target = v; } };
+    window.OneHumanMorph = { setState: (v) => { target = v; } };
     const mio = 'IntersectionObserver' in window ? new IntersectionObserver((es) => { live = es[0].isIntersecting; if (live) requestAnimationFrame(frame); }, { threshold: 0 }) : null;
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && live) requestAnimationFrame(frame); });
     if (mio) mio.observe(cv); else { live = true; requestAnimationFrame(frame); }

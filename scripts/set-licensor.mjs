@@ -6,7 +6,7 @@
  *   node scripts/set-licensor.mjs "OneHuman MMC"
  *   node scripts/set-licensor.mjs "OneHuman MMC" --dry-run
  *
- * Touches only licence-bearing files: LICENSE, LICENSE-BSL, NOTICE, both packages' LICENSE/NOTICE, and the
+ * Touches only licence-bearing files: LICENSE, LICENSE-BSL, NOTICE, every package's LICENSE/NOTICE, and the
  * copyright line in the READMEs. It never edits LICENSE-APACHE (the Apache text names no holder).
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -17,7 +17,7 @@ const current = /Licensor:\s+(.+)/.exec(readFileSync('LICENSE-BSL', 'utf8'))?.[1
 if (!current) { console.error('LICENSE-BSL has no Licensor line'); process.exit(1); }
 if (current === to) { console.log(`Licensor is already "${to}".`); process.exit(0); }
 
-const files = ['LICENSE', 'LICENSE-BSL', 'NOTICE', 'packages/engine/LICENSE', 'packages/onehuman/NOTICE', 'README.md', 'packages/onehuman/README.md', 'packages/onehuman/AGENTS.md', 'packages/engine/README.md'];
+const files = ['LICENSE', 'LICENSE-BSL', 'NOTICE', 'packages/engine/LICENSE', 'packages/express/NOTICE', 'packages/sdk/NOTICE', 'packages/cli/NOTICE', 'README.md', 'packages/express/README.md', 'packages/express/AGENTS.md', 'packages/engine/README.md'];
 let changed = 0;
 for (const f of files) {
   if (!existsSync(f)) continue;

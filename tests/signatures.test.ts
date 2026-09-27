@@ -72,19 +72,19 @@ test('the portal stores only signed, newer bundles and serves the newest to serv
 });
 
 test('a server picks the bundle up: new traces are recognised, the page script is told, health shows it', async () => {
-  const nt = await onehuman(opts);
-  const app = express(); app.use(nt.middleware());
+  const oh = await onehuman(opts);
+  const app = express(); app.use(oh.middleware());
   const server = app.listen(0); const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  for (let i = 0; i < 40 && nt.health().signatures.seq !== 5; i++) await new Promise((r) => setTimeout(r, 25));
-  assert.equal(nt.health().signatures.seq, 5);
-  assert.equal(nt.health().signatures.source, 'portal');
+  for (let i = 0; i < 40 && oh.health().signatures.seq !== 5; i++) await new Promise((r) => setTimeout(r, 25));
+  assert.equal(oh.health().signatures.seq, 5);
+  assert.equal(oh.health().signatures.source, 'portal');
   assert.deepEqual(toolInjectedGlobals(['__newAgentBridge']), [{ name: '__newAgentBridge', tool: 'newagent-chrome' }]);
   const early = { startedMs: 0, observedMs: 1, webdriver: false, firstInteractionMs: null, dataDomMs: null, markers: [{ name: 'newagent-overlay', atMs: 1 }], environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: [], focusWhileHiddenMs: null }, focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0 };
   assert.ok(parseEarly(early), 'a marker the bundle added is accepted from the page');
   const sdk = await (await fetch(`${base}/onehuman/sdk.js`)).text();
   assert.match(sdk, /^window\.__ONEHUMAN_RULES__=\{"probes":\[\["newagent-overlay","#newagent-overlay-root"\]\]/);
   assert.ok(logs.some((l) => /agent signatures 5 in use \(from the portal/.test(l)));
-  server.close(); await nt.close();
+  server.close(); await oh.close();
 });
 
 test('portal down: the saved bundle is used; a tampered saved copy is refused and the built-ins stay', async () => {
@@ -111,11 +111,11 @@ test('a bundle for a newer engine waits', async () => {
   resetSignatures();
   await fetch(`${pbase}/api/v1/signatures`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ envelope: bundle(7, RULES, '99.0.0') }) });
   const dir2 = mkdtempSync(join(tmpdir(), 'oh-sigs2-'));
-  const nt = await onehuman({ ...opts, db: `sqlite:${join(dir2, 'o.db')}` });
+  const oh = await onehuman({ ...opts, db: `sqlite:${join(dir2, 'o.db')}` });
   await new Promise((r) => setTimeout(r, 300));
   // the development engine (0.0.0-dev) accepts every minEngine; a released engine would wait. The rule itself:
   const { engineAtLeast } = await import('../integrations/signatures/common.ts');
   assert.equal(engineAtLeast('0.6.0', '99.0.0'), false);
   assert.equal(engineAtLeast('0.6.1', '0.6.0'), true);
-  await nt.close();
+  await oh.close();
 });

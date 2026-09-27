@@ -1,23 +1,23 @@
 # İnteqrasiya — Express / Node (3 sətir)
 
 ```bash
-npm i onehuman      # Node ≥ 22.13
+npm i @onehumanai/express      # Node ≥ 22.13
 ```
 
-Yeganə quraşdırma budur. `onehuman` (Apache-2.0) `onehuman-engine` paketindən (BUSL-1.1, produksiyada istifadə icazəlidir) asılıdır — npm onu özü gətirir; engine-i ayrıca əlavə etmək və ya import etmək lazım deyil. İstifadə etdiyiniz hər şey `onehuman/express` və `npx onehuman` altındadır.
+Yeganə quraşdırma budur. `@onehumanai/express` (Apache-2.0) `@onehumanai/engine` paketindən (BUSL-1.1, produksiyada istifadə icazəlidir) asılıdır — npm onu özü gətirir; engine-i ayrıca əlavə etmək və ya import etmək lazım deyil. İstifadə etdiyiniz hər şey `@onehumanai/express` və `npx onehuman` altındadır.
 
 Bank, CRM və ya sığorta şirkəti OneHuman-i öz backend-inə **middleware** kimi qoşur. Qaydalar şirkətin öz JSON faylındadır, maskalama şirkətin öz funksiyasıdır, autentifikasiyaya toxunulmur, məlumat bazası şirkətin öz diskindədir (on-prem).
 
 ```js
-import { onehuman } from 'onehuman/express';
+import { onehuman } from '@onehumanai/express';
 
-const nt = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db' });
-app.use(nt.middleware());                                    // 1. SDK + onun API-si /onehuman altında
-app.get('/api/balance', nt.protect('balance.read'),          // 2. qərar nöqtəsi: məlumatı qaytaran endpoint
-  (req, res) => nt.send(req, res, account, maskBalance));    // 3. allow → tam, mask → sizin mask funksiyanız
+const oh = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', db: 'sqlite:./onehuman.db' });
+app.use(oh.middleware());                                    // 1. SDK + onun API-si /onehuman altında
+app.get('/api/balance', oh.protect('balance.read'),          // 2. qərar nöqtəsi: məlumatı qaytaran endpoint
+  (req, res) => oh.send(req, res, account, maskBalance));    // 3. allow → tam, mask → sizin mask funksiyanız
 ```
 
-Səhifəyə bir teq: `<script src="/onehuman/sdk.js"></script>` və ekranda göstərilən həssas elementə `data-nt-sensitive="full"`. Sorğuları `OneHuman.fetch(url)` ilə göndərin (adi `fetch`-in üstündə, klik telemetriyasını başlığa əlavə edir).
+Səhifəyə bir teq: `<script src="/onehuman/sdk.js"></script>` və ekranda göstərilən həssas elementə `data-oh-sensitive="full"`. Sorğuları `OneHuman.fetch(url)` ilə göndərin (adi `fetch`-in üstündə, klik telemetriyasını başlığa əlavə edir).
 
 İşləyən nümunə: `node examples/express-bank/server.mjs` → http://localhost:3000
 
@@ -25,10 +25,10 @@ Səhifəyə bir teq: `<script src="/onehuman/sdk.js"></script>` və ekranda gös
 
 1. `middleware()` hər brauzerə (və ya `identify()` ilə hər login sessiyasına) bir OneHuman sessiyası verir; SDK səhifədən passiv siqnalları (`/onehuman/signals`) göndərir.
 2. `protect('balance.read')` sorğu gələndə qərar verir: server müşahidələri (imza, başlıqlar) + SDK telemetriyası (markerlər, oxuma partlayışı, kursor kinematikası) → `assess` → sizin qaydanız → audit sətri (hash-zəncir).
-3. Nəticə `req.nt`-də: `decision` (`allow | mask | block | step_up`), `masked`, `actor`, `score`, `reasonCodes`, `stepUp`, `token()`.
+3. Nəticə `req.onehuman`-də: `decision` (`allow | mask | block | step_up`), `masked`, `actor`, `score`, `reasonCodes`, `stepUp`, `token()`.
    - `block` → 403 və `step_up` → 428 avtomatik cavablanır (`respond: false` ilə özünüz idarə edə bilərsiniz).
-   - `mask` → handler-iniz çağırılır, `req.nt.masked === true`; `nt.send(req, res, full, mask)` maskanı tətbiq edir.
-4. Agent qoşulan an SDK ekrandakı `data-nt-sensitive="full"` sahələri yerindəcə gizlədir (`nt:sealed` hadisəsi), səhifə istəsə yenidən sorğu göndərir.
+   - `mask` → handler-iniz çağırılır, `req.onehuman.masked === true`; `oh.send(req, res, full, mask)` maskanı tətbiq edir.
+4. Agent qoşulan an SDK ekrandakı `data-oh-sensitive="full"` sahələri yerindəcə gizlədir (`onehuman:sealed` hadisəsi), səhifə istəsə yenidən sorğu göndərir.
 
 ## Seçimlər
 
@@ -40,7 +40,7 @@ Səhifəyə bir teq: `<script src="/onehuman/sdk.js"></script>` və ekranda gös
 | `db` | `sqlite:./onehuman.db` · `memory` · `libsql://host?authToken=…` | `sqlite:./onehuman.db` |
 | `basePath` | SDK və API-nin yolu | `/onehuman` |
 | `identify(req)` | sizin login sessiya/istifadəçi id-niz → bir loginin bütün tabları bir OneHuman sessiyası | cookie ilə brauzer başına |
-| `cookie` | cookie adı | `nt_sid` |
+| `cookie` | cookie adı | `oh_sid` |
 | `respond` | block/step_up-ı middleware cavablasın | `true` |
 | `webauthnReclaim` | agent bloklanandan sonra "Mən insanam" passkey yolu | `true` |
 | `tenant` | çoxtenant quraşdırmada otaq adı | `default` |
@@ -53,7 +53,7 @@ Səhifəyə bir teq: `<script src="/onehuman/sdk.js"></script>` və ekranda gös
 - **Faylı developer və ya agent dəyişəndə:** dəyişiklik portala gedir. Default olaraq dərhal tətbiq olunur. Portalın Policy səhifəsində "Ask me before a change from code takes effect" açılsa, dəyişiklik təsdiq gözləyir.
 - **Qorumanı zəiflədən dəyişiklik** (qaydanın silinməsi, `block` → `allow`, `enforce` → `observe`) təsdiq və hesab şifrəsi istəyir. Bu yoxlamanı söndürmək də şifrə istəyir.
 - **İmza:** portal hər versiyanı yalnız sizin açar üçün imzalayır. Server portalın açarını ilk dəfə yadda saxlayır və imzasız və ya dəyişdirilmiş qaydanı qəbul etmir. Portal əlçatmaz olanda son imzalı nüsxə ilə işləyir.
-- **Qaydanın haradan gəldiyini görmək:** hər dəyişiklikdə log sətri yazılır, `nt.policySource()` və `/onehuman/health` da göstərir. `NODE_ENV=production` deyilsə, cavabda `X-NT-Policy-Source: portal | cache | file` başlığı olur.
+- **Qaydanın haradan gəldiyini görmək:** hər dəyişiklikdə log sətri yazılır, `oh.policySource()` və `/onehuman/health` da göstərir. `NODE_ENV=production` deyilsə, cavabda `X-OH-Policy-Source: portal | cache | file` başlığı olur.
 
 ## Qayda faylı
 
@@ -75,7 +75,7 @@ Səhifəyə bir teq: `<script src="/onehuman/sdk.js"></script>` və ekranda gös
 
 ## Step-up və insan geri alması
 
-- `step_up` cavabında `stepUp.challenge` var; demo axını `POST /onehuman/step-up {id, answer}`. Real sistemdə buranı öz OTP/push axınınızla əvəz edirsiniz: təsdiqdən sonra `nt.engine.store.grantStepUp(sessionId, resource, ttlMs)` çağırın, növbəti sorğu keçir.
+- `step_up` cavabında `stepUp.challenge` var; demo axını `POST /onehuman/step-up {id, answer}`. Real sistemdə buranı öz OTP/push axınınızla əvəz edirsiniz: təsdiqdən sonra `oh.engine.store.grantStepUp(sessionId, resource, ttlMs)` çağırın, növbəti sorğu keçir.
 - Agent blokundan sonra istifadəçi Touch ID/passkey ilə sessiyanı 5 dəqiqəlik geri alır: `POST /onehuman/webauthn/register|assert` (SDK-nın nümunə UI-si `web/product.js`-dədir).
 
 ## Digər platformalar

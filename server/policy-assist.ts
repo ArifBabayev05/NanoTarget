@@ -3,7 +3,7 @@
  * The policy assistant: a person writes what they want in their own words ("let agents see balances but hide
  * the amounts") and a language model turns it into edits of the rules that already exist.
  *
- * It never adds or removes a rule. A new rule needs a new nt.protect() in the app's code, so for that the
+ * It never adds or removes a rule. A new rule needs a new oh.protect() in the app's code, so for that the
  * assistant answers with a prompt the person gives to the coding agent that works on their code. Whatever the
  * model says, only edits to existing rules with valid values survive the check below; the result is a draft
  * the person reviews and saves through the normal path (password for anything that lowers protection).
@@ -33,7 +33,7 @@ enforcement: "observe" = only watch and record, block nothing; "enforce" = apply
 Rules you must follow:
 - You may only change existing rules: their four modes, minScore, title, and the overall enforcement.
 - Match the person's words to existing rules by meaning, in any language ("payments" or "ödəniş" can be payout.create; "download the report" can be report.export). Only when no existing rule fits is a new rule needed.
-- You must never add a rule or remove one. If the person asks to protect something that has no rule, do not invent one: set "needsCode" with a short explanation and a clear prompt they can give to the AI coding assistant that works on their app's code (the coding assistant adds nt.protect('<name>') to the route and the rule to onehuman.policy.json; after deploy the rule appears in the portal by itself).
+- You must never add a rule or remove one. If the person asks to protect something that has no rule, do not invent one: set "needsCode" with a short explanation and a clear prompt they can give to the AI coding assistant that works on their app's code (the coding assistant adds oh.protect('<name>') to the route and the rule to onehuman.policy.json; after deploy the rule appears in the portal by itself).
 - If the request is unclear or impossible, change nothing and ask one short question in "reply".
 - Never make real people (onHumanLike) blocked or asked for a passkey unless the person clearly asks for that.
 - "reply" is 1-3 short sentences in the same language the person wrote in, in plain words, without technical terms like onAgent or step_up.
@@ -92,7 +92,7 @@ export async function assistPolicy(draft: Policy, message: string): Promise<Assi
   if (!key) throw Object.assign(new Error('The assistant is not set up on this server.'), { code: 'assistant_off' });
   const rules = draft.rules.map((r) => ({ resource: r.resource, title: r.title, onAgent: r.onAgent, onArtifact: r.onArtifact, onUnknown: r.onUnknown, onHumanLike: r.onHumanLike, minScore: r.minScore }));
   const body = {
-    model: process.env.NT_ASSIST_MODEL || 'openai/gpt-6-luna',
+    model: process.env.ONEHUMAN_ASSIST_MODEL || 'openai/gpt-6-luna',
     temperature: 0.1,
     max_tokens: 1500,
     response_format: { type: 'json_object' },
@@ -102,7 +102,7 @@ export async function assistPolicy(draft: Policy, message: string): Promise<Assi
     ],
   };
   const offline = () => Object.assign(new Error('The assistant could not answer right now. Try again in a minute.'), { code: 'assistant_error' });
-  const r = await fetch(process.env.NT_ASSIST_URL || 'https://openrouter.ai/api/v1/chat/completions', {
+  const r = await fetch(process.env.ONEHUMAN_ASSIST_URL || 'https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://onehuman.ai', 'X-Title': 'OneHuman portal' },
     body: JSON.stringify(body),
