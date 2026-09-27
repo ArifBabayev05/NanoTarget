@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
  * onehuman CLI
- *   npx onehuman init [dir] [--yes] [--no-install]  answer a few questions; OneHuman is set up in this project
- *   npx onehuman inspect [--sessions] [--session <id>] [--db …]   exactly what the page script collected
- *   npx onehuman report [--days 30] [--out file.html] [--json]    the 30-day report from your own audit log
- *   npx onehuman scan [dir]                      discover routes, sensitivity, identity; write onehuman.policy.draft.json
- *   npx onehuman scan [dir] --json               same, machine-readable (for AI agents)
- *   npx onehuman scan [dir] --proposal           only the plain-language proposal to show the product owner
- *   npx onehuman verify <baseUrl> <protectedPath> [--base /onehuman]   run the 4 post-integration checks
- *   npx onehuman secret                          print a fresh ONEHUMAN_SECRET
- *   npx onehuman verify-proof <bundle.json> [--keys <jwks.json | https://…/onehuman/proof-keys>]
+ *   npx onehumanai init [dir] [--yes] [--no-install]  answer a few questions; OneHuman is set up in this project
+ *   npx onehumanai inspect [--sessions] [--session <id>] [--db …]   exactly what the page script collected
+ *   npx onehumanai report [--days 30] [--out file.html] [--json]    the 30-day report from your own audit log
+ *   npx onehumanai scan [dir]                      discover routes, sensitivity, identity; write onehuman.policy.draft.json
+ *   npx onehumanai scan [dir] --json               same, machine-readable (for AI agents)
+ *   npx onehumanai scan [dir] --proposal           only the plain-language proposal to show the product owner
+ *   npx onehumanai verify <baseUrl> <protectedPath> [--base /onehuman]   run the 4 post-integration checks
+ *   npx onehumanai secret                          print a fresh ONEHUMAN_SECRET
+ *   npx onehumanai verify-proof <bundle.json> [--keys <jwks.json | https://…/onehuman/proof-keys>]
  *                                                  check signed decision proofs offline (for an auditor)
  */
 import { randomBytes } from 'node:crypto';
@@ -98,7 +98,7 @@ async function main() {
     process.exit(allOk ? 0 : 1);
   }
   if (cmd === 'secret') { console.log(randomBytes(32).toString('base64url')); return; }
-  console.log('onehuman <init [dir] [--yes] | inspect [--sessions] | report [--days 30] | scan [dir] [--json] | verify <baseUrl> <protectedPath> [--base /onehuman] | verify-proof <bundle.json> [--keys <jwks|url>] | secret>');
+  console.log('onehumanai <init [dir] [--yes] | inspect [--sessions] | report [--days 30] | scan [dir] [--json] | verify <baseUrl> <protectedPath> [--base /onehuman] | verify-proof <bundle.json> [--keys <jwks|url>] | secret>');
   process.exit(cmd ? 2 : 0);
 }
 main().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });

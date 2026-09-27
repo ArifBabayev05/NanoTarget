@@ -4,18 +4,18 @@
 
 **Where it runs.** A Node middleware and a small script your own server serves to your own pages. No proxy, no third-party script, no network call on the request path. **It fails open:** if it is slow or broken, requests go on as before and the failure is counted.
 
-**What it collects.** In the browser: the timing and pointer path of clicks, and the traces agent tools leave in a page. **Never:** page content, what people type, form values, request or response bodies, names, e-mails, IP addresses. It is all kept in your own database. With an API key, decision metadata (resource, decision, who was acting, detected agent) goes to the OneHuman portal — nothing else. See for yourself: `npx onehuman inspect` prints exactly what was collected.
+**What it collects.** In the browser: the timing and pointer path of clicks, and the traces agent tools leave in a page. **Never:** page content, what people type, form values, request or response bodies, names, e-mails, IP addresses. It is all kept in your own database. With an API key, decision metadata (resource, decision, who was acting, detected agent) goes to the OneHuman portal — nothing else. See for yourself: `npx onehumanai inspect` prints exactly what was collected.
 
 **Install.**
 
 ```bash
-npm i @onehumanai/express
-npx onehuman init                       # asks what to protect; shows every change before writing it
+npm i onehumanai
+npx onehumanai init                       # asks what to protect; shows every change before writing it
 npm start                               # starts in observe mode: nothing is blocked, everything is recorded
-npx onehuman verify http://localhost:3000 /api/balance
+npx onehumanai verify http://localhost:3000 /api/balance
 ```
 
-**Turn it on.** After a week in observe mode, look at what *would* have been stopped (`npx onehuman report`, or the portal), then switch the rules to enforce.
+**Turn it on.** After a week in observe mode, look at what *would* have been stopped (`npx onehumanai report`, or the portal), then switch the rules to enforce.
 
 **What it does not do.** API keys and server-to-server calls (no browser, nothing to see). Native mobile apps. Backends that are not Node. It does not identify people. A script written for one site can pass the behaviour check — that is why critical actions should ask for a passkey.
 

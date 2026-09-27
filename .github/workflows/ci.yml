@@ -18,8 +18,8 @@ jobs:
       - run: node scripts/build-package.mjs
       - name: Package installs and serves the SDK
         run: |
-          mkdir -p /tmp/tgz && for p in engine sdk express cli; do (cd packages/$p && npm pack --pack-destination /tmp/tgz >/dev/null); done
+          mkdir -p /tmp/tgz && (cd packages/onehumanai && npm pack --pack-destination /tmp/tgz >/dev/null)
           mkdir -p /tmp/smoke && cd /tmp/smoke && npm init -y >/dev/null
           npm i /tmp/tgz/*.tgz express >/dev/null
-          npx onehuman secret >/dev/null
-          node -e "import('@onehumanai/express').then(async ({onehuman}) => { const oh = await onehuman({ secret: 'ci-secret-ci-secret-ci-secret-ci-secret', db: 'memory', policy: { version: 'ci', enforcement: 'observe', rules: [{ resource: 'x.read', title: 'x', onAgent: 'block', onArtifact: 'mask', onUnknown: 'allow', onHumanLike: 'allow', actOn: ['verified','strong','control','behavioral'], minScore: 65 }] } }); console.log('ok', oh.basePath); oh.close(); })"
+          npx onehumanai secret >/dev/null
+          node -e "import('onehumanai').then(async ({onehuman}) => { const oh = await onehuman({ secret: 'ci-secret-ci-secret-ci-secret-ci-secret', db: 'memory', policy: { version: 'ci', enforcement: 'observe', rules: [{ resource: 'x.read', title: 'x', onAgent: 'block', onArtifact: 'mask', onUnknown: 'allow', onHumanLike: 'allow', actOn: ['verified','strong','control','behavioral'], minScore: 65 }] } }); console.log('ok', oh.basePath); oh.close(); })"

@@ -6,10 +6,11 @@
     "declaration": true,
     "rewriteRelativeImportExtensions": true,
     "rootDir": ".",
-    "outDir": "packages/express/dist/types"
+    "outDir": "packages/onehumanai/dist/types"
   },
   "include": [
     "integrations/express/index.ts",
-    "integrations/cli/index.ts"
+    "integrations/cli/index.ts",
+    "server/public.ts"
   ]
 }

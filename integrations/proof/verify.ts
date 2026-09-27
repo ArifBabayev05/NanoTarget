@@ -5,7 +5,7 @@
  * A proof is a compact JWS (EdDSA / Ed25519), header { alg: "EdDSA", typ: "oh-proof", kid }, whose payload
  * states one decision: what was decided and why, whether data was delivered, and its place in the
  * hash-chained audit log. Anyone can verify a proof with this file, any JOSE library, or
- * `npx onehuman verify-proof`. The signing side lives in the engine; checking needs nothing from it.
+ * `npx onehumanai verify-proof`. The signing side lives in the engine; checking needs nothing from it.
  */
 import { createHash, createPublicKey, verify, type KeyObject } from 'node:crypto';
 
@@ -93,6 +93,6 @@ export function proofBundle<M extends Record<string, unknown>>(proofs: string[],
     ...meta,
     keys,
     proofs,
-    verify: 'Each proof is a compact JWS (EdDSA / Ed25519). Check it with the matching key in `keys` using any JOSE library, or run: npx onehuman verify-proof <this file>',
+    verify: 'Each proof is a compact JWS (EdDSA / Ed25519). Check it with the matching key in `keys` using any JOSE library, or run: npx onehumanai verify-proof <this file>',
   };
 }

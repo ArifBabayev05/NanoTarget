@@ -5,7 +5,8 @@ Parameters
 
 Licensor:             Arif Babayev
 Licensed Work:        OneHuman engine, version 0.4.0 or later: the
-                      @onehumanai/engine package and, in the OneHuman source
+                      engine in the onehumanai npm package (dist/engine.js
+                      and dist/kinematics-model.json) and, in the OneHuman source
                       repository, every file not listed as Apache-2.0 in the
                       repository's LICENSE file. The Licensed Work is (c) 2026
                       Arif Babayev.

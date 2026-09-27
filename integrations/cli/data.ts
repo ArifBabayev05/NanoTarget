@@ -2,10 +2,10 @@
 /**
  * The CLI commands that read your own OneHuman database. Nothing here makes a network call.
  *
- *   npx onehuman inspect [--db sqlite:./onehuman.db] [--sessions] [--session <id>] [--last 20] [--json]
+ *   npx onehumanai inspect [--db sqlite:./onehuman.db] [--sessions] [--session <id>] [--last 20] [--json]
  *       exactly what the page script collected in a session, as stored — and byte for byte when the server
  *       runs with recordRaw (ONEHUMAN_RECORD_RAW=1). Check our privacy claims instead of trusting them.
- *   npx onehuman report [--db …] [--days 30] [--out onehuman-report.html] [--json] [--empty] [--app <name>]
+ *   npx onehumanai report [--db …] [--days 30] [--out onehuman-report.html] [--json] [--empty] [--app <name>]
  *       the design-partner report from the local audit log: sessions with an agent, which agents, which
  *       endpoints, what the rules did or would have done.
  */

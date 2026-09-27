@@ -4,7 +4,7 @@
 
 Email **security@onehuman.ai**. Please do not open a public GitHub issue for a security problem.
 
-Include what you found, how to reproduce it, the affected version (`npm ls @onehumanai/express`, or the version in `GET /onehuman/health`), and the impact as you see it. A proof of concept helps; so does a trajectory sample for a detection bypass.
+Include what you found, how to reproduce it, the affected version (`npm ls onehumanai`, or the version in `GET /onehuman/health`), and the impact as you see it. A proof of concept helps; so does a trajectory sample for a detection bypass.
 
 ## What you can expect
 
@@ -20,8 +20,7 @@ We will keep you informed while we work on it. If we disagree that something is 
 
 In scope:
 
-- `@onehumanai/express`, `@onehumanai/sdk` and `onehuman`: browser SDK, Express/Connect middleware, CLI, proof verifier
-- the `@onehumanai/engine` package: detection, policy, audit log, signed decision proofs
+- the `onehumanai` package: browser SDK, Express/Connect middleware, CLI, proof verifier, and the engine (detection, policy, audit log, signed decision proofs)
 - the portal and its API at https://onehuman.ai (accounts, API keys, rules, telemetry ingest)
 
 Out of scope: the synthetic data in the demo apps, denial-of-service by volume, reports from automated scanners without a demonstrated impact, and third-party services we build on (Vercel, Turso, OpenRouter) — report those to them.

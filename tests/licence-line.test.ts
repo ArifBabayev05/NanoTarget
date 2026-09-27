@@ -24,22 +24,21 @@ test('every source file names its licence, and the open directories are Apache-2
   for (const f of engine) assert.match(readFileSync(f, 'utf8').slice(0, 400), /SPDX-License-Identifier: BUSL-1\.1/, f);
 });
 
-test('the packages declare the licence their files carry', () => {
-  const open = JSON.parse(readFileSync('packages/express/package.json', 'utf8'));
-  const engine = JSON.parse(readFileSync('packages/engine/package.json', 'utf8'));
-  assert.equal(open.license, 'Apache-2.0');
-  assert.equal(engine.license, 'BUSL-1.1');
-  assert.equal(open.dependencies['@onehumanai/engine'], engine.version, 'released in lockstep');
-  assert.match(readFileSync('packages/express/LICENSE', 'utf8'), /Apache License\s+Version 2\.0, January 2004/);
-  assert.match(readFileSync('packages/engine/LICENSE', 'utf8'), /Business Source License 1\.1/);
-  assert.match(readFileSync('packages/engine/LICENSE', 'utf8'), /Additional Use Grant: You may make production use/);
+test('the package declares both licences and ships both texts', () => {
+  const pkg = JSON.parse(readFileSync('packages/onehumanai/package.json', 'utf8'));
+  assert.equal(pkg.name, 'onehumanai');
+  assert.equal(pkg.license, '(Apache-2.0 AND BUSL-1.1)');
+  for (const f of ['LICENSE', 'LICENSE-APACHE', 'LICENSE-BSL']) assert.ok(pkg.files.includes(f), f);
+  assert.match(readFileSync('LICENSE-APACHE', 'utf8'), /Apache License\s+Version 2\.0, January 2004/);
+  assert.match(readFileSync('LICENSE-BSL', 'utf8'), /Business Source License 1\.1/);
+  assert.match(readFileSync('LICENSE-BSL', 'utf8'), /Additional Use Grant: You may make production use/);
 });
 
-test('the middleware refuses an engine of a different version with an actionable message', async () => {
+test('the middleware refuses a half-updated install with an actionable message', async () => {
   // simulate the built packages: stamp both sides, then let them disagree
   const src = readFileSync('integrations/express/index.ts', 'utf8');
   assert.match(src, /PACKAGE_VERSION !== ENGINE_VERSION/, 'the startup check exists');
-  assert.match(src, /npm i @onehumanai\/express@\$\{PACKAGE_VERSION\}/, 'and tells the user the exact fix');
+  assert.match(src, /npm i onehumanai@\$\{PACKAGE_VERSION\}/, 'and tells the user the exact fix');
   // from source both read 0.0.0-dev and the check is skipped, so onehuman() still works here
   const { onehuman } = await import('../integrations/express/index.ts');
   const oh = await onehuman({ secret: 'a-long-enough-secret-for-tests-0000000000', policy: { version: 'v', enforcement: 'observe', rules: [{ resource: 'x.read', title: 'x', onAgent: 'mask', onArtifact: 'allow', onUnknown: 'allow', onHumanLike: 'allow', actOn: ['strong'], minScore: 65 }] } as never, db: 'memory' });

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-/** `onehuman init --yes` wires an Express app: rules, secret, setup module, middleware and protect() on the chosen routes. */
+/** `onehumanai init --yes` wires an Express app: rules, secret, setup module, middleware and protect() on the chosen routes. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -55,7 +55,7 @@ test('a CommonJS app with routes in their own file gets require() in both files'
   assert.equal(r.status, 0, r.stderr + r.stdout);
   assert.match(readFileSync(join(dir, 'routes', 'accounts.js'), 'utf8'), /const \{ onehuman \} = require\('\.\.\/onehuman\.js'\);[\s\S]*router\.get\('\/customers', onehuman\.protect\('customers\.read', \{ mask: 'auto' \}\),/);
   assert.match(readFileSync(join(dir, 'app.js'), 'utf8'), /app\.use\(onehuman\.middleware\(\)\);/);
-  assert.match(readFileSync(join(dir, 'onehuman.js'), 'utf8'), /require\('@onehumanai\/express'\)[\s\S]*module\.exports = \{ onehuman \}/);
+  assert.match(readFileSync(join(dir, 'onehuman.js'), 'utf8'), /require\('onehumanai'\)[\s\S]*module\.exports = \{ onehuman \}/);
   assert.ok(!existsSync(join(dir, 'onehuman.mjs')));
 });
 
