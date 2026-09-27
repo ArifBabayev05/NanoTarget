@@ -10,12 +10,32 @@
     "./onehuman.js": "./onehuman.js",
     "./package.json": "./package.json"
   },
-  "files": ["onehuman.js", "README.md", "LICENSE", "NOTICE"],
+  "files": [
+    "onehuman.js",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
   "sideEffects": true,
   "homepage": "https://onehuman.ai/docs",
-  "repository": { "type": "git", "url": "git+https://github.com/onehumanai/onehuman.git", "directory": "packages/sdk" },
-  "bugs": { "url": "https://github.com/onehumanai/onehuman/issues" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onehumanai/onehuman.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/onehumanai/onehuman/issues"
+  },
   "author": "OneHuman <founders@onehuman.ai>",
-  "publishConfig": { "access": "public" },
-  "keywords": ["onehuman", "ai-agent", "browser-agent", "agent-detection", "session-security", "apache-2.0"]
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "onehuman",
+    "ai-agent",
+    "browser-agent",
+    "agent-detection",
+    "session-security",
+    "apache-2.0"
+  ]
 }
