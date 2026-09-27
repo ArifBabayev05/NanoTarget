@@ -25,11 +25,30 @@ const flag = (name: string) => { const i = rest.indexOf(name); return i >= 0 ? r
 const has = (name: string) => rest.includes(name);
 const positional = rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && rest[i - 1] !== '--json'));
 
+declare const __ONEHUMAN_VERSION__: string | undefined;
+const VERSION = typeof __ONEHUMAN_VERSION__ === 'string' ? __ONEHUMAN_VERSION__ : '0.0.0-dev';
+
+/**
+ * `npx onehumanai init` in a project that already has an older onehumanai installed runs that old copy. The setup
+ * should always be the newest one: if npm has a newer version, run that instead (once; a quick check, skipped offline).
+ */
+async function newerSetup(args: string[]): Promise<boolean> {
+  if (VERSION === '0.0.0-dev' || process.env.ONEHUMAN_NO_UPDATE_CHECK) return false;
+  const latest = await fetch('https://registry.npmjs.org/onehumanai/latest', { signal: AbortSignal.timeout(2500) })
+    .then((r) => (r.ok ? r.json() : null), () => null).then((j: { version?: string } | null) => j?.version ?? null, () => null);
+  const newer = (a: string, b: string) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0); return false; };
+  if (!latest || !newer(latest, VERSION)) return false;
+  console.log(`Using the newest setup (onehumanai ${latest}; this project has ${VERSION}).`);
+  const { spawnSync } = await import('node:child_process');
+  const r = spawnSync('npx', ['--yes', `onehumanai@${latest}`, ...args], { stdio: 'inherit', shell: process.platform === 'win32', env: { ...process.env, ONEHUMAN_NO_UPDATE_CHECK: '1' } });
+  process.exit(r.status ?? 0);
+}
+
 async function main() {
   if (cmd === 'inspect') { await inspect({ flag, has }); return; }
   if (cmd === 'report') { await report({ flag, has }); return; }
   // `npx onehumanai` on its own sets the project up: the one command people need to remember
-  if (cmd === 'init' || cmd === undefined) { await runInit(positional[0] ?? process.cwd(), { yes: has('--yes'), install: !has('--no-install') }); return; }
+  if (cmd === 'init' || cmd === undefined) { await newerSetup(['init', ...rest]); await runInit(positional[0] ?? process.cwd(), { yes: has('--yes'), install: !has('--no-install') }); return; }
   if (cmd === 'scan') {
     const root = resolve(positional[0] ?? process.cwd());
     const r = scan(root);
