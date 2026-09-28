@@ -382,3 +382,44 @@ section{padding:96px 0}
 @keyframes vt-in{from{opacity:0;transform:translateY(8px)}}
 
 
+
+/* comparison: ten companies, marks pop in row by row when the table scrolls into view */
+.cmp-wrap{position:relative}
+.cmp-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:16px;background:var(--bg2);-webkit-overflow-scrolling:touch}
+table.cmp{border-collapse:separate;border-spacing:0;width:100%;min-width:940px;font-size:13.5px}
+.cmp th,.cmp td{border-bottom:1px solid var(--line);padding:0}
+.cmp tbody tr:last-child th,.cmp tbody tr:last-child td{border-bottom:0}
+.cmp thead th{padding:18px 4px 14px;vertical-align:bottom;font-weight:500}
+.cmp-corner{position:sticky;left:0;z-index:2;background:var(--bg2);text-align:left;padding-left:18px!important}
+.cmp-corner span{font:11px var(--mono);color:var(--fg3);letter-spacing:.02em;display:block;max-width:170px;line-height:1.4}
+.cmp-co{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--fg2);font-size:12px;line-height:1.2;text-align:center}
+.cmp-co img,.cmp-us-logo{width:30px;height:30px;border-radius:8px;transition:transform .3s var(--ease),box-shadow .3s}
+.cmp-co img{background:#fff;padding:3px;box-shadow:0 0 0 1px var(--line)}
+a.cmp-co:hover{color:var(--fg)}a.cmp-co:hover img{transform:translateY(-3px);box-shadow:0 0 0 1px var(--line2),0 8px 20px -8px rgba(0,0,0,.6)}
+a.cmp-co:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:8px}
+.cmp-us-logo{background:var(--accent);color:#0a0a0b;display:grid;place-items:center}.cmp-us-logo svg{width:17px;height:17px}
+.cmp th.us .cmp-co{color:var(--fg);font-weight:600}
+.cmp tbody th{position:sticky;left:0;z-index:1;background:var(--bg2);text-align:left;font-weight:400;color:var(--fg2);padding:12px 18px;min-width:250px}
+.cmp td{text-align:center;height:48px;min-width:74px}
+.cmp .us{background:color-mix(in srgb,var(--accent) 7%,var(--bg2))}
+.cmp thead th.us{box-shadow:inset 0 2px 0 var(--accent)}
+.cmp tbody tr:hover th,.cmp tbody tr:hover td{background-image:linear-gradient(rgba(255,255,255,.025),rgba(255,255,255,.025))}
+.cmp .mk{width:20px;height:20px;display:inline-block;vertical-align:middle}
+.cmp .mk circle{stroke:none}.cmp .mk path{fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.mk.ok circle{fill:color-mix(in srgb,var(--accent) 16%,transparent)}.mk.ok path{stroke:var(--accent)}
+.mk.no circle{fill:color-mix(in srgb,var(--danger) 13%,transparent)}.mk.no path{stroke:var(--danger)}
+.cmp-total th{color:var(--fg)!important;font-weight:500!important}
+.cmp-total b{font:600 16px var(--mono);font-variant-numeric:tabular-nums;color:var(--fg2)}
+.cmp-total .us b{color:var(--accent)}
+.cmp-legend{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;color:var(--fg3);font-size:12.5px;margin:14px 0 0}
+.cmp-legend span{display:inline-flex;gap:6px;align-items:center}.cmp-legend .mk{width:15px;height:15px}
+.cmp-legend .mk circle{stroke:none}.cmp-legend .mk path{fill:none;stroke-width:2.4;stroke-linecap:round}
+/* motion: rest state is visible; the class only replays the entrance when the table arrives */
+.cmp-wrap.pre .cmp tbody .mk{transform:scale(.35);opacity:0}
+.cmp-wrap.pre thead .cmp-co{transform:translateY(8px);opacity:0}
+.cmp .mk,.cmp thead .cmp-co{transition:transform .55s var(--ease),opacity .35s ease;transition-delay:calc(var(--r,0) * 55ms + var(--c,0) * 26ms)}
+.cmp thead .cmp-co{transition-delay:calc(var(--c,0) * 45ms)}
+.cmp-wrap.in .cmp td.us{animation:cmp-sweep 1.4s var(--ease) both;animation-delay:calc(var(--r,0) * 55ms)}
+@keyframes cmp-sweep{0%{box-shadow:inset 0 0 0 0 transparent}35%{box-shadow:inset 0 0 0 999px color-mix(in srgb,var(--accent) 14%,transparent)}100%{box-shadow:inset 0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.cmp-wrap.pre .cmp tbody .mk,.cmp-wrap.pre thead .cmp-co{transform:none;opacity:1}.cmp-wrap.in .cmp td.us{animation:none}}
+@media (max-width:560px){.cmp tbody th{min-width:180px;padding:10px 12px;font-size:12.5px}.cmp-corner{padding-left:12px!important}}

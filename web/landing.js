@@ -27,6 +27,17 @@
     } catch { /* signed out: leave the nav as it is */ }
   })();
 
+  // ---------------------------------------------------------------- comparison table: marks pop in row by row
+  (() => {
+    const wrap = $('#cmp'); if (!wrap || !('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (wrap.getBoundingClientRect().top < innerHeight) return; // already on screen: leave it at rest
+    wrap.classList.add('pre');
+    const totals = $$('.cmp-total b', wrap);
+    const count = () => totals.forEach((b, i) => { const n = Number(b.dataset.n); if (!n) return; let k = 0; b.textContent = '0'; setTimeout(() => { const t = setInterval(() => { b.textContent = String(++k); if (k >= n) clearInterval(t); }, 45); }, 500 + i * 60); });
+    const cio = new IntersectionObserver((es) => { if (!es[0].isIntersecting) return; cio.disconnect(); requestAnimationFrame(() => { wrap.classList.remove('pre'); wrap.classList.add('in'); count(); }); }, { threshold: 0.25 });
+    cio.observe(wrap);
+  })();
+
   // ---------------------------------------------------------------- GitHub stars on the nav button
   (async () => {
     try {
