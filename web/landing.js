@@ -27,6 +27,14 @@
     } catch { /* signed out: leave the nav as it is */ }
   })();
 
+  // ---------------------------------------------------------------- GitHub stars on the nav button
+  (async () => {
+    try {
+      const { stars } = await (await fetch('/api/v1/stars')).json();
+      if (typeof stars === 'number') { $('#gh-stars-n').textContent = stars >= 1000 ? `${(stars / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(stars); $('#gh-stars').hidden = false; $('#nav-gh').setAttribute('aria-label', `GitHub, ${stars} stars`); }
+    } catch { /* no count: the button still links to GitHub */ }
+  })();
+
   // ---------------------------------------------------------------- nav shadow
   const nav = $('#nav');
   const onScroll = () => nav.classList.toggle('scrolled', scrollY > 8);

@@ -169,6 +169,19 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     res.end(body);
   };
 
+  /** GitHub stars for the nav button: one GitHub call per instance per 10 minutes, edge-cached for everyone else. */
+  let stars: { n: number | null; at: number } = { n: null, at: 0 };
+  const starsApi = async (_req: Req, res: Res) => {
+    if (Date.now() - stars.at > 600_000) {
+      try {
+        const r = await fetch('https://api.github.com/repos/OneHumanAI/onehumanai', { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'onehuman.ai' }, signal: AbortSignal.timeout(3000) });
+        if (r.ok) stars = { n: Number(((await r.json()) as { stargazers_count?: number }).stargazers_count ?? 0), at: Date.now() };
+        else stars.at = Date.now() - 480_000; // GitHub said no (rate limit): try again in two minutes
+      } catch { stars.at = Date.now() - 480_000; }
+    }
+    json(res, 200, { stars: stars.n }, { 'Cache-Control': 'public, max-age=300, s-maxage=600, stale-while-revalidate=86400' });
+  };
+
   const appsApi = async (_req: Req, res: Res) => json(res, 200, { apps: Object.values(APPS).map(publicApp) }, { 'Cache-Control': 'public, max-age=60, s-maxage=600, stale-while-revalidate=86400' });
 
   type RouteHandler = (req: Req, res: Res) => void | Promise<void>;
@@ -263,6 +276,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['POST', '/api/v1/portal/policy/decide', portal.policy.portalDecide],
     ['POST', '/api/v1/portal/policy/assist', portal.policy.portalAssist],
     ['GET', '/api/v1/apps', appsApi],
+    ['GET', '/api/v1/stars', starsApi],
     ['GET', '/ops', async (req, res) => ((await ops.isOps(req)) ? page(res, 'ops.html', {}, { 'X-Robots-Tag': 'noindex, nofollow' }) : json(res, 404, { error: 'not_found' }))],
     ['GET', '/api/v1/ops/overview', ops.overview],
     ['GET', '/api/v1/ops/devices', ops.devices],
