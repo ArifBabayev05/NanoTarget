@@ -1,6 +1,6 @@
 {
   "name": "onehumanai",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "description": "When a customer sends an AI agent (Claude in Chrome, ChatGPT agent, Codex, Comet, Playwright…) into your product, decide what it may do on their behalf — allow · mask · step-up · block, per endpoint, on your own server — and keep a signed proof that a human agreed. One package: Express/Connect middleware, browser SDK, engine and CLI. `npm i onehumanai`, then `npx onehumanai init`. AI coding agents: the README is your integration protocol.",
   "type": "module",
   "license": "(Apache-2.0 AND BUSL-1.1)",

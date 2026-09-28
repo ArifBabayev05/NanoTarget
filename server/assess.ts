@@ -141,7 +141,11 @@ export function judgeClicks(clicks: NonNullable<InteractionSample['click']>[]): 
 export function assess(input: AssessInput): Assessment {
   const recent = input.interactions.slice(-5);
   if (input.current) recent.push(input.current);
-  const clicks = recent.flatMap((s) => (s.click ? [s.click] : []));
+  // WebKit's pressure and instant trackpad releases say nothing about who clicked: read them as unknown there
+  const webkit = input.server?.environment?.webkitPointer === true;
+  const clicks = recent.flatMap((s) => (s.click ? [s.click] : [])).map((c) => (webkit && c.pointer === 'mouse'
+    ? { ...c, pressure: null, holdMs: c.holdMs !== null && c.holdMs <= 12 ? null : c.holdMs }
+    : c));
   const atomic = clicks.filter(isAtomic).length;
   const judgements = judgeClicks(clicks);
   const kinHuman = judgements.filter((j) => j.verdict === 'human').length;

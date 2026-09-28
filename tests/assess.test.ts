@@ -159,3 +159,13 @@ test('panel + unattributed main-thread work is control tier; a panel alone stays
   assert.ok(alone.reasons.some((r) => r.code === 'SIDE_PANEL_OPENED' && r.tier === 'artifact'));
   assert.notEqual(alone.actor, 'agent_likely');
 });
+
+test('WebKit taps are not a program: a real iPhone Safari session (2026-09-28) that was blocked stays a person', async () => {
+  const { readFileSync } = await import('node:fs');
+  const fx = JSON.parse(readFileSync(new URL('./fixtures-ios-safari-taps.json', import.meta.url), 'utf8'));
+  const before = assess({ server: { ...fx.arrival, environment: { ...fx.arrival.environment, webkitPointer: false } }, early: null, interactions: fx.interactions, current: null });
+  assert.equal(before.actor, 'agent_likely', 'what went wrong: pressure 0 on "mouse" taps read as a program');
+  const now = assess({ server: { ...fx.arrival, environment: { ...fx.arrival.environment, webkitPointer: true } }, early: null, interactions: fx.interactions, current: null });
+  assert.notEqual(now.actor, 'agent_likely');
+  assert.ok(!now.reasons.some((r) => r.code === 'ZERO_PRESSURE_POINTER'));
+});
