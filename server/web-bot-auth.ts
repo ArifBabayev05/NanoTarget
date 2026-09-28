@@ -159,7 +159,11 @@ export async function observeRequest(req: SignatureRequest, opts: VerifyOptions 
       user: req.headers.get('sec-fetch-user'),
     },
     uaMajor: major ? Number(major) : null,
-    environment: { agentAppToken: agentApp, clientHints: req.headers.get('sec-ch-ua') !== null },
+    environment: {
+      agentAppToken: agentApp,
+      clientHints: req.headers.get('sec-ch-ua') !== null,
+      webkitPointer: /iPhone|iPad|iPod/.test(ua) || (/AppleWebKit/.test(ua) && /Version\/[\d.]+.*Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Android|FxiOS/.test(ua)),
+    },
     checkedMs: Math.round(performance.now() - start),
   };
 }

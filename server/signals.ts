@@ -164,6 +164,12 @@ export type ServerSignal = {
     agentAppToken: string | null;
     /** Chrome sends Sec-CH-UA on every request; embedded/Electron shells often do not. */
     clientHints: boolean;
+    /**
+     * WebKit (every iPhone/iPad browser, Safari on the Mac): its pointer events report pressure 0 for real taps and
+     * trackpad clicks, a tap's click as a "mouse", and tap-to-click releases in ~1 ms. Those three readings are no
+     * evidence of a program there (a real iPhone user was blocked on them, 2026-09-28).
+     */
+    webkitPointer?: boolean;
   };
   checkedMs: number;
 };

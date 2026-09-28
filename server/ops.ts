@@ -79,6 +79,8 @@ export function visitLog(store: Store, secret: Buffer | undefined, accountOf: (r
       if (!allowed(deviceOf(req))) return;
       const ua = String(req.headers['user-agent'] ?? '');
       const fam = uaFamily(ua);
+      // internet-wide scanners probing for leaked files are not visitors, whatever browser they claim
+      if (/^\/(\.env|\.git|wp-|wordpress|xmlrpc|phpmyadmin|cgi-bin|vendor\/|\.aws|\.ssh|server-status)|\.(php|asp|aspx|jsp|bak|sql)$/i.test(u.pathname)) fam.bot = true;
       const h = (n: string) => { const v = req.headers[n]; const s = Array.isArray(v) ? v[0] : v; return s ? decodeURIComponent(s).slice(0, 60) : null; };
       let referrer: string | null = null;
       try { const r = req.headers.referer; if (r) { const rh = new URL(r).host; if (rh && rh !== req.headers.host) referrer = rh.slice(0, 80); } } catch { /* bad referer */ }

@@ -429,7 +429,8 @@
     for (let i = 1; i < p.length; i++) path += Math.hypot(p[i].x - p[i - 1].x, p[i].y - p[i - 1].y);
     latestClick = {
       trusted: e.isTrusted,
-      pointer: e.pointerType || (down && down.pointer) || '',
+      // the press's own pointer type first: WebKit reports a finger tap's click as "mouse"
+      pointer: (down && down.pointer) || e.pointerType || '',
       detail: Math.min(10, e.detail),
       holdMs: down ? Math.round(t - down.t) : null,
       moves: p.length,
@@ -453,11 +454,11 @@
     let anyMoves = 0;
     let anyMoveT = 0;
     document.addEventListener('pointermove', () => { const t = performance.now(); if (t - anyMoveT < 1500) anyMoves++; else anyMoves = 1; anyMoveT = t; }, opts);
-    document.addEventListener('pointerdown', (e) => { anyDown = { t: performance.now(), pressure: typeof e.pressure === 'number' ? Math.round(e.pressure * 1000) / 1000 : null, hidden: document.visibilityState === 'hidden' }; }, opts);
+    document.addEventListener('pointerdown', (e) => { anyDown = { t: performance.now(), pointer: e.pointerType, pressure: typeof e.pressure === 'number' ? Math.round(e.pressure * 1000) / 1000 : null, hidden: document.visibilityState === 'hidden' }; }, opts);
     document.addEventListener('click', (e) => {
       if (early.reading.firstClick !== null) return;
       const t = performance.now();
-      early.reading.firstClick = { atMs: now(), trusted: e.isTrusted, pointer: e.pointerType || 'mouse', holdMs: anyDown ? Math.round(t - anyDown.t) : null, moves: t - anyMoveT < 1500 ? anyMoves : 0, pressure: anyDown ? anyDown.pressure : null, hidden: anyDown ? anyDown.hidden : document.visibilityState === 'hidden' };
+      early.reading.firstClick = { atMs: now(), trusted: e.isTrusted, pointer: (anyDown && anyDown.pointer) || e.pointerType || 'mouse', holdMs: anyDown ? Math.round(t - anyDown.t) : null, moves: t - anyMoveT < 1500 ? anyMoves : 0, pressure: anyDown ? anyDown.pressure : null, hidden: anyDown ? anyDown.hidden : document.visibilityState === 'hidden' };
       queueMicrotask(() => flush().catch(() => {}));
     }, opts);
   }

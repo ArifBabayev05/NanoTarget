@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.5
+- **Fixed: a real iPhone user was treated as an AI agent** (found in the first public test). WebKit — every iPhone/iPad browser and Safari on the Mac — reports pressure 0 for real taps and trackpad clicks, reports a finger tap's click as a "mouse", and releases tap-to-click in about 1 ms. Two such taps were read as a program (`ZERO_PRESSURE_POINTER`) and the person's export and balance were refused. Now those readings count as unknown on WebKit, and the page script takes the pointer type from the press itself, so a tap is a tap.
+
 ## 0.6.4
 - **The setup is always the newest one.** `npx onehumanai init` in a project that already has an older onehumanai installed ran that old copy (with its old questions). It now checks npm first and, when there is a newer version, runs that instead.
 - **No technical questions left.** An unrecognised server no longer asks which framework it is: the rules and settings are written and the plan says which lines to add. The questions are only: is the proposed protection right, watch first or protect now, and the portal API key.
