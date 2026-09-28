@@ -31,6 +31,12 @@ export function renderReportHtml(r: Report, opts: { title?: string } = {}): stri
   const stopped = r.agentRequests.wouldBlock + r.agentRequests.wouldMask + r.agentRequests.wouldStepUp;
   const modeLine = r.mode === 'observe' ? 'Observe mode: nothing was blocked. The figures show what the rules would have done in protect mode.'
     : r.mode === 'enforce' ? 'Protect mode: the rules were applied.' : r.mode === 'mixed' ? 'Part of the period in observe mode, part in protect mode.' : 'No traffic yet.';
+  // page one opens with the one number a partner did not know: how many of their customers' sessions had an agent
+  const a = r.agentRequests;
+  const shock = r.sessions.withAgent
+    ? `<section class="shock"><p class="big">AI agents were inside <b>${fmt(r.sessions.withAgent)}</b> of your customers' sessions <span>(${pct(r.sessions.withAgent, r.sessions.total)} of ${fmt(r.sessions.total)})</span>.</p>
+<p>${r.agents.length ? `${fmt(r.agents.length)} agent product${r.agents.length === 1 ? '' : 's'}: ${esc(r.agents.slice(0, 4).map((x) => x.name).join(', '))}${r.agents.length > 4 ? ' and more' : ''}. ` : ''}They asked for ${fmt(a.total)} protected action${a.total === 1 ? '' : 's'}; your rules ${r.mode === 'enforce' ? 'hid' : 'would have hidden'} private data ${fmt(a.wouldMask)} time${a.wouldMask === 1 ? '' : 's'}, sent ${fmt(a.wouldStepUp)} to the account owner for approval and kept ${fmt(a.wouldBlock)} closed.</p></section>`
+    : `<section class="shock none"><p class="big">No AI agent seen in these ${r.period.days} days.</p><p>When one arrives, this line says how many of your customers' sessions it was in and what it asked for.</p></section>`;
   const agentRows = r.agents.length
     ? `<table><tr><th>AI agent</th><th class="n">Sessions</th><th class="n">Requests</th></tr>${r.agents.map((a) => `<tr><td>${esc(a.name)}</td><td class="n">${fmt(a.sessions)}</td><td class="n">${fmt(a.requests)}</td></tr>`).join('')}</table>`
     : empty('No AI agent seen yet. Each one appears here by product name, with how many sessions it was in.');
@@ -47,6 +53,8 @@ export function renderReportHtml(r: Report, opts: { title?: string } = {}): stri
   header .meta{text-align:right;color:var(--fg3);font-size:12.5px;white-space:nowrap}
   h1{font-size:24px;letter-spacing:-.02em;margin:18px 0 4px}h2{font-size:15px;margin:30px 0 10px;letter-spacing:-.01em}
   .mode{display:inline-block;font-size:12px;line-height:1.45;padding:5px 10px;border-radius:8px;max-width:520px;background:#ecfdf5;color:var(--accent);border:1px solid #a7f3d0}
+  .shock{border:1px solid #f1d9b0;background:#fff8ec;border-radius:12px;padding:18px 20px;margin:4px 0 8px}.shock.none{border-color:var(--line);background:#fafafa}
+  .shock p{margin:0;color:var(--fg2);font-size:13.5px}.shock .big{font-size:20px;line-height:1.35;letter-spacing:-.015em;color:var(--fg);margin-bottom:6px}.shock .big b{color:var(--amber)}.shock .big span{color:var(--fg3);font-size:15px}
   .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0 6px}.kpi{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
   .kpi b{display:block;font-size:24px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.kpi span{color:var(--fg2);font-size:12.5px;line-height:1.35;display:block}
   table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}th{color:var(--fg3);font-weight:500;font-size:12px}
@@ -60,6 +68,8 @@ export function renderReportHtml(r: Report, opts: { title?: string } = {}): stri
 </style></head><body><div class="page">
 <header><div>${LOGO}<h1>${r.period.days}-day report${r.app ? ` — ${esc(r.app)}` : ''}</h1><span class="mode">${esc(modeLine)}</span></div>
 <div class="meta">${esc(date(r.period.from))} – ${esc(date(r.period.to))}<br>generated ${esc(date(r.generated))}<br>from ${r.source === 'server' ? 'your server’s audit log' : 'the OneHuman portal'}</div></header>
+
+${shock}
 
 <div class="kpis">
   <div class="kpi"><b>${fmt(r.sessions.total)}</b><span>sessions on protected endpoints</span></div>
