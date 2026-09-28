@@ -31,9 +31,12 @@ export function limiter(store: Store, secret: Buffer | undefined) {
     async over(name: string, who: string, max: number, windowMs: number): Promise<boolean> {
       try { return (await store.hitLimit(`${name}:${who}`, windowMs)) > max; } catch { return false; }
     },
-    /** per-instance: more than `max` requests from this client in `windowMs` */
-    burst(req: Req, max: number, windowMs: number): boolean {
-      const k = client(req);
+    /**
+     * per-instance: more than `max` requests in `windowMs` from this address ('ip': a whole office or class behind
+     * one NAT) or from this browser on it ('device'), counted separately per `name`
+     */
+    burst(req: Req, max: number, windowMs: number, scope: 'ip' | 'device' = 'ip', name = ''): boolean {
+      const k = `${name}:${scope === 'device' ? createHmac('sha256', key).update(`${clientIp(req)}|${String(req.headers['user-agent'] ?? '')}`).digest('hex').slice(0, 20) : client(req)}`;
       const now = Date.now();
       const w = mem.get(k);
       if (!w || now - w.at > windowMs) { mem.set(k, { n: 1, at: now }); if (mem.size > 20000) mem.clear(); return false; }

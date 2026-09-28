@@ -5,7 +5,7 @@
   "buildCommand": "npm run build:vercel",
   "functions": {
     "api/index.js": {
-      "maxDuration": 30,
+      "maxDuration": 15,
       "includeFiles": "{web,sdk,docs,server}/**"
     }
   },

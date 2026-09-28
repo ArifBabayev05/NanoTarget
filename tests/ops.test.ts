@@ -95,3 +95,23 @@ test('login is limited per e-mail, sign-up per address; a password change ends o
   assert.equal((await fetch(`${base}/api/v1/portal/me`, { headers: H(other.cookie) })).status, 200, 'this one stays');
   assert.ok(a.cookie);
 });
+
+test('public pages are edge-cacheable and count themselves with a beacon; a flood from one browser is cut off early', async () => {
+  const landing = await fetch(`${base}/`, { headers: H('', '203.0.113.90') });
+  assert.match(landing.headers.get('cache-control') ?? '', /public, .*s-maxage=/, 'the CDN may keep it');
+  assert.match(await landing.text(), /<script src="\/v\.js" defer><\/script>/);
+  assert.equal((await fetch(`${base}/portal`, { headers: H() })).headers.get('cache-control'), 'no-store', 'pages with sessions are never cached');
+  const before = (await app.store.report("SELECT COUNT(*) AS n FROM visits WHERE path = '/docs'"))[0]!.n;
+  const r = await fetch(`${base}/api/v1/visit`, { method: 'POST', headers: { ...H('', '203.0.113.90'), 'Content-Type': 'text/plain' }, body: JSON.stringify({ p: '/docs', r: 'news.example' }) });
+  assert.equal(r.status, 204);
+  const rows = await app.store.report("SELECT path, referrer FROM visits WHERE path IN ('/docs', '/portal') ORDER BY id DESC");
+  assert.equal(Number(rows.filter((x) => x.path === '/docs').length), Number(before) + 1);
+  assert.equal(rows[0]!.referrer, 'news.example');
+
+  // one browser hammering the API: refused before any database work, told when to come back
+  let last: Response | null = null;
+  for (let i = 0; i < 260; i++) last = await fetch(`${base}/api/v1/sandbox/noop`, { method: 'POST', headers: H('', '198.51.100.200') });
+  assert.equal(last!.status, 429);
+  assert.equal(last!.headers.get('retry-after'), '60');
+  assert.equal((await fetch(`${base}/api/v1/apps`, { headers: H('', '198.51.100.201') })).status, 200, 'another browser is unaffected');
+});

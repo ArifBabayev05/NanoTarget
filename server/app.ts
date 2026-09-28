@@ -15,7 +15,7 @@ import { OneHuman } from './engine.ts';
 import { attachModel, KINEMATICS_VERSION } from './kinematics.ts';
 import { SIGNAL_VERSION } from './assess.ts';
 import { loadModel, predict } from './kinematics-model.ts';
-import { cookies, json, serveStatic, url, UUID, type Req, type Res } from './http.ts';
+import { cookies, json, readJson, serveStatic, url, UUID, type Req, type Res } from './http.ts';
 import { accountRoutes } from './routes/account.ts';
 import { adminRoutes } from './routes/admin.ts';
 import { labRoutes, type LabOperator } from './routes/lab.ts';
@@ -104,13 +104,20 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
   const ops = opsRoutes(store, { accountOf: portal.accountOf, admins: () => new Set((process.env.ONEHUMAN_OPS_ACCOUNTS ?? '').split(',').map((x) => x.trim()).filter(Boolean)) });
 
   /** Serve an HTML file with the session id and flags embedded. */
-  async function page(res: Res, file: string, meta: Record<string, string>, headers: Record<string, string> = {}) {
+  /**
+   * Public pages that are the same for everyone are cached at the edge (a load test on them never reaches the
+   * function); they count their own views with a beacon (/v.js → POST /api/v1/visit).
+   */
+  const EDGE = 'public, max-age=60, s-maxage=600, stale-while-revalidate=86400';
+  const CACHED_PAGES = new Set(['/', '/docs', '/trust', '/privacy', '/scorecard', '/measurements']);
+  async function page(res: Res, file: string, meta: Record<string, string>, headers: Record<string, string> = {}, cached = false) {
     let html: string;
     try { html = await readFile(join(WEB, file), 'utf8'); } catch { json(res, 500, { error: 'missing_ui', file }); return; }
     const tags = Object.entries(meta).map(([k, v]) => `<meta name="${k}" content="${v.replace(/"/g, '&quot;')}">`).join('\n');
     html = html.replace('<head>', `<head>\n${tags}`);
+    if (cached) html = html.replace('</head>', '<script src="/v.js" defer></script>\n</head>');
     const body = Buffer.from(html, 'utf8');
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': body.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': CSP, ...headers });
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': body.length, 'Cache-Control': cached ? EDGE : 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': CSP, ...headers });
     res.end(body);
   }
 
@@ -140,7 +147,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     await page(res, file, { 'oh-session': session ?? '', 'oh-app': app.id, 'oh-serverless': serverless ? '1' : '0', 'oh-ephemeral': ephemeral ? '1' : '0' }, headers);
   };
 
-  const landing = async (_req: Req, res: Res) => page(res, 'index.html', { 'oh-serverless': serverless ? '1' : '0', 'oh-ephemeral': ephemeral ? '1' : '0' });
+  const landing = async (_req: Req, res: Res) => page(res, 'index.html', { 'oh-serverless': serverless ? '1' : '0', 'oh-ephemeral': ephemeral ? '1' : '0' }, {}, !ephemeral);
 
   const dashboard = async (req: Req, res: Res) => {
     const room = url(req).searchParams.get('room');
@@ -148,7 +155,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     await page(res, 'dashboard.html', { 'oh-app': (await store.roomApp(room)) ?? 'bank', 'oh-serverless': serverless ? '1' : '0' });
   };
 
-  const appsApi = async (_req: Req, res: Res) => json(res, 200, { apps: Object.values(APPS).map(publicApp) });
+  const appsApi = async (_req: Req, res: Res) => json(res, 200, { apps: Object.values(APPS).map(publicApp) }, { 'Cache-Control': 'public, max-age=60, s-maxage=600, stale-while-revalidate=86400' });
 
   type RouteHandler = (req: Req, res: Res) => void | Promise<void>;
   // The lab (training + sandbox + dataset endpoints) is the operator's, not the public's. With ONEHUMAN_LAB_KEY set,
@@ -189,11 +196,17 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['POST', '/api/v1/sandbox/noop', async (_req, res) => json(res, 200, { ok: true })],
     ['GET', '/training', labPage('training.html')],
     // customer portal + middleware telemetry
-    ['GET', '/docs', async (_req, res) => page(res, 'docs.html', {})],
-    ['GET', '/trust', async (_req, res) => page(res, 'trust.html', {})],
-    ['GET', '/privacy', async (_req, res) => page(res, 'trust.html', {})],
-    ['GET', '/scorecard', async (_req, res) => page(res, 'scorecard.html', {})],
-    ['GET', '/measurements', async (_req, res) => page(res, 'measurements.html', {})],
+    ['GET', '/docs', async (_req, res) => page(res, 'docs.html', {}, {}, true)],
+    ['GET', '/trust', async (_req, res) => page(res, 'trust.html', {}, {}, true)],
+    ['GET', '/privacy', async (_req, res) => page(res, 'trust.html', {}, {}, true)],
+    ['GET', '/scorecard', async (_req, res) => page(res, 'scorecard.html', {}, {}, true)],
+    ['GET', '/measurements', async (_req, res) => page(res, 'measurements.html', {}, {}, true)],
+    ['POST', '/api/v1/visit', async (req, res) => {
+      const b = (await readJson(req, 600).catch(() => null)) as { p?: unknown; r?: unknown } | null | undefined;
+      const path = typeof b?.p === 'string' ? b.p : '';
+      if (CACHED_PAGES.has(path)) await visits.page(req, path, typeof b?.r === 'string' ? b.r.slice(0, 80) : null);
+      res.writeHead(204); res.end();
+    }],
     ['GET', '/portal', async (_req, res) => page(res, 'portal.html', { 'oh-serverless': serverless ? '1' : '0' })],
     ['POST', '/api/v1/portal/signup', portal.signup],
     ['POST', '/api/v1/portal/login', portal.login],
@@ -215,7 +228,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['GET', '/api/v1/signatures', portal.signaturesGet],
     ['POST', '/api/v1/signatures', portal.signaturesPost],
     ['POST', '/api/v1/proof/verify', portal.verifyBundle],
-    ['GET', '/api/v1/proof-keys', async (_req, res) => json(res, 200, engine.proofKeys())],
+    ['GET', '/api/v1/proof-keys', async (_req, res) => json(res, 200, engine.proofKeys(), { 'Cache-Control': 'public, max-age=60, s-maxage=600, stale-while-revalidate=86400' })],
     ['GET', '/api/v1/portal/admin-keys', portal.listAdminKeys],
     ['POST', '/api/v1/portal/admin-keys', portal.createAdminKey],
     ['POST', '/api/v1/portal/admin-keys/revoke', portal.revokeAdminKey],
@@ -272,7 +285,12 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
       const u = url(req);
       const method = req.method ?? 'GET';
       // one client hammering one instance; the costly paths also have shared limits in the database
-      if (u.pathname.startsWith('/api/') && limits.burst(req, 900, 60e3)) { json(res, 429, { error: 'rate_limited', message: 'Too many requests. Slow down.' }); return; }
+      // Before any database work: one browser (600/min, writes 240/min) and one address (3000/min, a class behind one
+      // NAT fits) per instance. Load tests on public pages and static files never get here (edge cache, CDN).
+      const write = method !== 'GET' && method !== 'HEAD';
+      if (limits.burst(req, 600, 60e3, 'device', 'all') || (write && limits.burst(req, 240, 60e3, 'device', 'write')) || limits.burst(req, 3000, 60e3, 'ip', 'ip')) {
+        json(res, 429, { error: 'rate_limited', message: 'Too many requests. Slow down and try again in a minute.' }, { 'Retry-After': '60' }); return;
+      }
       const route = routes.find(([m, p]) => m === method && p === u.pathname);
       if (route) { await route[2](req, res); return; }
       if (u.pathname === '/api/v1/manage' || u.pathname.startsWith('/api/v1/manage/')) { await portal.manage(req, res); return; }

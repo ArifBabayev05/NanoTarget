@@ -152,7 +152,7 @@ export function policyRoutes(engine: OneHuman, deps: Deps) {
     json(res, 200, { ok: true, noted: list.length });
   };
 
-  const publicKeys = async (_req: Req, res: Res) => json(res, 200, { keys: [signer.jwk] });
+  const publicKeys = async (_req: Req, res: Res) => json(res, 200, { keys: [signer.jwk] }, { 'Cache-Control': 'public, max-age=60, s-maxage=600, stale-while-revalidate=86400' });
 
   // ---------------------------------------------------------------- for the portal page
   async function owned(req: Req, res: Res, keyId: string): Promise<string | null> {
