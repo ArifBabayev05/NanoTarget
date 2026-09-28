@@ -7,7 +7,7 @@
  */
 import { createServer, type Server } from 'node:http';
 import { createHash, createPrivateKey, hkdfSync, randomBytes, timingSafeEqual } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { APPS, publicApp } from './apps.ts';
 import { Store } from './db.ts';
@@ -117,7 +117,9 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     html = html.replace('<head>', `<head>\n${tags}`);
     if (cached) html = html.replace('</head>', '<script src="/v.js" defer></script>\n</head>');
     const body = Buffer.from(html, 'utf8');
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': body.length, 'Cache-Control': cached ? EDGE : 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': CSP, ...headers });
+    // only the public pages are for search engines; demo rooms, the portal and lab pages are not content
+    const robots = cached ? {} : { 'X-Robots-Tag': 'noindex, nofollow' };
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': body.length, 'Cache-Control': cached ? EDGE : 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': CSP, ...robots, ...headers });
     res.end(body);
   }
 
@@ -155,6 +157,18 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     await page(res, 'dashboard.html', { 'oh-app': (await store.roomApp(room)) ?? 'bank', 'oh-serverless': serverless ? '1' : '0' });
   };
 
+  /** Sitemap of the public pages; lastmod is when the page file last changed (on Vercel: the deploy). */
+  const SITEMAP: Array<[string, string, string]> = [['/', 'index.html', '1.0'], ['/docs', 'docs.html', '0.9'], ['/scorecard', 'scorecard.html', '0.8'], ['/measurements', 'measurements.html', '0.7'], ['/trust', 'trust.html', '0.7']];
+  const sitemap = async (_req: Req, res: Res) => {
+    const rows = await Promise.all(SITEMAP.map(async ([path, file, priority]) => {
+      const mod = await stat(join(WEB, file)).then((s) => s.mtime.toISOString().slice(0, 10), () => new Date().toISOString().slice(0, 10));
+      return `  <url><loc>https://onehuman.ai${path}</loc><lastmod>${mod}</lastmod><priority>${priority}</priority></url>`;
+    }));
+    const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${rows.join('\n')}\n</urlset>\n`;
+    res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': EDGE });
+    res.end(body);
+  };
+
   const appsApi = async (_req: Req, res: Res) => json(res, 200, { apps: Object.values(APPS).map(publicApp) }, { 'Cache-Control': 'public, max-age=60, s-maxage=600, stale-while-revalidate=86400' });
 
   type RouteHandler = (req: Req, res: Res) => void | Promise<void>;
@@ -183,6 +197,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
 
   const routes: [string, string, RouteHandler][] = [
     ['GET', '/', landing],
+    ['GET', '/sitemap.xml', sitemap],
     ['GET', '/bank', appPage('bank')],
     ['GET', '/crm', appPage('crm')],
     ['GET', '/insurance', appPage('insurance')],

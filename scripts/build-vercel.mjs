@@ -24,7 +24,7 @@ console.log('built api/index.js (esm)');
 // Static files go to Vercel's CDN (public/ is served before the function), so page assets never start the function
 // and a flood of asset requests costs nothing. Pages stay in the function (they carry session ids, headers, access
 // checks); the operators' view (ops.*) is never public.
-const STATIC = /\.(css|js|svg|png|ico|webp|jpg|woff2?)$/;
+const STATIC = /\.(css|js|svg|png|ico|webp|jpg|woff2?|txt|webmanifest)$/;
 mkdirSync('public/sdk', { recursive: true });
 let n = 0;
 for (const f of readdirSync('web')) if (STATIC.test(f) && !f.startsWith('ops.')) { cpSync(`web/${f}`, `public/${f}`); n++; }
