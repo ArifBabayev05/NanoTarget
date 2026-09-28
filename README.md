@@ -3,115 +3,128 @@
 </p>
 <h1 align="center">OneHuman</h1>
 <p align="center">
-  Session-level control over AI browser agents.<br>
-  Detect the moment an agent attaches to a signed-in session, decide per endpoint what it may see, and let the person take the session back.
+  <b>Let AI agents act for your customers, with proof a human agreed.</b><br>
+  OneHuman sees when an AI agent is working inside a signed-in session, decides per endpoint what it may see or do,<br>and signs every decision on your own server.
 </p>
 <p align="center">
   <a href="https://www.npmjs.com/package/onehumanai"><img alt="npm" src="https://img.shields.io/npm/v/onehumanai?color=3ddc84&label=npm"></a>
   <a href="https://github.com/OneHumanAI/onehumanai/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/OneHumanAI/onehumanai/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="Apache-2.0 SDK, BUSL-1.1 engine" src="https://img.shields.io/badge/license-Apache--2.0%20SDK%20%C2%B7%20BUSL--1.1%20engine-blue"></a>
-  <a href="https://onehuman.ai"><img alt="demo" src="https://img.shields.io/badge/live-demo-0f8a4b"></a>
+  <a href="https://onehuman.ai"><img alt="live demo" src="https://img.shields.io/badge/live-demo-0f8a4b"></a>
+</p>
+<p align="center">
+  <a href="https://onehuman.ai"><b>Live demo</b></a> ·
+  <a href="https://onehuman.ai/docs">Docs</a> ·
+  <a href="QUICKSTART.md">60-second overview</a> ·
+  <a href="https://onehuman.ai/measurements">How we measured</a> ·
+  <a href="https://onehuman.ai/portal">Portal</a>
+</p>
+
+<p align="center">
+  <a href="docs/media/onehumanai.mp4"><img src="docs/media/demo.gif" width="820" alt="OneHuman: an AI agent opens a bank account page, the balance is hidden and the statement download is refused; the portal shows every agent session"></a><br>
+  <sub>▶ <a href="docs/media/onehumanai.mp4">Watch the full 74-second video with sound</a></sub>
 </p>
 
 ---
 
-> **Security engineer? Read [QUICKSTART.md](QUICKSTART.md) first** — what it does, what it collects, how it fails and how to install it, in one screen. The long protocol below is written for AI coding agents.
+## Why this?
 
-Customers now hand their signed-in banking, CRM and insurance sessions to Claude, ChatGPT, Codex and other agentic browsers. The agent inherits the session — same cookies, same IP, same browser — and nothing on the server can tell. Bot management stops bots at the door; enterprise browser tools watch employees. Neither sees the agent a legitimate customer invited into their own session.
+People now let AI agents use their bank, their CRM and their insurer for them: Claude in Chrome, ChatGPT Atlas, Codex, Comet. The agent works **inside the person's signed-in session**. Same cookies, same IP, same browser. To your server, the agent *is* the customer.
 
-OneHuman works inside the session:
+That breaks three things:
 
-- **Attach-time detection** — agent-tool markers, injected globals, evaluated-script reads, focus emulation and Web Bot Auth signatures are seen before the agent's first action (measured 0.1–0.5 s for Claude in Chrome, 0.14 s for Codex).
-- **Pointer physics per click** — a hand's path is curved, its tremor grows with speed and comes in bursts, it slows onto the target and holds 83–225 ms; drivers teleport and release in 1–4 ms; generated curves are parabola-clean. Measured on our own set: 397 human clicks from 22 browsers and devices, 2 read as a program; 824 agent clicks, 2 read as human. Not an independent study — method and limits: https://onehuman.ai/measurements
-- **Per-endpoint policy** — `allow · mask · step_up · block`, in your JSON; masking in your code; decisions on your server.
-- **Seal on attach** — data already on screen is redacted in the browser the instant an indicator appears.
-- **Passkey reclaim** — once an agent attached, the session stays "agent" until the person proves presence with WebAuthn (Touch ID) and takes it back.
+- **Data leaves.** Balances, customer lists and medical records flow into a third-party model and its logs.
+- **Actions happen by mistake.** A misread page or a prompt injection moves money, deletes records, changes settings.
+- **Nobody can say who did it.** Afterwards there is no record of whether the person acted or the agent did.
 
-Live demo: **https://onehuman.ai** · Package: **https://www.npmjs.com/package/onehumanai**
+Bot management stops bots at the door and MFA checks who logged in. Neither sees the agent a real customer invited into their own session. OneHuman works inside the session, at the endpoint that returns the data.
 
-## Install
+## What it does
+
+- **Sees the agent arrive.** Agent tools leave traces in the page. OneHuman notices them 0.1 to 0.5 s after an agent attaches, before its first action.
+- **Tells a hand from a program.** A person's pointer curves, trembles and slows onto the button. A driver jumps and clicks in 1 to 4 ms. On our own set: 397 human clicks from 22 browsers and devices, 2 read as a program ([method and limits](https://onehuman.ai/measurements)).
+- **Your rule per endpoint.** `allow`, `mask`, `step_up` or `block`, in a JSON file or the portal, decided on your server.
+- **Hides what is already on screen.** Values you mark are blurred in the browser the instant an agent appears.
+- **Proof a person agreed.** When an action needs a human, they confirm with a passkey (Touch ID, Windows Hello). Every decision is signed, and an auditor can check it offline without trusting us.
+
+## Quick start
 
 ```bash
-npx onehumanai init       # asks a few questions, installs the package with your package manager, wires it in
+npx onehumanai init
 ```
 
-Or install it yourself — Node ≥ 22.13 · Express 4/5, Connect, Next.js custom server, plain node:http:
+It reads your app, then asks three short questions: what to protect, whether to only watch first, and your portal key (optional). It shows every change before it writes anything. For Express it wires the code for you.
 
 ```bash
-npm i onehumanai          # pnpm add onehumanai · yarn add onehumanai · bun add onehumanai
-npx onehumanai scan .     # what an AI agent could reach in this codebase + a draft policy
+npm start
+npx onehumanai verify http://localhost:3000 /api/balance    # four checks, in seconds
 ```
 
-In a pnpm workspace use `pnpm add onehumanai`: npm cannot install into a `node_modules` that pnpm made (it stops with "Cannot read properties of null (reading 'matches')").
+Node 22.13 or newer. Express 4/5, Connect, a Next.js custom server or plain `node:http`. In a pnpm, yarn or bun project it uses your package manager. Prefer to wire it by hand? See the [docs](https://onehuman.ai/docs) or [QUICKSTART.md](QUICKSTART.md).
 
-One install: `npm i onehumanai`. The package holds the middleware, the browser SDK and the CLI (Apache-2.0) and the engine they run on (BUSL-1.1, production use granted) — you never import the engine yourself.
+## Try it in one minute
 
-```js
-import { onehuman } from 'onehumanai';
+1. Open the [live bank demo](https://onehuman.ai/bank) yourself and click around. Everything works.
+2. Open the same page with an AI agent (Claude in Chrome, ChatGPT Atlas, Comet) and ask it for the balance or the statement.
+3. Watch the balance get hidden and the download refused, while a person's own clicks still go through.
 
-const oh = await onehuman({
-  secret: process.env.ONEHUMAN_SECRET,
-  policy: './onehuman.policy.json',
-  db: 'sqlite:./onehuman.db',
-  identify: (req) => req.session?.userId ?? null,
-});
-app.use(oh.middleware());                                            // serves /onehuman/sdk.js + its API
-app.get('/api/balance', oh.protect('balance.read'), (req, res) => oh.send(req, res, balance, maskBalance));
-```
-
-```html
-<script src="/onehuman/sdk.js"></script>   <!-- call protected endpoints with OneHuman.fetch(url) -->
-```
-
-Integration is designed to be done by an AI coding agent: hand it the npm link and say "install this". The package README is its protocol — threat model, exposure map, decision matrix, mask design, nine decisions, verification. See [`docs/INTEGRATION.md`](docs/INTEGRATION.md) and [`docs/INTEGRATION-AGENT.md`](docs/INTEGRATION-AGENT.md).
+Found a way to fool it? [Open an issue](https://github.com/OneHumanAI/onehumanai/issues). Hard criticism is welcome.
 
 ## How it decides
 
 ```
-signals (untrusted, from the SDK) + server observations (trusted)
-    → assess()    tiers: verified · strong · control · behavioral · artifact
-    → evaluate()  your policy: onAgent / onArtifact / onUnknown / onHumanLike
-    → audit       hash-chained decision log
-    → response    allow | mask | 428 step-up | 403 block (+ passkey reclaim)
+signals from the page (untrusted) + what the server sees (trusted)
+    → assess()    evidence tiers: verified · strong · control · behavioral · artifact
+    → evaluate()  your rule: onAgent / onArtifact / onUnknown / onHumanLike
+    → audit       hash-chained, signed decision log
+    → response    allow | mask | 428 step-up | 403 block (+ passkey to take the session back)
 ```
 
-"Unknown" is a first-class outcome and is never treated as human. Environment traces (an AI app's built-in browser, an installed agent extension) never outweigh kinematic evidence of a hand. How we measured, and where it fails: https://onehuman.ai/measurements.
+"Unknown" is its own outcome and is never treated as human. If OneHuman is slow or fails, your app keeps working (it fails open, and says so in a header and in `/onehuman/health`).
+
+## What it does not do
+
+- **API keys and server calls.** No browser, no page: nothing to see. It protects signed-in web sessions.
+- **Native mobile apps.** Mobile browsers are covered; iOS and Android apps are not.
+- **Every custom script.** A program written to fake a person's clicks can pass the click check. That is why money-moving actions ask everyone for a passkey by default.
+- **Backends that are not Node.** Java, .NET, Go or Python need a small Node service in front, which is not shipped yet.
+
+## Roadmap
+
+- [x] Attach-time detection, screen seal, rules per endpoint
+- [x] Passkey confirmation and session reclaim
+- [x] Signed decision proofs and an offline verifier
+- [x] Portal: activity, rules in plain words, 30-day report
+- [x] One-command setup (`npx onehumanai init`)
+- [ ] Customers mark a decision right or wrong in the portal; the false-stop rate becomes a live number
+- [ ] Hosted agent-signature updates for self-hosted engines
+- [ ] Fastify and Next.js adapters
+- [ ] Touch layer for mobile browsers
+- [ ] Node sidecar for non-Node backends
 
 ## Repository
 
 | Path | What |
 | --- | --- |
-| `server/` | Engine: signals, assessment, kinematics + model, policy, audit, WebAuthn, Web Bot Auth, storage (sqlite / libSQL) |
-| `sdk/onehuman.js` | Browser SDK: attach-time probes, pointer trajectories, seal-on-attach |
-| `integrations/express/` | The `onehumanai` middleware |
-| `integrations/cli/` | `npx onehumanai scan | verify | secret` |
-| `packages/onehumanai/` | The published npm package `onehumanai` (built by `scripts/build-package.mjs`) |
-| `web/` | Landing, three demo applications, training lab, sandbox |
-| `scripts/` | Training, evaluation, adversarial generation, reports |
-| `tests/` | 105 tests (`npm test`) |
+| `server/` | Engine: signals, assessment, kinematics model, policy, audit, WebAuthn, Web Bot Auth, storage (sqlite / libSQL) |
+| `sdk/onehuman.js` | Browser SDK: attach-time probes, pointer trajectories, seal on attach |
+| `integrations/express/` | The middleware in `onehumanai` |
+| `integrations/cli/` | `npx onehumanai init · verify · scan · inspect · report` |
+| `packages/onehumanai/` | The published npm package |
+| `web/` | Landing page, three demo apps, portal |
+| `tests/` | 179 tests (`npm test`) |
 | `docs/` | Integration guides, deploy and release notes |
-
-## Development
 
 ```bash
 npm install
 npm run dev            # http://localhost:8787
 npm run check          # typecheck + tests
-npm run eval           # regenerate the evaluation report (internal/docs/EVAL.md) from the sample store
 npm run build:package  # packages/onehumanai/dist
 ```
 
-The engine has no runtime dependencies beyond Node. `@libsql/client` is optional (Turso/serverless storage).
-
-## Threat model and limits
-
-- Detects agents operating **inside the browser session** (extensions, in-app browsers, driver-based bots). It does not cover server-to-server API keys, mobile apps without the SDK, or a person deliberately relaying data by hand.
-- Pointer physics is an arms race. Generated and noise-dressed curves are caught today; a bot replaying a recorded human trajectory with a plausible press is not distinguishable per click — the session layers (attach markers, read traps, signatures) and per-tenant trajectory reuse detection are the answer there. This is stated in the research log, not hidden.
-- Touch input is currently informative only: no agent-touch baseline exists yet, so touch clicks are never treated as human evidence.
-
 ## Contributing
 
-Issues and pull requests are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md). Security reports: [`SECURITY.md`](SECURITY.md).
+Issues and pull requests are welcome, see [`CONTRIBUTING.md`](CONTRIBUTING.md). Security reports: [`SECURITY.md`](SECURITY.md). If OneHuman is useful to you, a ⭐ helps other developers find it.
 
 ## License
 
@@ -119,7 +132,7 @@ OneHuman is licensed in two parts. © 2026 Arif Babayev.
 
 | Part | Licence | What it means for you |
 | --- | --- | --- |
-| Browser SDK, Express middleware, CLI, proof verifier — in `onehumanai`: the middleware, `onehumanai/sdk`, `npx onehumanai` | [Apache 2.0](LICENSE-APACHE) | Use, modify and ship it anywhere, including closed-source products. Patent grant included. |
-| Engine, portal, tooling — `dist/engine.js` in `onehumanai`, and the rest of this repository | [Business Source License 1.1](LICENSE-BSL) | **Production use is granted**, including protecting your own apps and the services you give your customers. Not granted: offering OneHuman itself to others as a competing hosted or embedded product. Each version becomes Apache 2.0 four years after release. |
+| Browser SDK, Express middleware, CLI, proof verifier | [Apache 2.0](LICENSE-APACHE) | Use, change and ship it anywhere, including closed-source products. Patent grant included. |
+| Engine (`dist/engine.js` in `onehumanai`), portal, tooling | [Business Source License 1.1](LICENSE-BSL) | **Production use is granted**, including protecting your own apps and the services you give your customers. Not granted: offering OneHuman itself to others as a competing hosted or embedded product. Each version becomes Apache 2.0 four years after release. |
 
-Versions before 0.4.0 were published under MIT and stay available under it. Contributions need the one-line [CLA](CLA.md). Alternative licensing: see [SECURITY.md](SECURITY.md) for the contact.
+Versions before 0.4.0 were published under MIT and stay available under it. Contributions need the one-line [CLA](CLA.md).
