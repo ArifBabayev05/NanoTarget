@@ -157,11 +157,11 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     await page(res, 'dashboard.html', { 'oh-app': (await store.roomApp(room)) ?? 'bank', 'oh-serverless': serverless ? '1' : '0' });
   };
 
-  /** Sitemap of the public pages; lastmod is when the page file last changed (on Vercel: the deploy). */
+  /** Sitemap of the public pages; lastmod is the deploy date on Vercel, the file's change date locally. */
   const SITEMAP: Array<[string, string, string]> = [['/', 'index.html', '1.0'], ['/docs', 'docs.html', '0.9'], ['/scorecard', 'scorecard.html', '0.8'], ['/measurements', 'measurements.html', '0.7'], ['/trust', 'trust.html', '0.7']];
   const sitemap = async (_req: Req, res: Res) => {
     const rows = await Promise.all(SITEMAP.map(async ([path, file, priority]) => {
-      const mod = await stat(join(WEB, file)).then((s) => s.mtime.toISOString().slice(0, 10), () => new Date().toISOString().slice(0, 10));
+      const mod = process.env.ONEHUMAN_BUILT_AT ?? (await stat(join(WEB, file)).then((s) => s.mtime.toISOString().slice(0, 10), () => new Date().toISOString().slice(0, 10)));
       return `  <url><loc>https://onehuman.ai${path}</loc><lastmod>${mod}</lastmod><priority>${priority}</priority></url>`;
     }));
     const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${rows.join('\n')}\n</urlset>\n`;
