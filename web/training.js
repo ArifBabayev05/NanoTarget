@@ -70,7 +70,7 @@
     const el = e.target instanceof Element ? e.target.closest('button, a, input, select, textarea, label, .card-tile, .tiny, .target, [role="button"]') : null;
     const r = el ? el.getBoundingClientRect() : null;
     const click = {
-      trusted: e.isTrusted, pointer: e.pointerType || (down && down.pointer) || '', detail: Math.min(10, e.detail),
+      trusted: e.isTrusted, pointer: (down && down.pointer) || e.pointerType || '', detail: Math.min(10, e.detail),
       holdMs: down ? Math.round(t - down.t) : null, moves: p.length, path: Math.round(path), travelMs: p.length > 1 ? Math.round(p[p.length - 1].t - p[0].t) : 0,
       pressure: down ? down.pressure : null, hidden: down ? down.hidden : document.visibilityState === 'hidden',
       traj: p.map((q) => [Math.round((q.t - t) * 10) / 10, Math.round(q.x), Math.round(q.y)]),
@@ -164,7 +164,9 @@
     $('#who').hidden = true; $('#run').hidden = false;
     if (label === 'agent') $('#source').innerHTML = `<option value="${isAgentApp ? 'agent-app-browser' : 'agent-chrome'}">${isAgentApp ? 'AI tətbiqinin brauzeri' : 'Chrome (genişləndirmə)'}</option>`;
     else if (isAgentApp) $('#source').value = 'claude-pane-human';
-    else if (navigator.maxTouchPoints > 1 && /Android|iPhone|iPad/i.test(navigator.userAgent)) $('#source').value = 'touch';
+    else if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) $('#source').value = /CriOS/i.test(navigator.userAgent) ? 'iphone-chrome' : 'iphone-safari';
+    else if (/Android/i.test(navigator.userAgent)) $('#source').value = 'android-touch';
+    else if (navigator.maxTouchPoints > 1) $('#source').value = 'touch';
     else if (/Windows/i.test(navigator.userAgent)) $('#source').value = 'windows-mouse';
     else if (/Firefox/i.test(navigator.userAgent)) $('#source').value = 'firefox';
     else if (/Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent)) $('#source').value = 'safari';

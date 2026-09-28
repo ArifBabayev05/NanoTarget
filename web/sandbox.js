@@ -56,7 +56,7 @@
     for (let i = 1; i < p.length; i++) path += Math.hypot(p[i].x - p[i - 1].x, p[i].y - p[i - 1].y);
     const r = el.getBoundingClientRect();
     const click = {
-      trusted: e.isTrusted, pointer: e.pointerType || (down && down.pointer) || '', detail: Math.min(10, e.detail),
+      trusted: e.isTrusted, pointer: (down && down.pointer) || e.pointerType || '', detail: Math.min(10, e.detail),
       holdMs: down ? Math.round(t - down.t) : null, moves: p.length, path: Math.round(path),
       travelMs: p.length > 1 ? Math.round(p[p.length - 1].t - p[0].t) : 0,
       pressure: down ? down.pressure : null, hidden: down ? down.hidden : document.visibilityState === 'hidden',
