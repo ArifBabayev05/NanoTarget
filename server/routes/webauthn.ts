@@ -63,13 +63,16 @@ export function webauthnRoutes(engine: OneHuman) {
     if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
     const r = await engine.resolveSession(req);
     if (!r) return json(res, 401, { error: 'no_session' });
-    const body = (await readJson(req, 2000)) as { resource?: unknown } | null | undefined;
+    const body = (await readJson(req, 2000)) as { resource?: unknown; purpose?: unknown } | null | undefined;
     const resource = body && typeof body.resource === 'string' && /^[a-z][a-z0-9_.]{1,60}$/.test(body.resource) ? body.resource : null;
+    // 'approve': the person approves one action an AI agent asked for; the session stays the agent's.
+    // Default ('reclaim'): the person takes the whole session back for a few minutes.
+    const approve = body?.purpose === 'approve' && resource !== null;
     const creds = await store.credentialsForRoom<StoredCredential>(r.room);
     if (!creds.length) return json(res, 404, { error: 'no_credentials', message: 'Bu otaqda passkey qeydiyyatı yoxdur.' });
     const { rpId } = rpFromUrl(url(req));
     const challenge = newChallenge();
-    await store.createChallenge(challenge, r.session.id, 'assert', resource, CHALLENGE_TTL_MS);
+    await store.createChallenge(challenge, r.session.id, approve ? 'approve' : 'assert', resource, CHALLENGE_TTL_MS);
     json(res, 200, { challengeId: challenge, publicKey: { challenge, rpId, allowCredentials: creds.map((c) => ({ type: 'public-key', id: c.id })), userVerification: 'required', timeout: CHALLENGE_TTL_MS } });
   };
 
@@ -79,7 +82,7 @@ export function webauthnRoutes(engine: OneHuman) {
     if (!r) return json(res, 401, { error: 'no_session' });
     const body = (await readJson(req, 64000)) as Record<string, unknown> | null | undefined;
     if (!body || typeof body.challengeId !== 'string' || typeof body.id !== 'string' || typeof body.clientDataJSON !== 'string' || typeof body.authenticatorData !== 'string' || typeof body.signature !== 'string') return json(res, 400, { error: 'bad_request' });
-    const ch = await store.consumeChallenge(body.challengeId, r.session.id, 'assert');
+    const ch = await store.consumeChallenge(body.challengeId, r.session.id, ['assert', 'approve']);
     if (!ch) return json(res, 400, { error: 'challenge', message: 'Təsdiq sorğusu tapılmadı və ya vaxtı bitib.' });
     const cred = await store.getCredential<StoredCredential>(body.id);
     if (!cred) return json(res, 404, { error: 'unknown_credential' });
@@ -89,11 +92,14 @@ export function webauthnRoutes(engine: OneHuman) {
     cred.signCount = result.newSignCount;
     await store.updateCredential(cred);
     const now = Date.now();
-    await store.markHumanVerified(r.session.id, now);
+    const approval = ch.kind === 'approve';
+    // an approval grants that one action; only a reclaim marks the whole session as the person's
+    if (!approval) await store.markHumanVerified(r.session.id, now);
     if (ch.resource) await store.grantStepUp(r.session.id, ch.resource, STEP_UP_TTL_MS, now);
-    await store.addEvent(r.room, r.session.id, 'attach', { state: 'human_verified', atMs: null, evidence: [{ code: 'HUMAN_VERIFIED_WEBAUTHN', atMs: 0, detail: `credential ${cred.id.slice(0, 8)}…, UV=true` }], tools: [], version: 'webauthn-v1' }, now);
+    if (!approval) await store.addEvent(r.room, r.session.id, 'attach', { state: 'human_verified', atMs: null, evidence: [{ code: 'HUMAN_VERIFIED_WEBAUTHN', atMs: 0, detail: `credential ${cred.id.slice(0, 8)}…, UV=true` }], tools: [], version: 'webauthn-v1' }, now);
     bus.publish({ type: 'decision', room: r.room, session: r.session.id, at: now, id: `webauthn-${now}`, resource: ch.resource ?? 'session.reclaim', decision: 'allow', actor: 'human_like', reasonCodes: ['HUMAN_VERIFIED_WEBAUTHN'] });
-    json(res, 200, { ok: true, humanVerifiedAt: now, validForMs: HUMAN_RECLAIM_TTL_MS, reclaim: { until: now + HUMAN_RECLAIM_TTL_MS }, granted: ch.resource, message: ch.resource ? 'Təsdiq qəbul edildi. Əməliyyatı bir dəfə təkrar et.' : 'Sessiya insan tərəfindən geri alındı.' });
+    if (approval) return json(res, 200, { ok: true, approved: ch.resource, message: 'Approved once. Repeat the action.' });
+    json(res, 200, { ok: true, humanVerifiedAt: now, validForMs: HUMAN_RECLAIM_TTL_MS, reclaim: { until: now + HUMAN_RECLAIM_TTL_MS }, granted: ch.resource, message: ch.resource ? 'Confirmed. Repeat the action once.' : 'The session is yours again.' });
   };
 
   const status = async (req: Req, res: Res) => {

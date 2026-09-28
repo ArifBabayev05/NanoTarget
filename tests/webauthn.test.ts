@@ -10,6 +10,7 @@ import { createHash, generateKeyPairSync, sign, type KeyObject } from 'node:cryp
 import type { AddressInfo } from 'node:net';
 import { verifyAssertion, verifyRegistration, type StoredCredential } from '../server/webauthn.ts';
 import { createApp } from '../server/app.ts';
+import { pinStrictPolicy } from './strict-policy.ts';
 
 const b64u = (b: Buffer | string) => Buffer.from(b).toString('base64url');
 
@@ -96,6 +97,7 @@ let base = '';
 let app: Awaited<ReturnType<typeof createApp>>;
 before(async () => {
   app = await createApp({ labOperator: false });
+  pinStrictPolicy(app);
   await new Promise<void>((r) => app.server.listen(0, '127.0.0.1', () => r()));
   base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
 });
@@ -169,4 +171,40 @@ test('reclaim expires: after HUMAN_RECLAIM_TTL the sticky agent evidence applies
   const codes = (await r.json()).decision.reasonCodes;
   assert.ok(codes.includes('AGENT_ATTACHED_EARLIER'), codes.join(','));
   assert.ok(!codes.includes('HUMAN_VERIFIED_WEBAUTHN'));
+});
+
+test('an AI agent asks, the person approves: no code for the agent, one passkey approval opens one action, the session stays the agent\'s', async () => {
+  const s = await open('human');
+  const rp = { rpId: '127.0.0.1', origin: base };
+  const auth = new SoftAuthenticator();
+  const ro = await (await fetch(`${base}/api/v1/webauthn/register/options${s.q}`, { method: 'POST', headers: s.h, body: '{}' })).json();
+  assert.equal((await fetch(`${base}/api/v1/webauthn/register${s.q}`, { method: 'POST', headers: s.h, body: JSON.stringify({ challengeId: ro.challengeId, id: b64u(auth.credId), ...auth.register(ro.challengeId, rp.origin, rp.rpId) }) })).status, 201);
+  // this room's rules: a transfer by an agent needs the person's approval
+  const rule = { resource: 'transfer.create', title: 'Transfers', onAgent: 'step_up', onArtifact: 'step_up', onUnknown: 'step_up', onHumanLike: 'allow', actOn: ['verified', 'strong', 'control', 'behavioral'], minScore: 65 };
+  assert.equal((await fetch(`${base}/api/v1/policy${s.q}`, { method: 'PUT', headers: s.h, body: JSON.stringify({ enforcement: 'enforce', rules: [rule, { ...rule, resource: 'balance.read', onAgent: 'block' }] }) })).status, 200);
+  await fetch(`${base}/api/v1/signals${s.q}`, { method: 'POST', headers: s.h, body: JSON.stringify({ early: { ...earlyBase, markers: [{ name: 'claude-stop', atMs: 900 }] }, interaction: null }) });
+
+  const ask = await fetch(`${base}/api/v1/r/transfer.create${s.q}&f.amount=250`, { method: 'POST', headers: s.h });
+  assert.equal(ask.status, 428);
+  const { stepUp } = await ask.json();
+  assert.equal(stepUp.approve, true);
+  assert.equal(stepUp.challenge, '', 'the page an agent reads never carries the code');
+  // typing any code is refused: only a passkey approves an agent's request
+  const typed = await fetch(`${base}/api/v1/step-up${s.q}`, { method: 'POST', headers: s.h, body: JSON.stringify({ id: stepUp.id, answer: 'ABC123' }) });
+  assert.equal(typed.status, 403);
+  assert.equal((await typed.json()).error, 'passkey_required');
+
+  const ao = await (await fetch(`${base}/api/v1/webauthn/assert/options${s.q}`, { method: 'POST', headers: s.h, body: JSON.stringify({ resource: 'transfer.create', purpose: 'approve' }) })).json();
+  const ok = await fetch(`${base}/api/v1/webauthn/assert${s.q}`, { method: 'POST', headers: s.h, body: JSON.stringify({ challengeId: ao.challengeId, ...auth.assert(ao.challengeId, rp.origin, rp.rpId) }) });
+  assert.equal(ok.status, 200);
+  assert.equal((await ok.json()).approved, 'transfer.create');
+
+  const once = await fetch(`${base}/api/v1/r/transfer.create${s.q}&f.amount=250`, { method: 'POST', headers: s.h });
+  assert.equal(once.status, 200);
+  assert.ok((await once.json()).decision.reasonCodes.includes('STEP_UP_PASSED'));
+  // one approval, one action; and the session was not handed back: other resources still see the agent
+  assert.equal((await fetch(`${base}/api/v1/r/transfer.create${s.q}&f.amount=250`, { method: 'POST', headers: s.h })).status, 428);
+  assert.equal((await fetch(`${base}/api/v1/r/balance.read${s.q}`, { headers: s.h })).status, 403);
+  const st = await (await fetch(`${base}/api/v1/webauthn/status${s.q}`, { headers: { cookie: s.cookie } })).json();
+  assert.equal(st.humanVerifiedAt, null);
 });
