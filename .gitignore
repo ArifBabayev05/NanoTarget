@@ -36,3 +36,8 @@ memory-wal
 public/*
 !public/robots.txt
 !public/.keep
+__pycache__/
+*.pyc
+packages/python/build/
+packages/python/dist/
+packages/python/*.egg-info/
