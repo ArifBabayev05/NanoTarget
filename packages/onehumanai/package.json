@@ -1,7 +1,7 @@
 {
   "name": "onehumanai",
   "version": "0.6.5",
-  "description": "When a customer sends an AI agent (Claude in Chrome, ChatGPT agent, Codex, Comet, Playwright…) into your product, decide what it may do on their behalf — allow · mask · step-up · block, per endpoint, on your own server — and keep a signed proof that a human agreed. One package: Express/Connect middleware, browser SDK, engine and CLI. `npm i onehumanai`, then `npx onehumanai init`. AI coding agents: the README is your integration protocol.",
+  "description": "Detect AI agents (Claude in Chrome, ChatGPT agent, Codex, Comet, Playwright) inside signed-in sessions and decide per endpoint: allow, mask, passkey or block, with a signed proof a human agreed. Node.js middleware + browser SDK. npx onehumanai init",
   "type": "module",
   "license": "(Apache-2.0 AND BUSL-1.1)",
   "engines": {
@@ -54,7 +54,21 @@
     "ai-browser-agent",
     "decision-proof",
     "audit",
-    "onehuman"
+    "onehuman",
+    "ai-agent-detection",
+    "detect-ai-agents",
+    "claude-in-chrome",
+    "chatgpt-atlas",
+    "perplexity-comet",
+    "openai-codex",
+    "playwright-detection",
+    "puppeteer-detection",
+    "human-verification",
+    "bot-protection",
+    "nextjs",
+    "nodejs",
+    "access-control",
+    "llm-security"
   ],
   "peerDependencies": {
     "express": ">=4"
