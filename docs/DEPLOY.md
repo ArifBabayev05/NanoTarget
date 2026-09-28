@@ -31,7 +31,7 @@ npx vercel deploy --prod --yes
 
 - Otaq linki publikdir, dashboard-da auth yoxdur (MVP). Sintetik məlumat.
 - WebAuthn RP id = host (`onehuman.ai`); passkey bu domenə bağlıdır.
-- Hobby plan: funksiya 30 s limit, soyuq start ~0.5–1 s.
+- Hobby plan: funksiya 15 s limit (vercel.json), soyuq start ~0.5–1 s.
 
 ## Yüklənmə və DDoS
 
