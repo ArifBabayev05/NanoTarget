@@ -81,7 +81,7 @@
     }
     if (io) io.observe(cv); else requestAnimationFrame(frame);
   })();
-  // "Decide what they can see.": the verb cycles through what the policy actually governs
+  // "Decide what they can see.": the verb cycles through what the policy actually controls
   (function rotator() {
     const rot = $('#rot'); if (!rot) return;
     const words = $$('span', rot); let i = 0;

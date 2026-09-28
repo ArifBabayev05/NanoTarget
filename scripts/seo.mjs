@@ -14,15 +14,15 @@ const SAME_AS = ['https://github.com/OneHumanAI/onehumanai', 'https://github.com
 const PAGES = [
   {
     file: 'index.html', path: '/',
-    title: 'OneHuman · Govern the AI agents your customers bring',
+    title: 'OneHuman · Control the AI agents your customers bring',
     description: 'OneHuman detects AI agents like Claude in Chrome, ChatGPT agent and Codex inside signed-in sessions, hides private data, waits for the owner\'s passkey on payments and exports, and signs every decision.',
-    og: 'Govern the AI agents your customers bring. Prove what a person approved.',
+    og: 'Control the AI agents your customers bring. Prove what a person approved.',
     faq: '<section class="faq"',
     extra: () => [{
       '@type': 'SoftwareApplication', '@id': `${SITE}/#software`, name: 'OneHuman', url: `${SITE}/`,
       applicationCategory: 'SecurityApplication', applicationSubCategory: 'AI agent detection and access control',
       operatingSystem: 'Node.js 22.13 or newer', softwareVersion: pkg.version, image: IMAGE,
-      description: 'Governs the AI agents customers bring into a web app: Node.js middleware and browser SDK that detects an AI browser agent inside a signed-in session and decides per endpoint whether to allow it, hide private fields, wait for the account owner\'s passkey approval, or keep it closed, with a signed proof of every decision.',
+      description: 'Controls the AI agents customers bring into a web app: Node.js middleware and browser SDK that detects an AI browser agent inside a signed-in session and decides per endpoint whether to allow it, hide private fields, wait for the account owner\'s passkey approval, or keep it closed, with a signed proof of every decision.',
       featureList: ['Detects AI browser agents (Claude in Chrome, ChatGPT agent, OpenAI Codex, Perplexity Comet, Playwright, Puppeteer) inside a signed-in session', 'Per-click check that tells a human hand from a program', 'Per-endpoint policy: allow, hide private fields, wait for the owner\'s passkey approval, never share', 'Redacts sensitive data on screen the moment an agent attaches', 'Ed25519-signed proof of every decision, verifiable offline',
         'Only the account owner\'s passkey approves an action an agent asked for; the agent cannot complete that step', 'Web Bot Auth signature verification', 'Runs on your own server; one-command setup with npx onehumanai init'],
       downloadUrl: 'https://www.npmjs.com/package/onehumanai', installUrl: 'https://www.npmjs.com/package/onehumanai',

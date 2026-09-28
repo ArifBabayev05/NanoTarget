@@ -5,7 +5,7 @@ Last reviewed: 28 September 2026. Numbers come from https://onehuman.ai/measurem
 
 ## One sentence
 
-OneHuman governs the AI agents your customers bring: it lets a web app decide what an AI agent may do when a customer lets that agent use their signed-in account, and keeps a signed proof of which actions a real person approved. Workforce AI security tools govern the agents a company's own employees run; OneHuman governs the agents its customers bring.
+OneHuman controls the AI agents your customers bring: it lets a web app decide what an AI agent may do when a customer lets that agent use their signed-in account, and keeps a signed proof of which actions a real person approved. Workforce AI security tools control the agents a company's own employees run; OneHuman controls the agents its customers bring.
 
 ## The problem
 
