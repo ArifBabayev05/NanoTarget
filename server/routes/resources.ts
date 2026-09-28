@@ -41,7 +41,7 @@ export function resourceRoutes(engine: OneHuman) {
       const resolved = (await engine.resolveSession(req))!;
       const t = url(req).searchParams.get('t') ?? '';
       const check = await engine.redeemToken(t, resolved.session.id, def.id);
-      if (!check.ok) { json(res, 403, { error: 'token_rejected', reason: check.reason, message: 'Endirmə linki etibarsızdır, vaxtı bitib və ya artıq istifadə olunub.' }); return true; }
+      if (!check.ok) { json(res, 403, { error: 'token_rejected', reason: check.reason, message: 'The download link is invalid, expired or already used.' }); return true; }
       const out = def.file(resolved.session.id);
       res.writeHead(200, { 'Content-Type': out.mime, 'Content-Disposition': `attachment; filename="${out.filename}"`, 'Cache-Control': 'no-store', 'X-OH-Decision': check.claims.decisionId });
       res.end(out.body);
@@ -50,12 +50,16 @@ export function resourceRoutes(engine: OneHuman) {
     if (req.method !== def.method) { json(res, 405, { error: 'method', expected: def.method }); return true; }
     await engine.protect(def.id, (rq, rs, ctx) => {
       if (def.view === 'download') {
-        if (ctx.masked) { json(rs, 200, { view: def.view, downloadUrl: null, masked: true, decision: publicDecision(ctx.decision), assessment: ctx.assessment, message: 'Bu qaydada ixrac maskalanmış rejimdə mövcud deyil.' }); return; }
+        if (ctx.masked) { json(rs, 200, { view: def.view, downloadUrl: null, masked: true, decision: publicDecision(ctx.decision), assessment: ctx.assessment, message: 'Export is not available while data is masked.' }); return; }
         json(rs, 200, { view: def.view, downloadUrl: `/api/v1/r/${def.id}/file?t=${encodeURIComponent(ctx.token())}`, expiresInMs: 30000, decision: publicDecision(ctx.decision), assessment: ctx.assessment });
         return;
       }
-      const q = (url(rq).searchParams.get('q') ?? '').slice(0, 80);
-      const data = def.data(ctx.session.id, q);
+      const params = url(rq).searchParams;
+      const q = (params.get('q') ?? '').slice(0, 80);
+      // form fields of a write action arrive as f.<name>; only the ones the resource declares, each short
+      const fields: Record<string, string> = {};
+      for (const f of def.fields ?? []) fields[f.name] = (params.get(`f.${f.name}`) ?? '').slice(0, 80);
+      const data = def.data(ctx.session.id, q, fields);
       json(rs, 200, { view: def.view, data: ctx.masked ? data.masked : data.full, masked: ctx.masked, query: q, decision: publicDecision(ctx.decision), assessment: ctx.assessment });
     })(req, res);
     return true;

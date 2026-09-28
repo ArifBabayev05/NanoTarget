@@ -52,7 +52,7 @@ export type DecideResult = {
   assessment: Assessment;
   server: ServerSignal;
   /** `webauthn`: a passkey is registered, the client should prefer the WebAuthn path; `reclaim`: the session is blocked as agent and only WebAuthn can reopen it */
-  stepUp: { id: string; challenge: string; expiresAt: number; webauthn?: boolean; reclaim?: boolean } | null;
+  stepUp: { id: string; challenge: string; expiresAt: number; webauthn?: boolean; reclaim?: boolean; approve?: boolean } | null;
 };
 
 export type ProtectContext = {
@@ -227,9 +227,15 @@ export class OneHuman {
       if (await this.store.consumeStepUpGrant(input.session.id, input.resource, now)) {
         decision = { ...decision, decision: 'allow', reasonCodes: [...decision.reasonCodes, 'STEP_UP_PASSED'] };
       } else if (decision.decision === 'step_up') {
+        const agentBranch = decision.branch === 'agent';
         const challenge = randomBytes(3).toString('hex').toUpperCase();
-        const id = await this.store.createStepUp(input.session.id, input.resource, challenge, STEP_UP_TTL_MS, now);
-        stepUp = { id, challenge, expiresAt: now + STEP_UP_TTL_MS, webauthn: (await this.store.credentialsForRoom(input.room)).length > 0 };
+        // an approval step-up is stored with a marker the code path refuses: a passkey is the only way through
+        const id = await this.store.createStepUp(input.session.id, input.resource, agentBranch ? `P:${randomBytes(12).toString('hex')}` : challenge, STEP_UP_TTL_MS, now);
+        // An agent is acting: the page it reads must not carry the code, or the agent confirms its own action.
+        // Only the person can approve, with a passkey (purpose 'approve'); the session stays the agent's.
+        stepUp = agentBranch
+          ? { id, challenge: '', expiresAt: now + STEP_UP_TTL_MS, webauthn: true, approve: true }
+          : { id, challenge, expiresAt: now + STEP_UP_TTL_MS, webauthn: (await this.store.credentialsForRoom(input.room)).length > 0 };
       } else {
         // blocked as agent: offer the WebAuthn reclaim path in the response, decision stays block
         stepUp = { id: '', challenge: '', expiresAt: now + STEP_UP_TTL_MS, webauthn: true, reclaim: true };

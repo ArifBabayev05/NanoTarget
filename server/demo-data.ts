@@ -20,9 +20,9 @@ export function seeded(seed: string) {
 export const FIRST_NAMES = ['Ada', 'Marcus', 'Priya', 'Daniel', 'Sofia', 'Liam', 'Amara', 'Noah', 'Elena', 'Omar'];
 export const LAST_NAMES = ['Lindqvist', 'Okafor', 'Ramírez', 'Chen', 'Novak', 'Haddad', 'Kowalski', 'Bennett'];
 const TITLES: [string, string, number][] = [
-  ['Whole Foods Market', 'Groceries', -84.2], ['Spotify', 'Subscriptions', -10.99], ['Salary — Northwind Ltd', 'Income', 4250], ['Uber Eats', 'Dining', -27.4],
+  ['Whole Foods Market', 'Groceries', -84.2], ['Spotify', 'Subscriptions', -10.99], ['Salary: Northwind Ltd', 'Income', 4250], ['Uber Eats', 'Dining', -27.4],
   ['Verizon Wireless', 'Utilities', -65], ['ConEd Electricity', 'Utilities', -112.3], ['Lyft', 'Transport', -14.6], ['Netflix', 'Subscriptions', -15.49],
-  ['Rent — Maple St. Apartments', 'Housing', -1850], ['Transfer from savings', 'Income', 500],
+  ['Rent: Maple St. Apartments', 'Housing', -1850], ['Transfer from savings', 'Income', 500],
 ];
 
 export function demoAccount(sessionId: string): { profile: Profile; balance: Balance; transactions: Transaction[] } {

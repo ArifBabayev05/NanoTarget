@@ -1121,17 +1121,18 @@ export class Store {
     await this.sql.execute('UPDATE credentials SET body = ? WHERE id = ?', [JSON.stringify(cred), cred.id]);
   }
 
-  async createChallenge(id: string, session: string, kind: 'register' | 'assert', resource: string | null, ttlMs: number, now = Date.now()) {
+  async createChallenge(id: string, session: string, kind: 'register' | 'assert' | 'approve', resource: string | null, ttlMs: number, now = Date.now()) {
     await this.sql.execute('DELETE FROM challenges WHERE expires < ?', [now]);
     await this.sql.execute('INSERT INTO challenges (id, session, kind, resource, expires) VALUES (?, ?, ?, ?, ?)', [id, session, kind, resource, now + ttlMs]);
   }
 
   /** Single use: returns the challenge row and deletes it. */
-  async consumeChallenge(id: string, session: string, kind: 'register' | 'assert', now = Date.now()): Promise<{ resource: string | null } | null> {
-    const r = (await this.sql.execute('SELECT resource, expires FROM challenges WHERE id = ? AND session = ? AND kind = ?', [id, session, kind])).rows[0] as { resource: string | null; expires: number } | undefined;
+  async consumeChallenge(id: string, session: string, kind: 'register' | 'assert' | 'approve' | readonly ('assert' | 'approve')[], now = Date.now()): Promise<{ resource: string | null; kind: string } | null> {
+    const kinds = typeof kind === 'string' ? [kind] : [...kind];
+    const r = (await this.sql.execute(`SELECT resource, expires, kind FROM challenges WHERE id = ? AND session = ? AND kind IN (${kinds.map(() => '?').join(', ')})`, [id, session, ...kinds])).rows[0] as { resource: string | null; expires: number; kind: string } | undefined;
     await this.sql.execute('DELETE FROM challenges WHERE id = ?', [id]);
     if (!r || Number(r.expires) < now) return null;
-    return { resource: r.resource };
+    return { resource: r.resource, kind: String(r.kind) };
   }
 
   // --- step-up -------------------------------------------------------------

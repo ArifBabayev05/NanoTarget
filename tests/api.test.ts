@@ -5,12 +5,14 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { createApp } from '../server/app.ts';
 import { signRequest } from '../server/web-bot-auth.ts';
+import { pinStrictPolicy } from './strict-policy.ts';
 
 let base = '';
 let app: Awaited<ReturnType<typeof createApp>>;
 
 before(async () => {
   app = await createApp({ labOperator: true });
+  pinStrictPolicy(app);
   await new Promise<void>((r) => app.server.listen(0, '127.0.0.1', () => r()));
   base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
 });

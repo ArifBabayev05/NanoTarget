@@ -36,7 +36,7 @@ npx vercel deploy --prod --yes
 ## Yüklənmə və DDoS
 
 - **CDN:** statik fayllar (`public/`, build zamanı `web/`-dən köçürülür) və SDK funksiyaya getmir. Açıq səhifələr (`/`, `/docs`, `/trust`, `/measurements`, `/scorecard`) və açıq açarlar kənarda keşlənir (`s-maxage=600`). Baxışları `/v.js` beacon-u sayır.
-- **Vercel Firewall:** bir qayda (Hobby planında bir rate-limit qaydası icazəlidir): `/api/*` və `/bank|crm|insurance|portal|dashboard` üçün bir IP-dən dəqiqədə 1500 sorğu, artıq olanlar 5 dəqiqə kənarda rədd edilir.
+- **Vercel Firewall:** bir qayda (Hobby planında bir rate-limit qaydası icazəlidir): `/api/*` və `/bank|crm|enterprise|insurance|portal|dashboard` üçün bir IP-dən dəqiqədə 1500 sorğu, artıq olanlar 5 dəqiqə kənarda rədd edilir.
 - **Tətbiqdə (hər nüsxədə, bazadan əvvəl):** bir brauzer dəqiqədə 600 sorğu, yazma 240; bir IP 3000. Bazada: qeydiyyat 20/saat, login 60/10 dəq + e-poçt üzrə 10/10 dəq, demo otağı 200/saat, proof yoxlaması 30/10 dəq, AI köməkçi 40/gün hesab + 400/gün cəmi.
 - **Hücum zamanı:** Vercel → layihə `onehumanai` → Firewall → **Attack Challenge Mode**-u aç (bütün ziyarətçilər JS yoxlamasından keçir), hücum bitəndə bağla. Firewall → Traffic bölməsi hücum edən IP-ləri göstərir; tək IP-ni orada bloklamaq olar.
 - **Plan həddi:** Hobby planında aylıq funksiya çağırışı limiti var; böyük açıq test öncəsi Pro planı daha çox ehtiyat və əlavə firewall qaydaları verir.

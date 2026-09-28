@@ -27,25 +27,45 @@
   </main>
 </div>
 
-<button class="fab" id="fab"><span class="spark">✦</span>Test with an AI agent<span class="kbd">A</span></button>
-<div class="scrim" id="scrim"></div>
-<div class="sheet" id="sheet" role="dialog" aria-labelledby="sheet-title">
-  <button class="close ghost" id="sheet-close" aria-label="Close">✕</button>
-  <div class="sheet-head"><div class="badge">✦</div><div><h3 id="sheet-title">Let an AI agent try this page</h3><p>Same account, same session. Watch which parts stay closed to it.</p></div></div>
-  <ol class="steps" id="prompt-steps"></ol>
-  <details><summary>Show the full prompt</summary><textarea id="prompt" readonly></textarea></details>
-  <div class="row">
-    <button class="primary btn-agent" id="copy-prompt">Copy prompt for the agent</button>
-    <button class="ghost" id="copy-link">Copy link</button>
-    <a id="human-link" href="#"><button class="ghost">Try it myself</button></a>
+<button class="fab" id="fab"><span class="spark">✦</span>Test with an AI agent<span class="fab-count" id="fab-count" hidden></span><span class="kbd">A</span></button>
+<aside class="tester" id="tester" aria-label="Test panel" aria-hidden="true">
+  <div class="t-head">
+    <div class="badge">✦</div>
+    <div><h3>Test this demo</h3><p>Try it yourself, then let an AI agent use the same account.</p></div>
+    <button class="close ghost" id="tester-close" aria-label="Close">✕</button>
   </div>
-</div>
+  <div class="t-tabs" role="tablist">
+    <button role="tab" data-tab="agent" class="on">Agent test</button>
+    <button role="tab" data-tab="results">Results <span class="count" id="res-count"></span></button>
+  </div>
+  <section class="t-body" id="tab-agent">
+    <ol class="how">
+      <li><b>1</b><span>Click around yourself. As a person, everything opens.</span></li>
+      <li><b>2</b><span>Pick a test and copy the prompt into your AI agent: Claude in Chrome, ChatGPT agent, Codex, Comet or any browser agent.</span></li>
+      <li><b>3</b><span>Watch <a href="#" data-goto="results">Results</a>: the same buttons, a different answer for the agent.</span></li>
+    </ol>
+    <div class="scen" id="scenarios" role="radiogroup" aria-label="Test scenario"></div>
+    <ol class="steps" id="prompt-steps"></ol>
+    <details><summary>Show the full prompt</summary><textarea id="prompt" readonly></textarea></details>
+    <div class="row">
+      <button class="primary btn-agent" id="copy-prompt">Copy prompt for the agent</button>
+      <button class="ghost" id="copy-link">Copy agent link</button>
+    </div>
+    <div class="row t-foot"><span id="pk-slot"></span><a id="human-link" href="#">Start over as myself</a></div>
+  </section>
+  <section class="t-body" id="tab-results" hidden>
+    <div class="sum" id="res-sum"></div>
+    <div class="res" id="res-list"><div class="empty">No actions yet. Click a button on the page, or run the agent prompt.</div></div>
+    <p class="fine">Every row is a real decision made by the server for this demo room, signed and logged. <a href="#" id="res-new">New empty room</a></p>
+  </section>
+</aside>
 
+<div class="scrim" id="scrim"></div>
 <div class="drawer" id="drawer"><button class="ghost close" id="drawer-close">✕</button><div id="drawer-body"></div></div>
 
 <dialog id="stepup">
   <form method="dialog" id="stepup-form">
-    <h3>Security confirmation</h3>
+    <h3 id="stepup-title">Security confirmation</h3>
     <p id="stepup-text">This action needs additional confirmation.</p>
     <div id="stepup-code-wrap"><div class="code" id="stepup-code"></div><br><input id="stepup-answer" placeholder="Enter the code" maxlength="6" autocomplete="off" style="width:100%"></div>
     <div class="actions" style="margin-top:14px"><button class="primary" value="ok" id="stepup-ok">Confirm</button><button class="ghost" type="button" id="stepup-cancel">Cancel</button></div>

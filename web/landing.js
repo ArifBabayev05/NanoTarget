@@ -166,7 +166,7 @@
   const LOGS = [
     'balance.read → allow · actor=human_like · HUMAN_KINEMATICS',
     'seal · indicators=[overlay_marker, injected_global] · 0.3 s after attach',
-    'balance.read → mask · report.export → block · actor=agent · sticky',
+    'balance.read → mask · report.export → step_up · actor=agent · sticky',
     'reclaim → webauthn ok · actor=human · 5 min window',
   ];
   let step = -1, timers = [];
@@ -284,9 +284,9 @@
       await wait(300); S.amount.textContent = '$•,•••.••'; S.amount.classList.remove('sealed'); flash(S.amount, 'flash-mask'); notice('Masked for AI agents · balance.read → mask', 'warn');
       note('The assistant clicks, and the server answers differently', 'No pointer path and an instant press: a program. Your policy says balance → mask, so the same endpoint returns the number hidden.', 'warn', 'no path · jumped to the centre · 2 ms press');
       await wait(1400); await aiSay('Trying “Download statement”…', 500); const e2 = edgeOf(S.btn.nextElementSibling, a, 6); movePointer(e2.tip.x, e2.tip.y, true); await wait(500); pressPointer(); await wait(150);
-      S.guard.className = 'f-guard block'; S.guard.lastElementChild.textContent = 'Export blocked'; flash(S.btn.nextElementSibling, 'flash-block'); notice('report.export → block · 403', 'bad');
-      note('Downloading everything is refused', 'A statement export hands over the whole account in one click. For agents the policy says block; a person can still do it after a passkey.', 'bad', 'report.export → block');
-      await wait(500); await aiSay('The download is blocked for assistants. You’ll need to confirm it yourself.', 600);
+      S.guard.className = 'f-guard block'; S.guard.lastElementChild.textContent = 'Waiting for Ada'; flash(S.btn.nextElementSibling, 'flash-block'); notice('report.export → step_up · Ada approves with her passkey', 'bad');
+      note('The export waits for the person', 'A statement export hands over the whole account in one click. The agent may ask; only Ada can approve it, with her passkey. The agent cannot do that step.', 'bad', 'report.export → you approve');
+      await wait(500); await aiSay('The download needs your approval. Confirm it with Touch ID.', 600);
     } else {
       S.pointer.classList.remove('show'); S.agent.classList.remove('in'); S.passkey.classList.add('in'); await wait(1800); S.passkey.classList.remove('in');
       S.guard.className = 'f-guard'; S.guard.lastElementChild.textContent = 'You’re back · 5:00';
@@ -366,10 +366,12 @@
   // ---------------------------------------------------------------- demo apps
   let apps = [];
   try { apps = (await (await fetch('/api/v1/apps', { cache: 'no-store' })).json()).apps; } catch {}
-  const RULE_LABEL = { mask: 'Hidden', block: 'Blocked', step_up: 'Passkey', allow: 'Allowed' };
-  const RES_LABEL = { 'profile.read': 'Profile', 'balance.read': 'Balance', 'transactions.search': 'Transactions', 'report.export': 'Statement export', 'customers.list': 'Customer list', 'customer.read': 'Customer details', 'pipeline.read': 'Sales pipeline', 'contacts.export': 'Contacts export', 'policyholder.read': 'Personal details', 'claims.list': 'Claims', 'medical.read': 'Medical records', 'policy.download': 'Policy download' };
+  const RULE_LABEL = { mask: 'Hidden', block: 'Never shared', step_up: 'You approve', allow: 'Allowed' };
+  // one rule of each kind first (allowed, hidden, approved by the person, never shared), then fill up to four
+  const ORDER = ['allow', 'mask', 'step_up', 'block'];
+  const sample = (rules) => { const out = ORDER.map((k) => rules.find((r) => r.onAgent === k)).filter(Boolean); for (const r of rules) if (out.length < 4 && !out.includes(r)) out.push(r); return out.slice(0, 4).sort((x, y) => ORDER.indexOf(x.onAgent) - ORDER.indexOf(y.onAgent)); };
   $('#apps').innerHTML = apps.map((a) => {
-    const rules = (a.rules || []).slice(0, 4).map((r) => `<li><span>${esc(RES_LABEL[r.resource] || r.resource)}</span><b class="${esc(r.onAgent)}">${esc(RULE_LABEL[r.onAgent] || r.onAgent)}</b></li>`).join('');
+    const rules = sample(a.rules || []).map((r) => `<li><span>${esc(r.title || r.resource)}</span><b class="${esc(r.onAgent)}">${esc(RULE_LABEL[r.onAgent] || r.onAgent)}</b></li>`).join('');
     return `<div class="app reveal">
       <div class="glyph">${esc(a.initials)}</div>
       <h3>${esc(a.name)}</h3>

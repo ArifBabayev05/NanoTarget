@@ -200,7 +200,9 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['GET', '/sitemap.xml', sitemap],
     ['GET', '/bank', appPage('bank')],
     ['GET', '/crm', appPage('crm')],
-    ['GET', '/insurance', appPage('insurance')],
+    ['GET', '/enterprise', appPage('enterprise')],
+    // the insurer demo became the enterprise workspace (2026-09-28); old links land on the new demo
+    ['GET', '/insurance', async (_req, res) => { res.writeHead(301, { Location: '/enterprise', 'Cache-Control': 'public, max-age=3600' }); res.end(); }],
     ['GET', '/dashboard', labApi(dashboard)],
     ['GET', '/sandbox', labPage('sandbox.html')],
     ['POST', '/api/v1/sandbox/samples', labApi(sandbox.addSample)],

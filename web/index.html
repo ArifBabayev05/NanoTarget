@@ -85,7 +85,7 @@
     <div class="story-steps" id="story-steps">
       <div class="ss on" data-step="0"><span class="ss-num">01</span><h3>A customer signs in</h3><p>Their clicks move like a hand. The endpoint returns the balance.</p></div>
       <div class="ss" data-step="1"><span class="ss-num">02</span><h3>An AI agent attaches</h3><p>Seen in 0.3 s. What is on screen is sealed before the agent reads it.</p></div>
-      <div class="ss" data-step="2"><span class="ss-num">03</span><h3>The endpoint decides</h3><p>Balance masked. Export blocked. Every decision logged.</p></div>
+      <div class="ss" data-step="2"><span class="ss-num">03</span><h3>The endpoint decides</h3><p>Balance hidden. The export waits for the person. Every decision signed.</p></div>
       <div class="ss" data-step="3"><span class="ss-num">04</span><h3>The person takes it back</h3><p>A passkey proves presence. The session is theirs again.</p></div>
     </div>
     <div class="story-sticky">
@@ -197,7 +197,7 @@
 </section>
 
 <section class="statement reveal">
-  <p class="statement-text"><span class="tw-line">In 2026, people use their bank, their CRM and their insurer <em>through an AI agent</em>.</span><span class="tw-line">Most apps cannot tell the agent from the person.</span><span class="tw-line accent">OneHuman can.</span></p>
+  <p class="statement-text"><span class="tw-line">In 2026, people use their bank, their CRM and their company's tools <em>through an AI agent</em>.</span><span class="tw-line">Most apps cannot tell the agent from the person.</span><span class="tw-line accent">OneHuman can.</span></p>
 </section>
 
 <section class="integrate" id="integrate">
@@ -235,7 +235,7 @@ npx onehumanai verify-proof proofs.json --keys https://your-app.example/onehuman
   <span class="s">"enforcement"</span>: <span class="s">"observe"</span>,
   <span class="s">"rules"</span>: [
     { <span class="s">"resource"</span>: <span class="s">"balance.read"</span>,  <span class="s">"onAgent"</span>: <span class="s">"mask"</span>,  <span class="s">"onArtifact"</span>: <span class="s">"mask"</span>,    <span class="s">"onUnknown"</span>: <span class="s">"allow"</span>,   <span class="s">"onHumanLike"</span>: <span class="s">"allow"</span> },
-    { <span class="s">"resource"</span>: <span class="s">"report.export"</span>, <span class="s">"onAgent"</span>: <span class="s">"block"</span>, <span class="s">"onArtifact"</span>: <span class="s">"step_up"</span>, <span class="s">"onUnknown"</span>: <span class="s">"step_up"</span>, <span class="s">"onHumanLike"</span>: <span class="s">"allow"</span> }
+    { <span class="s">"resource"</span>: <span class="s">"report.export"</span>, <span class="s">"onAgent"</span>: <span class="s">"step_up"</span>, <span class="s">"onArtifact"</span>: <span class="s">"step_up"</span>, <span class="s">"onUnknown"</span>: <span class="s">"step_up"</span>, <span class="s">"onHumanLike"</span>: <span class="s">"allow"</span> }
   ]
 }</code></pre>
     <pre class="code" id="code-agent" hidden><code>https://www.npmjs.com/package/onehumanai: install this into my project.
@@ -250,7 +250,7 @@ Licence: the package is Apache-2.0; the engine is BUSL-1.1 with production use g
 <section class="demos" id="demos">
   <div class="sec-head reveal">
     <h2 class="h2 tr">Try it against a real agent</h2>
-    <p class="lead">Open a demo yourself and everything works. Then paste the prompt into an AI agent and watch the same account lock down.</p>
+    <p class="lead">Open a demo yourself and everything works. Then paste the prompt into an AI agent and watch the same account open only what your rules allow.</p>
   </div>
   <div class="apps reveal" id="apps"><div class="app"><span class="muted">Loading…</span></div></div>
 </section>

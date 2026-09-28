@@ -321,6 +321,7 @@ section{padding:96px 0}
 .app .rules li b.mask{color:var(--accent2);background:color-mix(in srgb,var(--accent2) 14%,transparent)}
 .app .rules li b.block{color:var(--danger);background:color-mix(in srgb,var(--danger) 14%,transparent)}
 .app .rules li b.step_up{color:var(--blue);background:color-mix(in srgb,var(--blue) 14%,transparent)}
+.app .rules li b.allow{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
 .app .row{display:flex;gap:8px;margin-top:4px}
 .app .row .btn{flex:1;justify-content:center}
 

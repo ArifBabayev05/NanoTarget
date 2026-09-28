@@ -81,10 +81,12 @@ export function labRoutes(engine: OneHuman, labOperator: LabOperator, opts: { ro
     const body = (await readJson(req, 2000)) as { id?: unknown; answer?: unknown } | null | undefined;
     if (!body || typeof body.id !== 'string' || typeof body.answer !== 'string') return json(res, 400, { error: 'bad_request' });
     const s = await store.getStepUp(body.id);
-    if (!s || s.session !== r.session.id || s.expires < Date.now()) return json(res, 404, { error: 'step_up_not_found', message: 'Təsdiq sorğusu tapılmadı və ya vaxtı bitib.' });
-    if (s.challenge !== body.answer.trim().toUpperCase()) return json(res, 403, { error: 'step_up_failed', message: 'Kod uyğun gəlmir.' });
+    if (!s || s.session !== r.session.id || s.expires < Date.now()) return json(res, 404, { error: 'step_up_not_found', message: 'The confirmation request was not found or has expired.' });
+    // an AI agent asked for this action: only the person's passkey approves it, never a typed code
+    if (s.challenge.startsWith('P:')) return json(res, 403, { error: 'passkey_required', message: 'Only the account owner can approve this, with a passkey.' });
+    if (s.challenge !== body.answer.trim().toUpperCase()) return json(res, 403, { error: 'step_up_failed', message: 'The code does not match.' });
     await store.passStepUp(s.id);
-    json(res, 200, { ok: true, resource: s.resource, message: 'Təsdiq qəbul edildi. Əməliyyatı bir dəfə təkrar et.' });
+    json(res, 200, { ok: true, resource: s.resource, message: 'Confirmed. Repeat the action once.' });
   };
 
   /**
