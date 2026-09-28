@@ -2,7 +2,7 @@
 
 ## 0.6.6
 - **An AI agent cannot approve its own action.** When a rule asks for a step-up and an agent is acting, the 428 no longer carries the code (the agent reads the page, so it could type it back). It says `stepUp.approve: true`, and only the account owner's passkey approves it: `webauthn/assert/options { resource, purpose: 'approve' }`, then assert, then retry once. That approval opens that one action; the session stays the agent's. A typed code for it is refused with `passkey_required`.
-- **Govern, not block.** Recommended rules for agents now read: hide personal data, send money movement and exports to the owner for approval, keep only secrets (API keys, card numbers) closed. `block` still exists for those.
+- **Control, not block.** Recommended rules for agents now read: hide personal data, send money movement and exports to the owner for approval, keep only secrets (API keys, card numbers) closed. `block` still exists for those.
 - **The 30-day report opens with the headline**: how many of your customers' sessions had an AI agent, which products, and what the rules did with what they asked for.
 
 ## 0.6.5
