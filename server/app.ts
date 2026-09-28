@@ -241,6 +241,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['POST', '/api/v1/portal/feedback', portal.feedback],
     ['GET', '/api/v1/portal/health', portal.health],
     ['GET', '/api/v1/portal/weekly', portal.weekly],
+    ['GET', '/api/v1/portal/agents', portal.agents],
     ['GET', '/api/v1/portal/report', portal.report],
     ['GET', '/api/v1/signatures', portal.signaturesGet],
     ['POST', '/api/v1/signatures', portal.signaturesPost],

@@ -1092,6 +1092,14 @@ export class Store {
     };
   }
 
+  /** Every decision in the account's agent sessions since `since` (a session counts once any event in it saw an agent). */
+  async telemetryAgentEvents(account: string, since: number, limit = 20000): Promise<{ key: string; at: number; session: string; resource: string; decision: string; computed: string; actor: string; state: string; tools: string[]; reasons: string[] }[]> {
+    const agentCase = "(t.state IN ('agent_attached','signed_agent') OR t.actor = 'agent_likely' OR t.tools != '[]')";
+    const rows = (await this.sql.execute(`SELECT t.key_id, t.at, t.session, t.resource, t.decision, t.computed, t.actor, t.state, t.tools, t.reasons FROM telemetry t JOIN api_keys k ON k.id = t.key_id WHERE k.account = ? AND t.at >= ? AND ${agentCase} ORDER BY t.at LIMIT ?`, [account, since, limit])).rows;
+    const arr = (v: unknown) => { try { const a = JSON.parse(String(v)); return Array.isArray(a) ? a.map(String) : []; } catch { return []; } };
+    return rows.map((x) => ({ key: String(x.key_id), at: Number(x.at), session: String(x.session), resource: String(x.resource), decision: String(x.decision), computed: String(x.computed ?? x.decision), actor: String(x.actor), state: String(x.state), tools: arr(x.tools), reasons: arr(x.reasons) }));
+  }
+
   async consumeNonce(key: string, ttlMs: number, now = Date.now()): Promise<boolean> {
     await this.sql.execute('DELETE FROM nonces WHERE expires < ?', [now]);
     try {

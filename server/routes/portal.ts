@@ -429,6 +429,46 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
     json(res, 200, { ok: await store.setTelemetryFeedback(key, id, verdict, note) });
   };
 
+  /**
+   * GET /api/v1/portal/agents?range=30d — the agent inventory: every AI agent product seen in the account's customer
+   * sessions (or "unnamed" when only behaviour gave it away), where it went and what the rules did or would do.
+   */
+  const agents = async (req: Req, res: Res) => {
+    const account = await accountOf(req);
+    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    const rangeName = RANGES[url(req).searchParams.get('range') ?? '30d'] ? (url(req).searchParams.get('range') ?? '30d') : '30d';
+    const now = Date.now();
+    const since = now - RANGES[rangeName]!.since;
+    const [events, ov, keys] = await Promise.all([store.telemetryAgentEvents(account, since), store.telemetryOverview(account, since, RANGES[rangeName]!.bucket), store.listApiKeys(account)]);
+    const keyNames = new Map(keys.map((k) => [k.id, k.name]));
+    // a session's agent is named by any tool seen in it; a session with agent behaviour and no tool is "unnamed"
+    const sessionTools = new Map<string, Set<string>>();
+    for (const e of events) { const set = sessionTools.get(e.session) ?? new Set<string>(); for (const t of e.tools) set.add(t); sessionTools.set(e.session, set); }
+    type Out = { allow: number; mask: number; step_up: number; block: number; approved: number };
+    const zero = (): Out => ({ allow: 0, mask: 0, step_up: 0, block: 0, approved: 0 });
+    const by = new Map<string, { tool: string; sessions: Set<string>; apps: Set<string>; first: number; last: number; actions: number; observe: number; outcomes: Out; resources: Map<string, { n: number; outcomes: Out }> }>();
+    for (const e of events) {
+      const tools = [...(sessionTools.get(e.session) ?? [])];
+      for (const tool of tools.length ? tools : ['unnamed']) {
+        const a = by.get(tool) ?? { tool, sessions: new Set<string>(), apps: new Set<string>(), first: e.at, last: e.at, actions: 0, observe: 0, outcomes: zero(), resources: new Map() };
+        a.sessions.add(e.session); a.apps.add(keyNames.get(e.key) ?? 'app'); a.first = Math.min(a.first, e.at); a.last = Math.max(a.last, e.at); a.actions++;
+        const outcome = e.reasons.includes('STEP_UP_PASSED') ? 'approved' : (e.computed as keyof Out) in a.outcomes ? (e.computed as keyof Out) : 'allow';
+        if (e.computed !== e.decision) a.observe++;
+        a.outcomes[outcome]++;
+        const r = a.resources.get(e.resource) ?? { n: 0, outcomes: zero() };
+        r.n++; r.outcomes[outcome]++; a.resources.set(e.resource, r);
+        by.set(tool, a);
+      }
+    }
+    const list = [...by.values()].sort((x, y) => y.sessions.size - x.sessions.size || y.actions - x.actions).map((a) => ({
+      tool: a.tool, sessions: a.sessions.size, apps: [...a.apps], first: a.first, last: a.last, actions: a.actions, observe: a.observe, outcomes: a.outcomes,
+      resources: [...a.resources.entries()].sort((x, y) => y[1].n - x[1].n).slice(0, 8).map(([resource, r]) => ({ resource, ...r })),
+    }));
+    const sessions = ov.totals.reduce((n, t) => n + t.sessions, 0);
+    const agentSessions = new Set(events.map((e) => e.session)).size;
+    json(res, 200, { range: rangeName, since, now, totals: { sessions, agentSessions, products: list.filter((a) => a.tool !== 'unnamed').length }, agents: list });
+  };
+
   const overview = async (req: Req, res: Res) => {
     const account = await accountOf(req);
     if (!account) return json(res, 401, { error: 'unauthenticated' });
@@ -557,7 +597,7 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
     return json(res, 404, { error: 'unknown_endpoint', endpoints: MANAGE_ENDPOINTS });
   };
 
-  return { policy: pol, accountOf, signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, proofs, verifyBundle, feedback, health, weekly, report, signaturesGet, signaturesPost, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
+  return { policy: pol, accountOf, signup, login, logout, me, createKey, renameKey, lookupKey, revokeKey, rotateKey, deleteKey, changePassword, events, proofs, verifyBundle, feedback, health, weekly, agents, report, signaturesGet, signaturesPost, listAdminKeys, createAdminKey, revokeAdminKey, stats, overview, ingest, manage };
 }
 
 export const MANAGE_ENDPOINTS = [

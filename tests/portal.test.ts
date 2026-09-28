@@ -107,6 +107,16 @@ test('signup → key → ingest → stats', async () => {
   assert.deepEqual(wk.week.agentResources.map((x: { resource: string }) => x.resource).sort(), ['balance.read', 'report.export']);
   assert.ok(Array.isArray(wk.news));
 
+  // the agent inventory: which agent products, in how many sessions, where they went, what the rules did
+  r = await fetch(`${base}/api/v1/portal/agents?range=30d`, { headers: hdr() });
+  assert.equal(r.status, 200); const inv = await r.json();
+  assert.deepEqual(inv.totals, { sessions: 3, agentSessions: 1, products: 1 });
+  assert.equal(inv.agents.length, 1); const cc = inv.agents[0];
+  assert.equal(cc.tool, 'claude-chrome'); assert.equal(cc.sessions, 1); assert.equal(cc.actions, 2);
+  assert.deepEqual(cc.outcomes, { allow: 0, mask: 1, step_up: 0, block: 1, approved: 0 });
+  assert.deepEqual(cc.resources.map((x: { resource: string }) => x.resource).sort(), ['balance.read', 'report.export']);
+  assert.equal((await fetch(`${base}/api/v1/portal/agents`)).status, 401, 'signed-in accounts only');
+
   // another account cannot read this key; a revoked key stops ingesting
   const jar2: string[] = [];
   r = await fetch(`${base}/api/v1/portal/signup`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base }, body: JSON.stringify({ email: 'other@corp.example', password: 'longenough2' }) });

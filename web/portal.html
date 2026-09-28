@@ -56,6 +56,7 @@
     <div class="ws"><span class="ws-name" id="ws-name">Workspace</span><span class="ws-sub" id="ws-sub"></span></div>
     <nav class="side-nav">
       <a href="#overview" data-view="overview"><i>▦</i>Overview</a>
+      <a href="#agents" data-view="agents"><i>✦</i>AI agents</a>
       <a href="#keys" data-view="keys"><i>⚿</i>API Keys</a>
       <a href="#activity" data-view="activity"><i>≣</i>Activity</a>
       <a href="#weekly" data-view="weekly"><i>☷</i>Weekly report</a>
@@ -82,10 +83,17 @@
         <article class="ucard"><div class="uhead"><span>Limited or stopped</span><b id="u-gated">0</b></div><div class="ubars" id="ub-gated"></div><ul class="ulegend" id="ul-gated"></ul></article>
       </div>
       <div class="quick">
+        <a class="qcard" href="#agents"><i>✦</i><div><b>AI agents</b><span>Which agents are in your customers' sessions, and what they touched.</span></div><em>›</em></a>
         <a class="qcard" href="#keys"><i>⚿</i><div><b>API Keys</b><span>One key per app. Your developer puts it into the app.</span></div><em>›</em></a>
         <a class="qcard" href="#activity"><i>≣</i><div><b>Activity</b><span>Everything that happened, live: who came, what they asked for, what we did.</span></div><em>›</em></a>
         <a class="qcard" href="#integrate"><i>⇄</i><div><b>Integration</b><span>For your developer: how to connect your app.</span></div><em>›</em></a>
       </div>
+    </section>
+
+    <!-- agent inventory -->
+    <section class="view" id="view-agents" hidden>
+      <div class="page-head"><div><h1>AI agents</h1><p>Every AI agent seen in your customers' sessions: which product, where it went, and what your rules did about it.</p></div><div class="range" id="range-ag"><button data-r="24h">24h</button><button data-r="7d">7d</button><button data-r="30d" class="on">30d</button></div></div>
+      <div id="agents-body"><div class="fine">Loading…</div></div>
     </section>
 
     <!-- keys -->

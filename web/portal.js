@@ -88,6 +88,7 @@
     if (view === 'integrate') renderIntegration();
     if (view === 'settings') renderSettings();
     if (view === 'weekly') renderWeekly();
+    if (view === 'agents') renderAgents();
     if (view === 'policy') renderPolicy();
   }
   const currentView = () => (location.hash.replace('#', '') || 'overview');
@@ -492,6 +493,32 @@
   }
   $('#setup-key').addEventListener('change', (e) => { setupKeyId = e.target.value; renderIntegration(); });
   $$('#fw-tabs button').forEach((b) => b.addEventListener('click', () => { fw = b.dataset.fw; renderIntegration(); }));
+
+  // ------------------------------------------------------------------ agent inventory
+  let agRange = '30d';
+  const OUT_LABEL = { allow: 'Allowed', mask: 'Hidden', step_up: 'Waiting for approval', approved: 'Approved by the owner', block: 'Never shared' };
+  async function renderAgents() {
+    const body = $('#agents-body');
+    let d;
+    try { d = await api(`/api/v1/portal/agents?range=${agRange}`); } catch (e) { body.innerHTML = `<div class="fine">${esc(e.message)}</div>`; return; }
+    const t = d.totals; const pctS = t.sessions ? Math.round((t.agentSessions / t.sessions) * 100) : 0;
+    const days = { '24h': 'the last 24 hours', '7d': 'the last 7 days', '30d': 'the last 30 days' }[d.range];
+    if (!d.agents.length) {
+      body.innerHTML = `<div class="ag-empty"><b>No AI agent seen in ${days}.</b><p>${t.sessions ? `${fmt(t.sessions)} session${t.sessions === 1 ? '' : 's'} reported, none with an agent in it.` : 'Nothing reported yet.'} Put OneHuman in observe mode on your app: nothing is blocked, and the first agents usually show up within days.</p><a class="btn" href="#integrate">Set it up</a></div>`;
+      return;
+    }
+    const unnamed = d.agents.find((a) => a.tool === 'unnamed');
+    const head = `<div class="ag-hero"><div><b>${fmt(t.agentSessions)}</b><span>customer session${t.agentSessions === 1 ? '' : 's'} had an AI agent in them${t.sessions ? `, ${pctS}% of ${fmt(t.sessions)}` : ''}</span></div><div><b>${fmt(t.products)}</b><span>named agent product${t.products === 1 ? '' : 's'}${unnamed ? `, plus ${fmt(unnamed.sessions)} session${unnamed.sessions === 1 ? '' : 's'} where only behaviour gave it away` : ''}</span></div><div><b>${fmt(d.agents.reduce((n, a) => n + a.actions, 0))}</b><span>protected actions they asked for, in ${days}</span></div></div>`;
+    const bar = (o, total) => `<div class="ag-bar">${['allow', 'approved', 'mask', 'step_up', 'block'].filter((k) => o[k]).map((k) => `<i class="${k}" style="flex:${o[k]}" title="${esc(OUT_LABEL[k])}: ${o[k]}"></i>`).join('')}</div><div class="ag-legend">${['allow', 'approved', 'mask', 'step_up', 'block'].filter((k) => o[k]).map((k) => `<span class="${k}">${esc(OUT_LABEL[k])} ${fmt(o[k])}</span>`).join('')}</div>`;
+    const cards = d.agents.map((a) => `<article class="ag-card">
+      <div class="ag-top"><div><h3>${a.tool === 'unnamed' ? 'Unnamed agent' : esc(toolName(a.tool))}</h3><p>${a.tool === 'unnamed' ? 'No product traces; its behaviour showed a program. ' : ''}${fmt(a.sessions)} session${a.sessions === 1 ? '' : 's'} · ${esc(a.apps.join(', '))} · first seen ${esc(ago(a.first))}, last ${esc(ago(a.last))}</p></div><b class="ag-n">${fmt(a.actions)}<small>actions</small></b></div>
+      ${bar(a.outcomes, a.actions)}
+      ${a.observe ? `<p class="fine">Observe mode: ${fmt(a.observe)} of these are what your rules would have done. Nothing was enforced.</p>` : ''}
+      <table class="ag-res"><tbody>${a.resources.map((r) => `<tr><td><code>${esc(r.resource)}</code></td><td>${fmt(r.n)}</td><td>${['allow', 'approved', 'mask', 'step_up', 'block'].filter((k) => r.outcomes[k]).map((k) => `<span class="chip ${k}">${esc(OUT_LABEL[k])}${r.outcomes[k] > 1 ? ` ×${r.outcomes[k]}` : ''}</span>`).join(' ')}</td></tr>`).join('')}</tbody></table>
+    </article>`).join('');
+    body.innerHTML = head + `<div class="ag-list">${cards}</div>`;
+  }
+  $$('#range-ag button').forEach((b) => b.addEventListener('click', () => { agRange = b.dataset.r; $$('#range-ag button').forEach((x) => x.classList.toggle('on', x === b)); renderAgents(); }));
 
   // ------------------------------------------------------------------ weekly report
   const TOOL_NAMES = { 'claude-chrome': 'Claude in Chrome', 'codex-chrome': 'Codex, Chrome extension', 'claude-app': 'Claude app browser', 'codex-app': 'Codex app browser', 'claude-tools': 'Claude agent tools', 'browser-panel': 'Browser side panel agent', 'cdp-reader': 'Automation script', 'unknown-tool': 'Unknown agent tool', operator: 'Signed agent' };
