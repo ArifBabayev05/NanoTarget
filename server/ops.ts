@@ -21,7 +21,8 @@ const DAY = 86400000;
 
 /** Browser and OS family from a user agent; the raw string is never stored. */
 export function uaFamily(ua: string): { browser: string; os: string; mobile: boolean; bot: boolean } {
-  const bot = /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|headless|lighthouse|pingdom|uptime|monitor/i.test(ua);
+  // link previews (a link shared in WhatsApp, Telegram, Slack…) open the page too; they are not people
+  const bot = /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|headless|lighthouse|pingdom|uptime|monitor|WhatsApp|Telegram|Slack|Discord|LinkedIn|Twitter|Viber|SkypeUriPreview|vkShare|Pinterest|redditbot|Iframely|Google-Read-Aloud/i.test(ua);
   const app = /\bClaude\/[\d.]+/.test(ua) ? 'Claude app' : /ChatGPT|Atlas\//.test(ua) ? 'ChatGPT Atlas' : /Comet\//.test(ua) ? 'Comet' : null;
   const browser = app
     ?? (/Edg\//.test(ua) ? 'Edge' : /OPR\/|Opera/.test(ua) ? 'Opera' : /SamsungBrowser/.test(ua) ? 'Samsung' : /Firefox\/|FxiOS/.test(ua) ? 'Firefox'

@@ -169,3 +169,14 @@ test('WebKit taps are not a program: a real iPhone Safari session (2026-09-28) t
   assert.notEqual(now.actor, 'agent_likely');
   assert.ok(!now.reasons.some((r) => r.code === 'ZERO_PRESSURE_POINTER'));
 });
+
+test('real phone users from the first public test are never read as agents, tap by tap', async () => {
+  const { readFileSync } = await import('node:fs');
+  const fx = JSON.parse(readFileSync(new URL('./fixtures-phones-human.json', import.meta.url), 'utf8')) as Record<string, { arrival: ServerSignal; interactions: InteractionSample[] }>;
+  for (const [name, s] of Object.entries(fx)) {
+    for (let i = 1; i <= s.interactions.length; i++) {
+      const a = assess({ server: s.arrival, early: null, interactions: s.interactions.slice(0, i), current: null });
+      assert.notEqual(a.actor, 'agent_likely', `${name}, after tap ${i}`);
+    }
+  }
+});
