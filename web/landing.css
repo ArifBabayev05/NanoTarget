@@ -408,10 +408,6 @@ a.cmp-co:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border
 .cmp .mk circle{stroke:none}.cmp .mk path{fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .mk.ok circle{fill:color-mix(in srgb,var(--accent) 16%,transparent)}.mk.ok path{stroke:var(--accent)}
 .mk.no circle{fill:color-mix(in srgb,var(--danger) 13%,transparent)}.mk.no path{stroke:var(--danger)}
-.cmp-group th{position:sticky;left:0;background:var(--bg2);text-align:left;padding:18px 18px 8px!important}
-.cmp-group span{position:sticky;left:18px;font:600 11px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--accent)}
-.cmp-group.lose span{color:var(--accent2)}
-.cmp-group th,.cmp-group td{border-bottom:1px solid var(--line)}
 .cmp-total th{color:var(--fg)!important;font-weight:500!important}
 .cmp-total b{font:600 16px var(--mono);font-variant-numeric:tabular-nums;color:var(--fg2)}
 .cmp-total .us b{color:var(--accent)}
