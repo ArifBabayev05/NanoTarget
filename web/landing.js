@@ -366,14 +366,15 @@
   // ---------------------------------------------------------------- demo apps
   let apps = [];
   try { apps = (await (await fetch('/api/v1/apps', { cache: 'no-store' })).json()).apps; } catch {}
-  const RULE_LABEL = { mask: 'mask', block: 'block', step_up: 'step-up', allow: 'allow' };
+  const RULE_LABEL = { mask: 'Hidden', block: 'Blocked', step_up: 'Passkey', allow: 'Allowed' };
+  const RES_LABEL = { 'profile.read': 'Profile', 'balance.read': 'Balance', 'transactions.search': 'Transactions', 'report.export': 'Statement export', 'customers.list': 'Customer list', 'customer.read': 'Customer details', 'pipeline.read': 'Sales pipeline', 'contacts.export': 'Contacts export', 'policyholder.read': 'Personal details', 'claims.list': 'Claims', 'medical.read': 'Medical records', 'policy.download': 'Policy download' };
   $('#apps').innerHTML = apps.map((a) => {
-    const rules = (a.rules || []).slice(0, 4).map((r) => `<span class="${esc(r.onAgent)}">${esc(r.resource)} · ${esc(RULE_LABEL[r.onAgent] || r.onAgent)}</span>`).join('');
+    const rules = (a.rules || []).slice(0, 4).map((r) => `<li><span>${esc(RES_LABEL[r.resource] || r.resource)}</span><b class="${esc(r.onAgent)}">${esc(RULE_LABEL[r.onAgent] || r.onAgent)}</b></li>`).join('');
     return `<div class="app reveal">
       <div class="glyph">${esc(a.initials)}</div>
       <h3>${esc(a.name)}</h3>
       <p>${esc(a.tagline)}</p>
-      <div class="rules">${rules}</div>
+      <div class="rules"><small>When an AI agent asks</small><ul>${rules}</ul></div>
       <div class="row"><a class="btn primary" href="/${esc(a.id)}">Open as yourself</a><button class="btn" data-prompt="${esc(a.id)}">Copy agent prompt</button></div>
     </div>`;
   }).join('') || '<div class="app"><p>Demo apps are offline right now.</p></div>';

@@ -103,7 +103,7 @@ main{max-width:var(--w);margin:0 auto;padding:0 24px}
 @keyframes underline{0%{transform:scaleX(0);opacity:0}18%{transform:scaleX(1);opacity:1}82%{transform:scaleX(1);opacity:1}100%{transform:scaleX(1);opacity:0}}
 .rot>span.on{opacity:1;transform:none;filter:blur(0)}
 .rot>span.out{opacity:0;transform:translateY(-.55em);filter:blur(8px)}
-.sub{font-size:clamp(16px,1.5vw,19px);color:var(--fg2);max-width:720px;margin:0 auto 34px;line-height:1.55;text-wrap:pretty}
+.sub{font-size:clamp(16px,1.5vw,19px);color:var(--fg2);max-width:720px;margin:0 auto 34px;line-height:1.55;text-wrap:balance}
 .sub b{color:var(--fg);font-weight:500}
 .hero-actions{display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap}
 .npm{display:flex;align-items:center;gap:12px;height:46px;padding:0 6px 0 16px;border:1px solid var(--line2);border-radius:11px;background:var(--bg2);font-family:var(--mono);font-size:15px;position:relative;overflow:hidden}
@@ -312,9 +312,15 @@ section{padding:96px 0}
 .app .glyph{width:38px;height:38px;border-radius:10px;background:var(--bg3);border:1px solid var(--line);display:grid;place-items:center;font-family:var(--mono);font-size:13px;color:var(--fg2)}
 .app h3{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em}
 .app p{margin:0;color:var(--fg2);font-size:14px;line-height:1.55;flex:1}
-.app .rules{display:flex;flex-wrap:wrap;gap:6px}
-.app .rules span{font:12px var(--mono);color:var(--fg2);border:1px solid var(--line);border-radius:6px;padding:2px 8px;background:var(--bg)}
-.app .rules span.mask{color:var(--accent2)}.app .rules span.block{color:var(--danger)}.app .rules span.step_up{color:var(--blue)}
+.app .rules{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px 12px}
+.app .rules small{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg3);margin-bottom:4px}
+.app .rules ul{list-style:none;margin:0;padding:0}
+.app .rules li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;font-size:13.5px;color:var(--fg2)}
+.app .rules li+li{border-top:1px solid var(--line)}
+.app .rules li b{font-weight:500;font-size:12px;padding:2px 9px;border-radius:999px;color:var(--fg2);background:color-mix(in srgb,var(--fg2) 12%,transparent)}
+.app .rules li b.mask{color:var(--accent2);background:color-mix(in srgb,var(--accent2) 14%,transparent)}
+.app .rules li b.block{color:var(--danger);background:color-mix(in srgb,var(--danger) 14%,transparent)}
+.app .rules li b.step_up{color:var(--blue);background:color-mix(in srgb,var(--blue) 14%,transparent)}
 .app .row{display:flex;gap:8px;margin-top:4px}
 .app .row .btn{flex:1;justify-content:center}
 
