@@ -88,7 +88,7 @@ main{max-width:var(--w);margin:0 auto;padding:0 24px}
 .hero::after{content:"";position:absolute;left:50%;top:-60px;width:100vw;height:min(820px,110%);transform:translateX(-50%);z-index:-1;pointer-events:none;background:radial-gradient(420px circle at var(--sx) var(--sy),rgba(124,240,192,.07),transparent 70%);transition:background-position .2s}
 .hero::before{content:"";position:absolute;left:50%;top:-60px;width:100vw;height:520px;transform:translateX(-50%);pointer-events:none;z-index:-1;
   background:radial-gradient(60% 55% at 50% 0%,rgba(124,240,192,.10),transparent 70%)}
-.h1{font-size:clamp(33px,5.2vw,62px);line-height:1.05;letter-spacing:-.035em;font-weight:600;margin:26px auto 22px;max-width:900px}
+.h1{font-size:clamp(33px,5.2vw,62px);line-height:1.05;letter-spacing:-.035em;font-weight:600;margin:26px auto 22px;max-width:900px;text-wrap:balance}
 .h1 .muted{color:var(--fg3);font-size:.62em;letter-spacing:-.02em;display:inline-block;margin-top:.3em;line-height:1.15}
 .feat a{color:var(--fg2);text-decoration:underline;text-underline-offset:3px}
 .limits{padding:40px 0 20px}
@@ -328,7 +328,7 @@ section{padding:96px 0}
 .cta{text-align:center;border-top:1px solid var(--line);padding:110px 0}
 .cta .lead{margin-bottom:30px}
 .foot{max-width:var(--w);margin:0 auto;padding:26px 24px 40px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--fg3);font-size:13px}
-.foot a{margin-left:18px;color:var(--fg2)}.foot a:hover{color:var(--fg)}
+.foot nav{display:flex;flex-wrap:wrap;gap:8px 18px}.foot a{color:var(--fg2);white-space:nowrap}.foot a:hover{color:var(--fg)}
 
 /* reveal */
 .reveal{opacity:0;transform:translateY(18px);transition:opacity .7s var(--ease),transform .7s var(--ease),filter .7s var(--ease)}
@@ -352,7 +352,7 @@ section{padding:96px 0}
   .grid3{grid-template-columns:1fr}
   .frame-body{grid-template-columns:1fr}.f-side{display:none}.f-cards{grid-template-columns:1fr}
   .f-agent{position:static;width:auto;margin:14px 24px 20px;opacity:1;transform:none;display:none}.f-agent.in{display:block}
-  .foot{flex-direction:column}.foot a{margin:0 18px 0 0}
+  .foot{flex-direction:column}
 }
 
 /* cross-page transitions */

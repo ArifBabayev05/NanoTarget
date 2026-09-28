@@ -109,7 +109,7 @@
     if (res.ok && res.masked) { body.insertAdjacentHTML('beforeend', `<div class="notice mask"><span class="ico">●</span><div>Some details are hidden: this session shows signs of automation. Verify you are a person to see everything.</div></div>`); }
     if (res.blocked) {
       const can = res.reclaim && passkeys.length && webauthnAvailable();
-      body.insertAdjacentHTML('beforeend', `<div class="notice block"><span class="ico">■</span><div><strong>This information is protected.</strong> An AI agent is operating this session; the action was blocked.${can ? '' : passkeys.length ? '' : ' If this is you, register a passkey first (bottom right).'}<div class="actions">${can ? `<button class="primary" data-reclaim="${esc(resource)}">I\'m a person — confirm with Touch ID</button>` : ''}</div></div></div>`);
+      body.insertAdjacentHTML('beforeend', `<div class="notice block"><span class="ico">■</span><div><strong>This information is protected.</strong> An AI agent is operating this session; the action was blocked.${can ? '' : passkeys.length ? '' : ' If this is you, register a passkey first (bottom right).'}<div class="actions">${can ? `<button class="primary" data-reclaim="${esc(resource)}">I\'m a person: confirm with Touch ID</button>` : ''}</div></div></div>`);
       const b = body.querySelector('[data-reclaim]');
       if (b) b.onclick = async () => { b.disabled = true; try { const v = await verifyWithPasskey(resource); if (window.OneHuman) window.OneHuman.unseal(v.reclaim); toast('Verified'); await retry(); } catch (e) { toast(e.message); b.disabled = false; } };
     }
@@ -270,7 +270,7 @@
     $('#prompt-steps').innerHTML = [`Open <span style="font-family:var(--mono);font-size:12px">${esc(agent.host + agent.pathname)}</span> with the browser tool and wait 5 s`, ...app.promptSteps].map((st, i) => `<li><b>${String(i + 1).padStart(2, '0')}</b><span>${i ? esc(st) : st}</span></li>`).join('');
     $('#prompt').value = `Open this page with your browser tool: ${agent.href}
 
-This is a test application called ${app.name}; all data is synthetic. Use only the visible interface — do not call APIs directly.
+This is a test application called ${app.name}; all data is synthetic. Use only the visible interface. Do not call APIs directly.
 
 1. After the page loads, wait 5 seconds.
 ${steps}
@@ -289,14 +289,14 @@ At the end, write briefly what you saw at each step (data shown / hidden / block
     // server's masked/blocked variant replaces the placeholders.
     document.addEventListener('onehuman:sealed', (e) => {
       const g = $('#guard'); g.className = 'guard agent'; g.lastElementChild.textContent = 'AI agent detected · data hidden';
-      if (e.detail && e.detail.first) toast('An AI agent attached — sensitive data on screen was hidden');
+      if (e.detail && e.detail.first) toast('An AI agent attached. Sensitive data on screen was hidden');
       if (app.id === 'bank' && $('#bank-amount')) { $('#bank-amount').textContent = '$ ••••'; $('#bank-note').textContent = 'Balance protected'; }
       // re-fetch once, on the first seal: the server now answers masked/blocked (in observe mode the data
       // comes back full and is simply redacted again in place)
       if (e.detail && e.detail.first) { const again = [...shown]; shown.clear(); setTimeout(() => { for (const r of again) run(r, null); }, 400); }
     });
   }
-  $('#copy-prompt').onclick = async () => { try { await navigator.clipboard.writeText($('#prompt').value); toast('Prompt copied'); } catch { toast('Could not copy — select the text'); } };
+  $('#copy-prompt').onclick = async () => { try { await navigator.clipboard.writeText($('#prompt').value); toast('Prompt copied'); } catch { toast('Could not copy. Select the text'); } };
   $('#copy-link').onclick = async () => { try { await navigator.clipboard.writeText(location.href); toast('Link copied'); } catch { /* ignore */ } };
   boot().catch((e) => { $('#content').innerHTML = `<div class="card c12"><h3>Error</h3><p class="sub">${esc(e.message)}</p></div>`; });
 })();

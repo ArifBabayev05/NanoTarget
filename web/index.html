@@ -9,8 +9,13 @@
 <meta property="og:description" content="When a customer lets an AI agent use your product, decide what the agent may do, and keep proof that a person agreed.">
 <meta property="og:site_name" content="OneHuman">
 <meta property="og:url" content="https://onehuman.ai/">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="OneHuman · prove who approved what">
+<meta property="og:image" content="https://onehuman.ai/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://onehuman.ai/og.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="icon" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
@@ -186,7 +191,7 @@
 <section class="integrate" id="integrate">
   <div class="sec-head reveal">
     <h2 class="h2 tr">Set it up in an afternoon, or let your coding agent do it</h2>
-    <p class="lead">Run <code>npx onehumanai init</code>: it asks what to protect and how, shows every change, and wires it in when you say yes. Or hand your coding agent the npm link and say “install this”.</p>
+    <p class="lead">Run <code>npx onehumanai init</code> and answer three questions. Or tell your coding agent “install onehumanai”.</p>
   </div>
   <div class="code-tabs reveal">
     <div class="tabs" id="code-tabs"><button class="on" data-tab="server">server.js</button><button data-tab="page">page.html</button><button data-tab="policy">onehuman.policy.json</button><button data-tab="agent">Prompt for your agent</button></div>
@@ -240,7 +245,7 @@ Licence: the package is Apache-2.0; the engine is BUSL-1.1 with production use g
 
 <section class="cta reveal">
   <h2 class="h2 tr">Know who agreed.</h2>
-  <p class="lead">One command: <code>npx onehumanai init</code>. It installs the package, asks what to protect and shows every change before it writes it. Everything runs on your own server. The SDK and middleware are Apache 2.0, and the engine's source is open with production use granted. Add an API key and the portal shows how many of your sessions had an AI agent in them.</p>
+  <p class="lead">One command sets it up. It runs on your own server and shows every change before it writes it.</p>
   <div class="hero-actions">
     <div class="npm"><span class="prompt">$</span><code>npx onehumanai init</code><button class="copy" data-copy="npx onehumanai init" aria-label="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div>
     <a class="btn secondary" href="/portal">Get your API key <span class="arrow">→</span></a>
@@ -251,7 +256,7 @@ Licence: the package is Apache-2.0; the engine is BUSL-1.1 with production use g
 
 <footer class="foot">
   <span>© 2026 OneHuman · Apache-2.0 SDK · BUSL-1.1 engine · all demo data is synthetic</span>
-  <span><a href="https://github.com/OneHumanAI/onehumanai" target="_blank" rel="noopener">GitHub</a><a href="https://www.npmjs.com/package/onehumanai" target="_blank" rel="noopener">npm</a><a href="/docs#agent">Integration protocol</a><a href="/scorecard">Agent scorecard</a><a href="/measurements">How we measured</a><a href="/trust">Trust &amp; privacy</a></span>
+  <nav aria-label="Footer"><a href="https://github.com/OneHumanAI/onehumanai" target="_blank" rel="noopener">GitHub</a><a href="https://www.npmjs.com/package/onehumanai" target="_blank" rel="noopener">npm</a><a href="/docs#agent">Integration protocol</a><a href="/scorecard">Agent scorecard</a><a href="/measurements">How we measured</a><a href="/trust">Trust &amp; privacy</a></nav>
 </footer>
 <div class="toast" id="toast"></div>
 <script src="/landing.js"></script>

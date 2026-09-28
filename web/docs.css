@@ -33,8 +33,8 @@ mark{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 2px
 .search svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;flex:none}
 .search input{flex:1;min-width:0;background:none;border:0;outline:none;color:var(--fg);font:inherit;padding:0}
 .search kbd{font:11px var(--mono);color:var(--fg3);border:1px solid var(--line2);border-radius:5px;padding:1px 6px}
-.top-links{display:flex;gap:20px;color:var(--fg2);font-size:14px}.top-links a:hover{color:var(--fg)}
-.theme{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--bg2)}
+.top-links{display:flex;gap:20px;color:var(--fg2);font-size:14px}.top-links a:hover,.top-links a[aria-current]{color:var(--fg)}
+.theme{display:inline-flex;justify-self:end;flex:none;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--bg2)}
 .theme button{background:none;border:0;color:var(--fg3);cursor:pointer;padding:7px 9px;display:grid;place-items:center}
 .theme button svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .theme button.on{background:var(--bg3);color:var(--fg)}
@@ -182,3 +182,4 @@ p b,li b,dd b{color:var(--fg);font-weight:600}
 }
 .btn,.tabs button{white-space:nowrap}
 @media (max-width:560px){.top .btn.primary{font-size:13px;padding:0 11px}.brand small{display:none}}
+@media (max-width:440px){.top .theme{display:none}.top{grid-template-areas:"brand . portal portal" "search search search search"}}

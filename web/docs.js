@@ -16,7 +16,7 @@
   // the header knows whether you are signed in
   (async () => {
     try {
-      const r = await fetch('/api/v1/portal/me', { credentials: 'same-origin', cache: 'no-store' }); if (!r.ok) return;
+      const r = await fetch('/api/v1/portal/me?probe=1', { credentials: 'same-origin', cache: 'no-store' }); if (!r.ok) return;
       const d = await r.json();
       if (d?.account?.email) { $('#portal-link').textContent = 'Open portal →'; $('#portal-link').title = d.account.email; }
     } catch { /* signed out: the button already says Portal */ }
@@ -81,7 +81,7 @@
     $$('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === page.tab));
     renderSide(page.tab);
     $$('#side a').forEach((a) => a.classList.toggle('on', a.dataset.page === page.id));
-    document.title = `${page.title} — OneHuman docs`;
+    document.title = `${page.title} · OneHuman docs`;
     buildToc(sections[page.id]);
     buildPager(page);
     closeResults();

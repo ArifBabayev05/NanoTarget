@@ -33,7 +33,7 @@ h3{margin:0;font-size:14px;font-weight:600;letter-spacing:-.01em}
 .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px}
 .brand .logo{height:19.5px;width:auto;display:block;color:var(--fg);flex:none}
 .mark{width:24px;height:24px;border-radius:7px;background:var(--fg);display:grid;place-items:center}.mark span{width:8px;height:8px;border-radius:50%;background:var(--bg);box-shadow:0 0 0 3px var(--fg),0 0 0 4px var(--bg)}
-.theme{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--bg2)}
+.theme{display:inline-flex;justify-self:end;flex:none;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--bg2)}
 .theme button{background:none;border:0;color:var(--fg3);cursor:pointer;padding:7px 9px;display:grid;place-items:center;transition:color .2s,background .2s}
 .theme button svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .theme button:hover{color:var(--fg2)}
@@ -43,7 +43,7 @@ h3{margin:0;font-size:14px;font-weight:600;letter-spacing:-.01em}
 .search input{flex:1;min-width:0;background:none;border:0;outline:none;color:var(--fg);font:inherit;padding:0}
 .search kbd{font:11px var(--mono);color:var(--fg3);border:1px solid var(--line2);border-radius:5px;padding:1px 5px}
 .search.inline{max-width:420px;height:40px}
-.top-links{display:flex;gap:22px;color:var(--fg2);font-size:14px;justify-self:end}.top-links a:hover{color:var(--fg)}
+.top-links{display:flex;gap:22px;color:var(--fg2);font-size:14px;justify-self:end}.top-links a:hover,.top-links a[aria-current]{color:var(--fg)}
 .me{display:flex;align-items:center;gap:9px;color:var(--fg2);font-size:13px;padding:5px 10px 5px 5px;border:1px solid var(--line);border-radius:999px;background:var(--bg2)}
 .av{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 55%,#000));color:var(--accent-ink);display:grid;place-items:center;font-weight:700;font-size:12px}
 /* buttons / inputs */

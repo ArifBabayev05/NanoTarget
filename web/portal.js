@@ -146,7 +146,7 @@
         <td>${k.events.toLocaleString()}</td>
         <td><div class="prog"><div class="lbl"><span class="muted">${t.agentSessions} of ${t.sessions} sessions</span><b>${pct}%</b></div><div class="track"><i style="width:${pct}%"></i></div></div></td>
         <td style="text-align:right"><button class="dots" data-menu="${esc(k.id)}" aria-label="Key actions">⋮</button></td></tr>`;
-    }).join('') : `<tr><td colspan="8" class="empty-cell">${q ? 'No keys match.' : 'No keys yet — create one to start receiving decisions.'}</td></tr>`;
+    }).join('') : `<tr><td colspan="8" class="empty-cell">${q ? 'No keys match.' : 'No keys yet. Create one to start receiving decisions.'}</td></tr>`;
     const dead = (me.keys || []).filter((k) => k.revoked).length;
     $('#key-count').innerHTML = `${rows.length} key${rows.length === 1 ? '' : 's'}${pastedKeyId ? ' · matched the key you pasted' : ''}`
       + (dead ? ` · <button class="linky${showRevoked ? ' on' : ''}" id="toggle-revoked">${showRevoked ? 'hiding' : 'show'} ${dead} revoked</button>` : '');
@@ -197,7 +197,7 @@
       const yes = await ask({
         title: `Rotate "${k.name}"?`, ok: 'Rotate', danger: true,
         body: 'A new secret is issued for this same key. Its name, environment and history stay; the old secret stops working the moment you confirm.',
-        hint: 'Deploy the new secret to your servers right after — anything still holding the old one stops reporting.',
+        hint: 'Deploy the new secret to your servers right after. Anything still holding the old one stops reporting.',
       });
       if (!yes) return;
       try {
@@ -218,7 +218,7 @@
         title: `Delete "${k.name}" for good?`, ok: 'Delete', danger: true, label: `Type the key's name to confirm`,
         body: 'The key and every decision it reported are removed. This cannot be undone.',
       });
-      if (typed !== k.name) return void (typed && toast('The name did not match — nothing was deleted'));
+      if (typed !== k.name) return void (typed && toast('The name did not match, so nothing was deleted'));
       try { await api('/api/v1/portal/keys/delete', { method: 'POST', body: JSON.stringify({ id: k.id }) }); toast('Key deleted'); await refreshKeys(); await loadOverview().catch(() => {}); renderKeyTable(); } catch (e) { toast(e.message); }
     }
   });
@@ -262,7 +262,7 @@
   };
   function codeSnippet(prefix) {
     const key = prefix ? `${prefix}…` : 'oh_live_…';
-    return `<span class="c">// server.js</span>\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'onehumanai'</span>;\n\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({\n  secret: process.env.ONEHUMAN_SECRET,\n  policy: <span class="s">'./onehuman.policy.json'</span>,\n  apiKey: process.env.ONEHUMAN_API_KEY,        <span class="c">// ${esc(key)} — from this portal</span>\n});\napp.use(oh.middleware());\napp.get(<span class="s">'/api/balance'</span>, oh.protect(<span class="s">'balance.read'</span>), (req, res) =&gt; oh.send(req, res, balance, maskBalance));`;
+    return `<span class="c">// server.js</span>\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'onehumanai'</span>;\n\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({\n  secret: process.env.ONEHUMAN_SECRET,\n  policy: <span class="s">'./onehuman.policy.json'</span>,\n  apiKey: process.env.ONEHUMAN_API_KEY,        <span class="c">// ${esc(key)} (from this portal)</span>\n});\napp.use(oh.middleware());\napp.get(<span class="s">'/api/balance'</span>, oh.protect(<span class="s">'balance.read'</span>), (req, res) =&gt; oh.send(req, res, balance, maskBalance));`;
   }
   function drawChart(series, since, bucketMs, now) {
     const cv = $('#chart'); const dpr = Math.min(2, devicePixelRatio || 1); const W = cv.clientWidth || 600, H = 220;
@@ -286,10 +286,10 @@
   const shownRows = new Set();
   // A decision the portal verified at ingest carries a seal; clicking it downloads that session's proofs.
   const seal = (e) => e.signed === true
-    ? `<button class="seal ok" data-proof-session="${esc(e.session)}" title="Signed and verified — download this session's proofs">✓</button>`
+    ? `<button class="seal ok" data-proof-session="${esc(e.session)}" title="Signed and verified. Download this session's proofs">✓</button>`
     : e.signed === false ? '<span class="seal bad" title="A proof came with this decision but did not verify">!</span>' : '<span class="seal none" title="Unsigned (reported by an older middleware)">·</span>';
   // The customer grades a decision in place. This is the only ground truth the product gets from the field.
-  const grade = (e) => `<span class="grade" data-grade-id="${e.id}"><button class="${e.feedback === 'correct' ? 'on' : ''}" data-v="correct" title="This decision was right">✓</button><button class="${e.feedback === 'wrong' ? 'on bad' : ''}" data-v="wrong" title="This was wrong — a person stopped, or an agent let through">✗</button></span>`;
+  const grade = (e) => `<span class="grade" data-grade-id="${e.id}"><button class="${e.feedback === 'correct' ? 'on' : ''}" data-v="correct" title="This decision was right">✓</button><button class="${e.feedback === 'wrong' ? 'on bad' : ''}" data-v="wrong" title="This was wrong: a person stopped, or an agent let through">✗</button></span>`;
   const logRow = (e, fresh = false) => `<div class="e${e.feedback === 'wrong' ? ' wrong' : ''}${fresh ? ' fresh' : ''}"><span class="t">${seal(e)}${fmtT(e.at)}</span><span class="s">${esc(e.session.slice(0, 8))}</span><span class="r" title="${esc(e.resource)}">${esc(e.resource)}</span><span class="chip ${esc(e.decision)}">${esc(e.decision)}</span><span class="st"><span class="chip ${esc(e.actor)}">${esc(ACTOR_WORD[e.actor] || e.actor)}</span>${e.tools.length ? ` <span class="chip">${esc(e.tools[0])}</span>` : ''}</span><span class="reasons" title="${esc(e.reasons.join(', '))}">${esc(STATE_WORD[e.state] || e.state)} · ${esc(e.reasons.slice(0, 3).join(' · '))}</span>${grade(e)}</div>`;
   function filterLog(q) {
     const s = (q || '').toLowerCase();
@@ -348,7 +348,7 @@
     try {
       await api('/api/v1/portal/feedback', { method: 'POST', body: JSON.stringify({ key: keyId, id, verdict }) });
       row.feedback = verdict; filterLog($('#search').value);
-      toast(verdict === 'wrong' ? 'Marked wrong — thank you, this trains the model' : verdict === 'correct' ? 'Marked correct' : 'Grade cleared');
+      toast(verdict === 'wrong' ? 'Marked wrong. Thank you, this trains the model' : verdict === 'correct' ? 'Marked correct' : 'Grade cleared');
       loadStats();
     } catch (err) { toast(err.message); }
   });
@@ -454,8 +454,8 @@
   let setupKeyId = null, fw = 'express', waitTimer = 0;
   const FRAMEWORKS = {
     express: (key) => `<span class="c">// server.js</span>\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'onehumanai'</span>;\n\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({\n  secret: process.env.ONEHUMAN_SECRET,\n  policy: <span class="s">'./onehuman.policy.json'</span>,\n  apiKey: process.env.ONEHUMAN_API_KEY,\n  identify: (req) =&gt; req.session?.userId ?? <span class="k">null</span>,\n});\napp.use(oh.middleware());\napp.get(<span class="s">'/api/balance'</span>, oh.protect(<span class="s">'balance.read'</span>), (req, res) =&gt;\n  oh.send(req, res, balance, (b) =&gt; ({ ...b, amount: <span class="k">null</span> })));`,
-    next: (key) => `<span class="c">// server.mjs — Next.js custom server</span>\n<span class="k">import</span> next <span class="k">from</span> <span class="s">'next'</span>;\n<span class="k">import</span> express <span class="k">from</span> <span class="s">'express'</span>;\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'onehumanai'</span>;\n\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: <span class="s">'./onehuman.policy.json'</span>, apiKey: process.env.ONEHUMAN_API_KEY });\n<span class="k">const</span> app = express();\napp.use(oh.middleware());                       <span class="c">// before next()</span>\napp.get(<span class="s">'/api/balance'</span>, oh.protect(<span class="s">'balance.read'</span>), handler);\napp.all(<span class="s">'*'</span>, (req, res) =&gt; nextHandle(req, res));`,
-    fastify: (key) => `<span class="c">// server.js — Fastify uses the raw request/response</span>\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: <span class="s">'./onehuman.policy.json'</span>, apiKey: process.env.ONEHUMAN_API_KEY });\n\nfastify.addHook(<span class="s">'onRequest'</span>, (req, reply, done) =&gt; oh.middleware()(req.raw, reply.raw, done));\nfastify.get(<span class="s">'/api/balance'</span>, { onRequest: (req, reply, done) =&gt; oh.protect(<span class="s">'balance.read'</span>)(req.raw, reply.raw, done) },\n  (req, reply) =&gt; oh.send(req.raw, reply.raw, balance, mask));`,
+    next: (key) => `<span class="c">// server.mjs (Next.js custom server)</span>\n<span class="k">import</span> next <span class="k">from</span> <span class="s">'next'</span>;\n<span class="k">import</span> express <span class="k">from</span> <span class="s">'express'</span>;\n<span class="k">import</span> { onehuman } <span class="k">from</span> <span class="s">'onehumanai'</span>;\n\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: <span class="s">'./onehuman.policy.json'</span>, apiKey: process.env.ONEHUMAN_API_KEY });\n<span class="k">const</span> app = express();\napp.use(oh.middleware());                       <span class="c">// before next()</span>\napp.get(<span class="s">'/api/balance'</span>, oh.protect(<span class="s">'balance.read'</span>), handler);\napp.all(<span class="s">'*'</span>, (req, res) =&gt; nextHandle(req, res));`,
+    fastify: (key) => `<span class="c">// server.js: Fastify uses the raw request/response</span>\n<span class="k">const</span> oh = <span class="k">await</span> onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: <span class="s">'./onehuman.policy.json'</span>, apiKey: process.env.ONEHUMAN_API_KEY });\n\nfastify.addHook(<span class="s">'onRequest'</span>, (req, reply, done) =&gt; oh.middleware()(req.raw, reply.raw, done));\nfastify.get(<span class="s">'/api/balance'</span>, { onRequest: (req, reply, done) =&gt; oh.protect(<span class="s">'balance.read'</span>)(req.raw, reply.raw, done) },\n  (req, reply) =&gt; oh.send(req.raw, reply.raw, balance, mask));`,
     docker: (key) => `<span class="c"># docker-compose.yml</span>\nservices:\n  api:\n    environment:\n      ONEHUMAN_SECRET: <span class="s">\"\${ONEHUMAN_SECRET}\"</span>\n      ONEHUMAN_API_KEY: <span class="s">\"${esc(key)}\"</span>\n\n<span class="c"># or plain docker</span>\ndocker run -e ONEHUMAN_API_KEY=${esc(key)} -e ONEHUMAN_SECRET=$ONEHUMAN_SECRET my-api`,
   };
   const agentPrompt = (key, admin) => `https://www.npmjs.com/package/onehumanai: install this into my app.\n\n\`npm i onehumanai\` is the only install (one package, the engine is inside). Follow the README protocol: scan the app as if you were an AI browser agent holding a customer's\nlogged-in session, show me the exposure map and what you propose to gate, ask me the nine decisions,\nthen implement the server wiring, the page tags, the policy file and every mask function, verify with\n\`npx onehumanai verify\`, and report what you left open.\n\nReport telemetry to my OneHuman portal: set apiKey: process.env.ONEHUMAN_API_KEY${key ? ` (${key})` : ''}.\n${admin ? `\nYou can administer my account yourself with the management API:\n  curl -H "Authorization: Bearer ${admin}" ${location.origin}/api/v1/manage/me\nGET /api/v1/manage/keys · POST /api/v1/manage/keys {name, expiresInDays, env} · DELETE /api/v1/manage/keys/:id\nGET /api/v1/manage/overview?range=7d · GET /api/v1/manage/stats?key=:id&range=7d\nGET /api/v1/manage/policy?key=:id · POST /api/v1/manage/policy {key, policy}  (the key's policy lives in the portal; your server reads it from there)` : ''}`;
@@ -480,7 +480,7 @@
       const cur = (me.keys || []).find((x) => x.id === setupKeyId);
       const w = $('#wait');
       if (cur && cur.events) {
-        w.className = 'waiting ok'; $('#wait-text').innerHTML = `${cur.events.toLocaleString()} decision${cur.events === 1 ? '' : 's'} received — <a href="#activity" style="text-decoration:underline">open Activity</a>`;
+        w.className = 'waiting ok'; $('#wait-text').innerHTML = `${cur.events.toLocaleString()} decision${cur.events === 1 ? '' : 's'} received. <a href="#activity" style="text-decoration:underline">Open Activity</a>`;
         $$('.setup .step').forEach((st) => st.classList.add('done'));
       } else {
         w.className = 'waiting'; $('#wait-text').textContent = 'Waiting for the first decision from this key…';
@@ -683,7 +683,7 @@
       ? 'On: their changes wait under “Waiting for your OK”. Until you accept, your app keeps the current rules.'
       : 'Off (default): their changes go live by themselves. You can see every one in History below.';
     $('#pol-weak-hint').textContent = st.confirmWeakening
-      ? 'On (recommended): a change that lets AI agents see or do more, or that makes real people confirm or be refused, waits for your OK and your password — even when the switch above is off.'
+      ? 'On (recommended): a change that lets AI agents see or do more, or that makes real people confirm or be refused, waits for your OK and your password, even when the switch above is off.'
       : 'Off: risky changes go through like any other. Turning this back on needs no password.';
   }
   const saveSetting = async (patch) => {
@@ -820,7 +820,7 @@
       : '<p class="fine" style="margin:0">No management keys yet. Create one to let an agent or a CI job manage this account.</p>';
     $$('[data-admin-revoke]').forEach((b) => b.addEventListener('click', async () => {
       const name = adminKeys.find((x) => x.id === b.dataset.adminRevoke)?.name || 'this key';
-      if (!await ask({ title: `Revoke "${name}"?`, ok: 'Revoke', danger: true, body: 'Anything using this management key — an agent, a CI job — stops working immediately.' })) return;
+      if (!await ask({ title: `Revoke "${name}"?`, ok: 'Revoke', danger: true, body: 'Anything using this management key (an agent, a CI job) stops working immediately.' })) return;
       await api('/api/v1/portal/admin-keys/revoke', { method: 'POST', body: JSON.stringify({ id: b.dataset.adminRevoke }) });
       toast('Management key revoked'); renderSettings();
     }));
@@ -833,9 +833,9 @@
       ['GET', '/api/v1/manage/overview?range=7d', 'usage across every key'],
       ['GET', '/api/v1/manage/stats?key=:id', 'one key in depth'],
       ['GET', '/api/v1/manage/events?key=:id', 'the decision log, paged'],
-      ['GET', '/api/v1/manage/proofs?key=:id', 'signed decision proofs — the auditor file'],
+      ['GET', '/api/v1/manage/proofs?key=:id', 'signed decision proofs (the auditor file)'],
       ['POST', '/api/v1/manage/feedback', '{key, id, verdict} grade a decision'],
-    ].map(([m, p, d]) => `<div><span>${m}</span> ${esc(p)} <span style="color:var(--fg3)">— ${esc(d)}</span></div>`).join('');
+    ].map(([m, p, d]) => `<div><span>${m}</span> ${esc(p)}<span style="color:var(--fg3)">: ${esc(d)}</span></div>`).join('');
   }
   $('#admin-add').onclick = () => { $('#admin-modal').hidden = false; $('#admin-new').hidden = false; $('#admin-show').hidden = true; $('#admin-name').value = ''; setTimeout(() => $('#admin-name').focus(), 50); };
   $('#admin-cancel').onclick = () => { $('#admin-modal').hidden = true; };
@@ -867,7 +867,8 @@
 
   // ------------------------------------------------------------------ boot
   async function boot() {
-    try { me = await api('/api/v1/portal/me'); } catch { me = null; }
+    try { me = await api('/api/v1/portal/me?probe=1'); } catch { me = null; }
+    if (!me?.account) me = null;
     if (!me) { $('#auth').hidden = false; $('#shell').hidden = true; $('#me-chip').hidden = true; $('#search-wrap').hidden = true; return; }
     $('#auth').hidden = true; $('#shell').hidden = false; $('#me-chip').hidden = false;
     renderWorkspace();

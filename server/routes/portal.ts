@@ -154,7 +154,8 @@ export function portalRoutes(engine: OneHuman, opts: { secure: (req: Req) => boo
 
   const me = async (req: Req, res: Res) => {
     const account = await accountOf(req);
-    if (!account) return json(res, 401, { error: 'unauthenticated' });
+    // ?probe=1: public pages ask "signed in?" without a red 401 in every visitor's console
+    if (!account) return /[?&]probe=1(&|$)/.test(req.url ?? '') ? json(res, 200, { account: null }) : json(res, 401, { error: 'unauthenticated' });
     const acc = await store.accountById(account);
     json(res, 200, { account: acc ? { email: acc.email, created: acc.created } : null, keys: await store.listApiKeys(account) });
   };

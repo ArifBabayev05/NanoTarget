@@ -16,7 +16,7 @@
   // ---------------------------------------------------------------- signed in? the nav becomes a way back to the portal
   (async () => {
     try {
-      const r = await fetch('/api/v1/portal/me', { credentials: 'same-origin', cache: 'no-store' });
+      const r = await fetch('/api/v1/portal/me?probe=1', { credentials: 'same-origin', cache: 'no-store' });
       if (!r.ok) return;
       const d = await r.json();
       const email = d?.account?.email; if (!email) return;
