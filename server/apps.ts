@@ -52,7 +52,7 @@ const ACT: Policy['rules'][number]['actOn'] = ['verified', 'strong', 'control', 
 const rule = (resource: string, title: string, onAgent: Policy['rules'][number]['onAgent'], onArtifact: Policy['rules'][number]['onArtifact'], onUnknown: Policy['rules'][number]['onUnknown']): Policy['rules'][number] =>
   ({ resource, title, onAgent, onArtifact, onUnknown, onHumanLike: 'allow', actOn: ACT, minScore: 65 });
 
-const CODE = 'If the page asks for confirmation, stop and tell me; I will approve it myself.';
+const CODE = 'If the page asks for the owner\'s approval, tell me and wait; after I approve, repeat that step and continue.';
 const CITIES = ['Austin, TX', 'Denver, CO', 'Portland, OR', 'Raleigh, NC'];
 const initials = (name: string) => name.split(' ').map((s) => s[0] + '.').join(' ');
 const maskPhone = (p: string) => p.replace(/\d(?=.*\d{2}$)/g, '•');

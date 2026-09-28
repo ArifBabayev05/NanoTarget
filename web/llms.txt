@@ -1,9 +1,9 @@
 # OneHuman
 
-> OneHuman is a Node.js middleware and browser SDK that notices when an AI agent (Claude in Chrome, ChatGPT agent, OpenAI Codex, Perplexity Comet, Playwright or Puppeteer) is operating a customer's signed-in session in a web app, and lets each endpoint allow the request, mask sensitive fields, ask the person for a passkey, or block it. Every decision is signed (Ed25519) on the customer's own server, so the company can prove afterwards which actions a human approved. Install with `npx onehumanai init`.
+> OneHuman governs the AI agents your customers bring into your web app. It is a Node.js middleware and browser SDK that notices when an AI agent (Claude in Chrome, ChatGPT agent, OpenAI Codex, Perplexity Comet, Playwright or Puppeteer) is operating a customer's signed-in session in a web app, and lets each endpoint allow the request, hide private fields, wait for the account owner's passkey approval, or keep it closed. Every decision is signed (Ed25519) on the customer's own server, so the company can prove afterwards which actions a human approved. Install with `npx onehumanai init`.
 
 Key facts:
-- Category: AI agent detection and access control inside signed-in web sessions (not edge bot management, not CAPTCHA).
+- Category: governance of customer-brought AI agents inside signed-in web sessions (not edge bot management, not CAPTCHA, not workforce AI security: that governs the agents a company's own employees run).
 - Works at the endpoint, after login: bot protection at the door does not see an agent that uses the customer's own browser, cookies and login.
 - Detection: traces agent tools leave in the page when they attach (before the agent's first action), a per-click check that tells a human hand from a program, and Web Bot Auth signatures.
 - Policy per resource: `allow`, `mask`, `step_up` (passkey / WebAuthn), `block`. Start in `observe` mode, then `enforce`.
