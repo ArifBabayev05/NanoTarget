@@ -242,7 +242,7 @@ app.get(<span class="s">'/files/:token'</span>, <span class="k">async</span> (re
   streamStatement(res);
 });</pre>
   <h3>Step-up and reclaim</h3>
-  <p>A <code>step_up</code> answers <b>428</b> with a challenge; a <code>block</code> on an agent session answers <b>403</b> and, where a passkey is registered, offers the reclaim path. A successful WebAuthn user-verified assertion hands the session back to the person for a few minutes. Nothing in the page can grant that by itself.</p>
+  <p>A <code>step_up</code> answers <b>428</b> with a challenge. When an AI agent asked for the action, the 428 carries no code at all (<code>stepUp.approve: true</code>): only the account owner approves it, with a passkey (<code>purpose: 'approve'</code>), for that one action, and the session stays the agent's. A <code>block</code> on an agent session answers <b>403</b> and, where a passkey is registered, offers the reclaim path. A successful WebAuthn user-verified assertion hands the session back to the person for a few minutes. Nothing in the page can grant that by itself.</p>
 </section>
 
 <section id="api">
