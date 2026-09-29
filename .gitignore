@@ -41,3 +41,6 @@ __pycache__/
 packages/python/build/
 packages/python/dist/
 packages/python/*.egg-info/
+packages/dotnet/**/bin/
+packages/dotnet/**/obj/
+packages/java/target/

@@ -43,3 +43,20 @@ jobs:
         run: python -m unittest discover -s packages/python/tests -v
         env:
           ONEHUMAN_REPO: ${{ github.workspace }}
+  dotnet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: ASP.NET Core adapter against a real sidecar
+        run: node scripts/with-sidecar.mjs -- dotnet run --project packages/dotnet/tests/Smoke
+
