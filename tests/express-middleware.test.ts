@@ -100,13 +100,16 @@ test('by default the page learns the outcome, not the reasons (they would teach 
   const server2 = app2.listen(0);
   const base2 = `http://127.0.0.1:${(server2.address() as AddressInfo).port}`;
   const early = { startedMs: 0, observedMs: 500, webdriver: false, firstInteractionMs: null, dataDomMs: null, markers: [{ name: 'claude-stop', atMs: 100 }], environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: [], focusWhileHiddenMs: null }, focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0 };
-  const sig = await fetch(`${base2}/onehuman/signals`, { method: 'POST', headers: { 'content-type': 'application/json', origin: base2, 'x-user': 'quiet-1' }, body: JSON.stringify({ early, interaction: null }) });
-  const s = await sig.json();
-  assert.deepEqual(Object.keys(s.connection), ['state'], 'the page sees the state, not the evidence');
-  assert.deepEqual(Object.keys(s.assessment), ['actor']);
-  const r = await fetch(`${base2}/api/balance`, { headers: { 'x-user': 'quiet-1' } });
-  const body = await r.json();
-  assert.equal(JSON.stringify(body).includes('reasonCodes'), false);
-  assert.equal(JSON.stringify(body).includes('score'), false);
-  server2.close(); await quiet.close();
+  try {
+    const quietSig = await fetch(`${base2}/onehuman/signals`, { method: 'POST', headers: { 'content-type': 'application/json', origin: base2, 'x-user': 'quiet-0' }, body: JSON.stringify({ early: { ...early, markers: [] }, interaction: null }) });
+    assert.deepEqual(await quietSig.json(), { connection: null }, 'nothing attached: the page learns nothing');
+    const sig = await fetch(`${base2}/onehuman/signals`, { method: 'POST', headers: { 'content-type': 'application/json', origin: base2, 'x-user': 'quiet-1' }, body: JSON.stringify({ early, interaction: null }) });
+    const s = await sig.json();
+    assert.deepEqual(s, { connection: { state: 'agent_attached' } }, 'only what the page script needs to seal: no actor, no evidence');
+    const r = await fetch(`${base2}/api/balance`, { headers: { 'x-user': 'quiet-1' } });
+    const body = await r.json();
+    assert.equal(JSON.stringify(body).includes('reasonCodes'), false);
+    assert.equal(JSON.stringify(body).includes('score'), false);
+    assert.equal(JSON.stringify(body).includes('actor'), false, 'nor who it looked like');
+  } finally { server2.close(); await quiet.close(); }
 });

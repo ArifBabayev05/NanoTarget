@@ -39,6 +39,7 @@ export async function startSidecar(opts: SidecarOptions): Promise<{ server: Serv
   const oh = await onehuman({ ...opts, identify: (req) => { const v = req.headers['x-oh-identity']; return typeof v === 'string' && v.trim() ? v.trim().slice(0, 200) : null; } });
   const pageRoutes = oh.middleware();
   const token = opts.token ?? process.env.ONEHUMAN_SIDECAR_TOKEN ?? '';
+  const explain = opts.explain ?? process.env.ONEHUMAN_EXPLAIN === '1';
 
   async function decide(req: Req, res: Res) {
     const resource = String(req.headers['x-oh-resource'] ?? '');
@@ -54,7 +55,8 @@ export async function startSidecar(opts: SidecarOptions): Promise<{ server: Serv
     const r = req.onehuman;
     if (!r) return json(res, 503, { error: 'onehuman_unavailable' });
     const d = r.full as { id?: string; computed?: string } | null;
-    const summary = { id: d?.id ?? null, resource, decision: r.decision, actor: r.actor };
+    // what the page sees: the outcome only (the app itself gets actor and computed below)
+    const summary = explain ? { id: d?.id ?? null, resource, decision: r.decision, actor: r.actor } : { id: d?.id ?? null, resource, decision: r.decision };
     const status = r.decision === 'block' ? 403 : r.decision === 'step_up' ? 428 : 200;
     const out = {
       decision: r.decision, computed: d?.computed ?? r.decision, masked: r.masked, blocked: r.blocked, actor: r.actor, status,

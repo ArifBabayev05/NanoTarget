@@ -24,6 +24,9 @@
   const endpoint = (script && script.dataset.endpoint) || config.endpoint || (/\/sdk\.js(\?|$)/.test(scriptSrc) ? scriptSrc.replace(/\/sdk\.js(\?.*)?$/, '/signals') : '/api/v1/signals');
   const zoneSelector = (script && script.dataset.zone) || null;
   const focusProbe = !script || script.dataset.focusProbe !== 'off';
+  // Off unless the site opts in: loading chrome-extension:// URLs reads what is installed on the visitor's device
+  // (an ePrivacy question in the EU). It carries no weight in the decision; it only names the product.
+  const extensionProbes = !!script && script.dataset.extensionProbes === 'on';
   const now = () => Math.round(performance.now());
   // Session id embedded in this page instance by the server (see <meta name="oh-session">).
   const sessionMeta = document.querySelector('meta[name="oh-session"]');
@@ -295,9 +298,9 @@
     };
     requestAnimationFrame(frame);
   })();
-  // Extension-installed probes: an <img>/<script> load from chrome-extension:// succeeds only when installed.
-  // Requires the host page CSP to allow `chrome-extension:` in img-src / connect-src.
-  for (const [id, url] of EXTENSION_PROBES) {
+  // Extension-installed probes (opt-in, data-extension-probes="on"): an <img>/<script> load from chrome-extension://
+  // succeeds only when installed. Requires the host page CSP to allow `chrome-extension:` in img-src / connect-src.
+  for (const [id, url] of extensionProbes ? EXTENSION_PROBES : []) {
     const mark = () => { if (!early.environment.extensionsInstalled.includes(id)) early.environment.extensionsInstalled.push(id); };
     try {
       if (url.endsWith('.png')) { const img = new Image(); img.onload = mark; img.src = url; }

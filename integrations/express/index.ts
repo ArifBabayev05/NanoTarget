@@ -336,7 +336,7 @@ export async function onehuman(opts: OneHumanOptions) {
 
   // what the page sees of a decision: the outcome; the reasons stay in the audit log and the portal (explain: true shows them)
   const explain = opts.explain ?? process.env.ONEHUMAN_EXPLAIN === '1';
-  const clientDecision = (d: DecisionRow) => (explain ? publicDecision(d) : { id: d.id, resource: d.resource, decision: d.decision, actor: d.actor });
+  const clientDecision = (d: DecisionRow) => (explain ? publicDecision(d) : { id: d.id, resource: d.resource, decision: d.decision });
   const lab = labRoutes(engine, null, { explain });
   const wa = webauthnRoutes(engine);
   const api: Record<string, (req: IncomingMessage, res: ServerResponse) => void | Promise<void>> = {
@@ -456,7 +456,8 @@ export async function onehuman(opts: OneHumanOptions) {
           };
           res.setHeader('X-OH-Decision', d.id);
           // the outcome, never the reasons: what was done, what protect mode would do (observe), and who it looked like
-          res.setHeader('X-OH-Outcome', `${d.decision}; computed=${d.computed}; actor=${d.actor}`);
+          // (production without explain: the decision only — `computed` and `actor` would let an agent tune itself)
+          res.setHeader('X-OH-Outcome', explain || debugPolicyHeader ? `${d.decision}; computed=${d.computed}; actor=${d.actor}` : d.decision);
           res.setHeader('X-OH-Policy', d.policyVersion);
           if (debugPolicyHeader) res.setHeader('X-OH-Policy-Source', sync ? sync.source : 'file');
           if (reporter) report(session, resource, d, result);
@@ -490,7 +491,7 @@ export async function onehuman(opts: OneHumanOptions) {
   function send<T>(req: Req, res: Res, full: T, mask: (full: T) => unknown) {
     const oh = req.onehuman;
     const body = oh?.masked ? mask(full) : full;
-    json(res, 200, { ...(body as object), _onehuman: oh ? (explain ? { decision: oh.decision, actor: oh.actor, score: oh.score, reasonCodes: oh.reasonCodes } : { decision: oh.decision, actor: oh.actor }) : null });
+    json(res, 200, { ...(body as object), _onehuman: oh ? (explain ? { decision: oh.decision, actor: oh.actor, score: oh.score, reasonCodes: oh.reasonCodes } : { decision: oh.decision }) : null });
   }
 
   /** the background reporter (null without an apiKey): `await oh.telemetry?.flush()` before exit if you want the last events delivered */
