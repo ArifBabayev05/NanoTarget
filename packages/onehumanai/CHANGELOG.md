@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0
+- **Python, .NET and Java.** `npx onehumanai sidecar` runs the same engine as a small local service (127.0.0.1:8788) for backends that are not Node. Adapters: `onehumanai` for Python (Flask, Django, FastAPI), `OneHumanAI.AspNetCore` (minimal APIs, MVC) and `ai.onehuman:onehumanai` (Jakarta Servlet, Spring MVC). Each forwards the page script's `/onehuman/*` requests and asks `POST /v1/decide` before a protected handler; same 403/428 bodies, masking, download tokens and fail open as Express.
+- **Audit chain holds under parallel traffic.** Appends to one chain are serialised in the process, and a unique (room, seq) index with a retry keeps it whole across instances. Before, three cards loading at once could all write seq 1 and break verification.
+- **The chain hash covers the evidence.** v2 hashes canonical JSON (keys sorted at every level), so editing a nested reason, metric or engine version breaks the chain. v1 rows still verify.
+- **The page learns less.** With `explain` off (the default) the page script gets only what it needs to seal: no actor, no environment verdict, no computed decision in production (`X-OH-Outcome` carries the decision only; development keeps the detail `npx onehumanai verify` reads).
+- **Extension probes are opt-in** (`data-extension-probes="on"`): reading installed extensions is an ePrivacy question and never weighed in the decision.
+- **SDK is lighter on busy pages**: DOM-change scans coalesced to one per frame, the globals listing at most once a second and only when globals changed, the reading shield's region lookup cached for 100 ms.
+- **`X-OH-Sample` stays under 6000 characters** (nginx refuses one header over 8 KB by default): the trajectory keeps its newest points.
+- Reason details, API errors and default policy titles are in English.
+
 ## 0.6.6
 - **An AI agent cannot approve its own action.** When a rule asks for a step-up and an agent is acting, the 428 no longer carries the code (the agent reads the page, so it could type it back). It says `stepUp.approve: true`, and only the account owner's passkey approves it: `webauthn/assert/options { resource, purpose: 'approve' }`, then assert, then retry once. That approval opens that one action; the session stays the agent's. A typed code for it is refused with `passkey_required`.
 - **Control, not block.** Recommended rules for agents now read: hide personal data, send money movement and exports to the owner for approval, keep only secrets (API keys, card numbers) closed. `block` still exists for those.

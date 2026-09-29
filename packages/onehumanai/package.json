@@ -1,6 +1,6 @@
 {
   "name": "onehumanai",
-  "version": "0.6.6",
+  "version": "0.7.0",
   "description": "Detect AI agents (Claude in Chrome, ChatGPT agent, Codex, Comet, Playwright) inside signed-in sessions and decide per endpoint: allow, mask, passkey or block, with a signed proof a human agreed. Node.js middleware + browser SDK. npx onehumanai init",
   "type": "module",
   "license": "(Apache-2.0 AND BUSL-1.1)",
