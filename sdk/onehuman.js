@@ -47,6 +47,8 @@
   // re-fetch (the server will now answer with the masked/blocked variant). A verified human reclaim
   // (unseal) suspends this for the reclaim window.
   const sealEnabled = !script || script.dataset.seal !== 'off';
+  // data-report="off": detect in the page only (a banner, a local check); nothing is sent to any server
+  const reportEnabled = !script || script.dataset.report !== 'off';
   const SEAL_SELECTOR = '[data-oh-sensitive="full"]';
   let sealed = false;
   let sealSuspendedUntil = 0;
@@ -243,6 +245,7 @@
           return;
         }
         const took = baseInner - w;                 // the viewport lost width while the window stayed put: a panel took it
+        if (took >= 150 && U.panelClosedMs !== null) { U.panelOpenedMs = null; U.panelClosedMs = null; }   // opened again after closing
         if (took >= 150 && U.panelOpenedMs === null) {
           U.panelOpenedMs = t; U.panelWidthPx = Math.round(took);
           if (typeof flush === 'function') flush().catch(() => {});
@@ -551,6 +554,7 @@
     return { early: { ...early, markers: early.markers.map((m) => ({ ...m })), environment: { ...early.environment }, reading: { ...early.reading }, surface: { ...early.surface }, focusConflict: { ...early.focusConflict } }, interaction: withInteraction ? takeInteraction() : null };
   }
   async function post(snap) {
+    if (!reportEnabled) { for (const fn of listeners) { try { fn(null, snap, null); } catch { /* ignore */ } } return null; }
     const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', ...sessionHeaders() }, body: JSON.stringify(snap), credentials: 'same-origin', cache: 'no-store', keepalive: true });
     if (!r.ok) throw new Error('signals ' + r.status);
     const d = await r.json();
@@ -579,9 +583,34 @@
     flushing = post(snapshot(false)).finally(() => { flushing = null; });
     return flushing;
   }
+  /**
+   * What the page itself can tell right now, for the page's own UI (a banner, hiding a form): 'attached' when an agent
+   * is driving this tab (a control marker, tool globals, webdriver, an untrusted event, or the server said so), 'nearby'
+   * when something could be reading it (a side panel beside the page, or passive agent traces). Changes are announced
+   * as the `onehuman:presence` event. The server's decision stays the authority; this is only what the page sees.
+   */
+  const ATTACH_SEALS = new Set(['anonymous_read', 'untrusted_event', 'server_attached', 'webdriver', 'control_marker', 'tool_globals']);
+  function presence() {
+    const s = early.surface;
+    const panel = s.panelOpenedMs !== null && s.panelClosedMs === null;
+    const attached = early.webdriver || early.markers.some((m) => CONTROL_MARKER.has(m.name))
+      || early.environment.agentGlobals.some((g) => CONTROL_GLOBAL.test(g) || EXTRA_GLOBALS.has(g)) || (sealed && ATTACH_SEALS.has(sealReason))
+      || !!(lastConnection && (lastConnection.state === 'agent_attached' || lastConnection.state === 'signed_agent'));
+    const traces = early.markers.length > 0 || early.environment.agentGlobals.length > 0 || early.environment.codexModelContext || early.environment.clipboardBridge;
+    return { agent: attached ? 'attached' : panel || traces ? 'nearby' : null, panel };
+  }
+  let presenceKey = '';
+  function notePresence() {
+    let p; try { p = presence(); } catch { return; }
+    const k = p.agent + '|' + p.panel;
+    if (k === presenceKey) return;
+    presenceKey = k;
+    try { document.dispatchEvent(new CustomEvent('onehuman:presence', { detail: p })); } catch { /* ignore */ }
+  }
   // Push when early state changes (debounced), plus a slow heartbeat.
   setInterval(() => {
-    const key = JSON.stringify([early.markers, early.environment, early.reading, early.surface.panelOpenedMs, early.surface.scans, early.focusConflict.count, early.webdriver, early.firstInteractionMs !== null, early.dataDomMs !== null, early.webmcpInvocations, Math.min(6, Math.floor(now() / 500))]);
+    notePresence();
+    const key = JSON.stringify([early.markers, early.environment, early.reading, early.surface.panelOpenedMs, early.surface.panelClosedMs, early.surface.scans, early.focusConflict.count, early.webdriver, early.firstInteractionMs !== null, early.dataDomMs !== null, early.webmcpInvocations, Math.min(6, Math.floor(now() / 500))]);
     if (key !== earlyKey) { earlyKey = key; flush().catch(() => {}); }
   }, 500);
   setInterval(() => flush().catch(() => {}), 15000);
@@ -636,6 +665,7 @@
     sessionId,
     sessionHeaders,
     snapshot: () => snapshot(false),
+    presence,
     flush,
     fetch: protectedFetch,
     registerTool,
