@@ -28,7 +28,7 @@ export function sandboxRoutes(engine: OneHuman) {
     const task = typeof body.task === 'string' && SHORT.test(body.task) ? body.task : 'click';
     const repeatTarget = body.repeatTarget === true;
     const sample = parseInteraction({ atMs: 0, webdriver: false, click: body.click, keys: 0, keyIntervals: [], inputEvents: 0, paste: false });
-    if (!client || !label || !sample?.click) return json(res, 400, { error: 'bad_sample', message: 'client, label və click tələb olunur.' });
+    if (!client || !label || !sample?.click) return json(res, 400, { error: 'bad_sample', message: 'client, label and click are required.' });
     const c = sample.click;
     const features = clickFeatures(c.traj ?? [], { holdMs: c.holdMs, pressure: c.pressure, pointer: c.pointer, target: c.target ?? null, downMs: c.downMs ?? null, coalesced: c.coalesced ?? 0, at: c.at ?? null });
     const judgement = c.pointer === 'mouse' && c.trusted ? judgeClick(features, { repeatTarget }) : { verdict: 'uncertain' as const, humanPts: 0, agentPts: 0, flags: [c.trusted ? `pointer_${c.pointer || 'none'}` : 'untrusted'] };

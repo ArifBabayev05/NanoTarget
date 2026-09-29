@@ -20,7 +20,7 @@ export function adminRoutes(engine: OneHuman) {
     const body = await readJson(req, 32000);
     const n = (await store.policyHistory(room)).length + 1;
     const policy = parsePolicy(body, `policy-${room.slice(0, 8)}-v${n}`);
-    if (!policy) return json(res, 400, { error: 'bad_policy', message: 'Qayda sənədi düzgün deyil.' });
+    if (!policy) return json(res, 400, { error: 'bad_policy', message: 'Invalid policy document.' });
     await store.savePolicy(room, policy);
     json(res, 200, { policy });
   };

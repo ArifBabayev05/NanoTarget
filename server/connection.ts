@@ -60,24 +60,24 @@ export function classifyConnection(server: ServerSignal | null, early: EarlySign
   for (const m of early?.markers ?? []) {
     const tool = TOOL_OF_MARKER[m.name] ?? extraMarker(m.name)?.tool;
     if (tool) tools.add(tool);
-    if (isControlMarker(m.name)) attached.push({ code: 'AGENT_CONTROL_MARKER', atMs: m.atMs, detail: `${m.name} səhifədə yarandı` });
-    else environment.push({ code: 'DOM_MARKER', atMs: m.atMs, detail: `${m.name} (keçmiş/passiv iz)` });
+    if (isControlMarker(m.name)) attached.push({ code: 'AGENT_CONTROL_MARKER', atMs: m.atMs, detail: `${m.name} appeared on the page` });
+    else environment.push({ code: 'DOM_MARKER', atMs: m.atMs, detail: `${m.name} (past or passive trace)` });
   }
-  if (early?.environment.focusWhileHiddenMs != null) attached.push({ code: 'FOCUS_WHILE_HIDDEN', atMs: early.environment.focusWhileHiddenMs, detail: 'gizli sənəd fokusdadır (focus emulation)' });
-  if ((early?.webmcpInvocations ?? 0) > 0) attached.push({ code: 'WEBMCP_TOOL_INVOKED', atMs: early?.observedMs ?? 0, detail: 'WebMCP aləti çağırıldı' });
+  if (early?.environment.focusWhileHiddenMs != null) attached.push({ code: 'FOCUS_WHILE_HIDDEN', atMs: early.environment.focusWhileHiddenMs, detail: 'hidden document has focus (focus emulation)' });
+  if ((early?.webmcpInvocations ?? 0) > 0) attached.push({ code: 'WEBMCP_TOOL_INVOKED', atMs: early?.observedMs ?? 0, detail: 'WebMCP tool invoked' });
 
   // Reading-time evidence: the agent looks at the page before it clicks.
   const rd = early?.reading;
   if (rd && rd.readBursts > 0 && rd.readBurstAnonymous && rd.firstReadBurstMs != null) {
-    attached.push({ code: 'MAIN_WORLD_READ_BURST', atMs: rd.firstReadBurstMs, detail: `${rd.lastReadBurstReads}+ DOM oxunuşu 250 ms-də, mənbə <anonymous> skript (Runtime.evaluate). Səhifə kodu və ekstenşnlar bura düşmür.` });
+    attached.push({ code: 'MAIN_WORLD_READ_BURST', atMs: rd.firstReadBurstMs, detail: `${rd.lastReadBurstReads}+ DOM reads in 250 ms, source: <anonymous> script (Runtime.evaluate). Page code and extensions are not counted here.` });
   }
   if (rd && rd.textExtracts > 0 && rd.firstTextExtractMs != null) {
-    attached.push({ code: 'MAIN_WORLD_TEXT_EXTRACT', atMs: rd.firstTextExtractMs, detail: 'bütün sənədin mətni (body/main) <anonymous> skript tərəfindən oxundu (get_page_text tipli çıxarış)' });
+    attached.push({ code: 'MAIN_WORLD_TEXT_EXTRACT', atMs: rd.firstTextExtractMs, detail: 'full document text (body/main) read by an <anonymous> script (get_page_text style extraction)' });
   }
   const injected = toolInjectedGlobals(early?.environment.agentGlobals ?? []);
   if (injected.length) {
     for (const g of injected) tools.add(g.tool);
-    attached.push({ code: 'AGENT_TOOL_GLOBALS', atMs: early?.observedMs ?? 0, detail: `agent alətinin səhifəyə yeritdiyi qloballar: ${injected.map((g) => g.name).slice(0, 3).join(', ')} (accessibility ağacı oxunuşu)` });
+    attached.push({ code: 'AGENT_TOOL_GLOBALS', atMs: early?.observedMs ?? 0, detail: `globals injected into the page by an agent tool: ${injected.map((g) => g.name).slice(0, 3).join(', ')} (accessibility tree read)` });
   }
   // First click: a synthetic pointer (pressure 0 with the button down, no pointer travel, ≤12 ms hold)
   // on a hidden document, or inside an agent application, is decisive on its own. Human clicks in the
@@ -88,17 +88,17 @@ export function classifyConnection(server: ServerSignal | null, early: EarlySign
   // model-context global (Codex app). A person can use both, so this only qualifies the first click.
   const agentApp = !!appToken || !!early?.environment.codexModelContext;
   if (fc && fc.trusted && fc.pointer === 'mouse' && fc.pressure === 0 && fc.moves <= 1 && fc.holdMs !== null && fc.holdMs <= 12 && (fc.hidden === true || agentApp)) {
-    attached.push({ code: 'SYNTHETIC_FIRST_CLICK', atMs: fc.atMs, detail: `ilk klik: pressure 0, ${fc.moves} hərəkət, ${fc.holdMs} ms basma${fc.hidden ? ', sənəd gizli' : ''} (CDP Input.dispatchMouseEvent profili)` });
+    attached.push({ code: 'SYNTHETIC_FIRST_CLICK', atMs: fc.atMs, detail: `first click: pressure 0, ${fc.moves} moves, ${fc.holdMs} ms press${fc.hidden ? ', document hidden' : ''} (CDP Input.dispatchMouseEvent profile)` });
   } else if (fc && fc.hidden === true && fc.trusted) {
-    attached.push({ code: 'HIDDEN_DOCUMENT_CLICK', atMs: fc.atMs, detail: 'ilk klik sənəd gizli ikən gəldi' });
+    attached.push({ code: 'HIDDEN_DOCUMENT_CLICK', atMs: fc.atMs, detail: 'first click arrived while the document was hidden' });
   }
   // Visibility flicker is environment-only: a person opening a link inside the Claude pane produced
   // the same one-frame flicker at page load (benchmark 2026-09-20, session 211ea2cc, false positive).
   if (rd && rd.visibilityFlickers > 0 && rd.firstFlickerMs != null) {
-    environment.push({ code: 'VISIBILITY_FLICKER', atMs: rd.firstFlickerMs, detail: `sənəd <300 ms-lik visible→hidden titrədi${rd.flickerResize ? `, ${rd.flickerResize} ölçüsünə resize ilə` : ''}; gizli paneldə yükləmə və ya screenshot, insan da yaradır` });
+    environment.push({ code: 'VISIBILITY_FLICKER', atMs: rd.firstFlickerMs, detail: `document flickered visible→hidden for <300 ms${rd.flickerResize ? `, with a resize to ${rd.flickerResize}` : ''}; loading in a hidden panel or a screenshot, humans cause it too` });
   }
   if (rd && rd.renderWhileHiddenMs != null) {
-    environment.push({ code: 'RENDER_WHILE_HIDDEN', atMs: rd.renderWhileHiddenMs, detail: 'sənəd gizli ikən requestAnimationFrame işləyir (göstərilmədən render olunur); insan baseline-ı lazımdır' });
+    environment.push({ code: 'RENDER_WHILE_HIDDEN', atMs: rd.renderWhileHiddenMs, detail: 'requestAnimationFrame runs while the document is hidden (renders without being shown); needs a human baseline' });
   }
   // Reading from outside the page's JS world (an extension side panel). Neither fact proves an agent on
   // its own: a panel may be a translator or devtools, a long task may be a heavy widget. Together, with
@@ -108,28 +108,28 @@ export function classifyConnection(server: ServerSignal | null, early: EarlySign
     const panel = sf.panelOpenedMs != null && sf.panelClosedMs == null;   // still open beside the page
     const scanned = sf.scans > 0 && sf.firstScanMs != null;
     if (panel && scanned) {
-      attached.push({ code: 'PANEL_PAGE_READ', atMs: Math.max(sf.panelOpenedMs!, sf.firstScanMs!), detail: `yan panel ${sf.panelWidthPx}px götürdü, ${sf.scanAfterPanelMs ?? '?'} ms sonra səhifə toxunulmadan ${sf.longestScanMs} ms-lik əsas-axın işi oldu (izolyasiya olunmuş dünyadan oxunuş)` });
+      attached.push({ code: 'PANEL_PAGE_READ', atMs: Math.max(sf.panelOpenedMs!, sf.firstScanMs!), detail: `side panel took ${sf.panelWidthPx}px, ${sf.scanAfterPanelMs ?? '?'} ms later ${sf.longestScanMs} ms of main-thread work ran with no user input on the page (read from an isolated world)` });
       tools.add('browser-panel');
     } else {
-      if (panel) environment.push({ code: 'SIDE_PANEL_OPENED', atMs: sf.panelOpenedMs!, detail: sf.panelAtLoad ? `səhifə yüklənəndə pəncərə viewport-dan ${sf.panelWidthPx}px geniş idi: yanda panel açıq idi (brauzer zoom-u da belə görünə bilər)` : `yan panel açıldı: innerWidth ${sf.panelWidthPx}px azaldı, outerWidth və dpr dəyişmədi` });
-      if (scanned) environment.push({ code: 'IDLE_PAGE_SCAN', atMs: sf.firstScanMs!, detail: `${sf.scans} dəfə ${sf.longestScanMs} ms-ə qədər əsas-axın işi, istifadəçi toxunmadan` });
+      if (panel) environment.push({ code: 'SIDE_PANEL_OPENED', atMs: sf.panelOpenedMs!, detail: sf.panelAtLoad ? `at page load the window was ${sf.panelWidthPx}px wider than the viewport: a side panel was open (browser zoom can look the same)` : `side panel opened: innerWidth shrank by ${sf.panelWidthPx}px, outerWidth and dpr unchanged` });
+      if (scanned) environment.push({ code: 'IDLE_PAGE_SCAN', atMs: sf.firstScanMs!, detail: `${sf.scans} bursts of main-thread work up to ${sf.longestScanMs} ms, with no user input` });
     }
   }
   if (rd?.loadedHidden) {
-    environment.push({ code: 'LOADED_HIDDEN', atMs: early?.startedMs ?? 0, detail: 'səhifə gizli vəziyyətdə yükləndi' });
+    environment.push({ code: 'LOADED_HIDDEN', atMs: early?.startedMs ?? 0, detail: 'page loaded while hidden' });
   }
 
   const app = appToken;
   if (app) {
-    environment.push({ code: 'AGENT_APP_BROWSER', atMs: 0, detail: `${app}${server?.environment?.clientHints === false ? ', Sec-CH-UA yoxdur' : ''}` });
+    environment.push({ code: 'AGENT_APP_BROWSER', atMs: 0, detail: `${app}${server?.environment?.clientHints === false ? ', no Sec-CH-UA headers' : ''}` });
     tools.add(extraAppToken(app)?.tool ?? (app.startsWith('Claude') ? 'claude-app' : app.split('/')[0]!.toLowerCase() + '-app'));
   }
-  if (early?.environment.codexModelContext) { environment.push({ code: 'CODEX_MODEL_CONTEXT', atMs: early.startedMs, detail: '__codexWebMcpModelContext səhifə qlobalında' }); tools.add('codex-app'); }
-  for (const id of early?.environment.extensionsInstalled ?? []) { environment.push({ code: 'AGENT_EXTENSION_INSTALLED', atMs: early?.startedMs ?? 0, detail: `${id} quraşdırılıb` }); tools.add(id); }
+  if (early?.environment.codexModelContext) { environment.push({ code: 'CODEX_MODEL_CONTEXT', atMs: early.startedMs, detail: '__codexWebMcpModelContext in page globals' }); tools.add('codex-app'); }
+  for (const id of early?.environment.extensionsInstalled ?? []) { environment.push({ code: 'AGENT_EXTENSION_INSTALLED', atMs: early?.startedMs ?? 0, detail: `${id} installed` }); tools.add(id); }
   const injectedNames = new Set(injected.map((g) => g.name));
   const globals = (early?.environment.agentGlobals ?? []).filter((g) => g !== '__codexWebMcpModelContext' && !injectedNames.has(g));
   if (globals.length) { environment.push({ code: 'AGENT_PAGE_GLOBALS', atMs: early?.startedMs ?? 0, detail: globals.slice(0, 3).join(', ') }); for (const g of globals) tools.add(g.startsWith('__codex') ? 'codex-chrome' : g.startsWith('__claude') ? 'claude-tools' : 'unknown-tool'); }
-  if (early?.environment.clipboardBridge) { environment.push({ code: 'CLIPBOARD_BRIDGE', atMs: early.environment.clipboardBridgeAtMs ?? 0, detail: 'browser-use clipboard körpüsü' }); tools.add('codex-app'); }
+  if (early?.environment.clipboardBridge) { environment.push({ code: 'CLIPBOARD_BRIDGE', atMs: early.environment.clipboardBridgeAtMs ?? 0, detail: 'browser-use clipboard bridge' }); tools.add('codex-app'); }
 
   if (attached.length) {
     if (!tools.size && attached.some((e) => e.code === 'MAIN_WORLD_READ_BURST' || e.code === 'MAIN_WORLD_TEXT_EXTRACT')) tools.add(app ? 'claude-app' : 'cdp-reader');
@@ -142,8 +142,8 @@ export function classifyConnection(server: ServerSignal | null, early: EarlySign
 }
 
 export const CONNECTION_TITLES: Record<ConnectionState, string> = {
-  signed_agent: 'İmzalı agent — serverdə təsdiqləndi',
-  agent_attached: 'Agent qoşulub',
-  agent_environment: 'Agent mühiti — insan da, agent də ola bilər',
-  no_indication: 'Qoşulma anında iz yoxdur',
+  signed_agent: 'Signed agent: verified on the server',
+  agent_attached: 'Agent attached',
+  agent_environment: 'Agent environment: could be a human or an agent',
+  no_indication: 'No trace at connection time',
 };

@@ -112,7 +112,7 @@ signals from the page (untrusted) + what the server sees (trusted)
 | `integrations/cli/` | `npx onehumanai init · verify · scan · inspect · report` |
 | `packages/onehumanai/` | The published npm package |
 | `web/` | Landing page, three demo apps, portal |
-| `tests/` | 179 tests (`npm test`) |
+| `tests/` | engine, middleware, sidecar and portal tests (`npm test`); Python adapters in `packages/python/tests` |
 | `docs/` | Integration guides, deploy and release notes |
 
 ```bash

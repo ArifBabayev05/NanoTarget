@@ -288,7 +288,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
     ['POST', '/api/v1/rooms', lab.createRoom],
     ['GET', '/api/v1/session', lab.me],
     ['GET', '/api/v1/connection', lab.connection],
-    ['GET', '/api/v1/stream', serverless ? (_r, res) => json(res, 501, { error: 'sse_unavailable', message: 'Serverless rejimdə canlı axın yoxdur; səhifə sorğu ilə yenilənir.' }) : lab.stream],
+    ['GET', '/api/v1/stream', serverless ? (_r, res) => json(res, 501, { error: 'sse_unavailable', message: 'Live streaming is not available in serverless mode; the page refreshes by polling.' }) : lab.stream],
     ['POST', '/api/v1/signals', lab.signals],
     ['GET', '/api/v1/journal', lab.journal],
     ['GET', '/api/v1/benchmark', lab.benchmark],
@@ -343,7 +343,7 @@ export async function createApp(opts: AppOptions = {}): Promise<{ handler: Handl
       json(res, 404, { error: 'not_found' });
     } catch (err) {
       console.error('request failed', err);
-      if (!res.headersSent) json(res, 500, { error: 'internal', message: 'Daxili xəta. Yenidən cəhd et.' });
+      if (!res.headersSent) json(res, 500, { error: 'internal', message: 'Internal error. Please try again.' });
       else res.end();
     } finally {
       await visits.record(req, res, startedAt);

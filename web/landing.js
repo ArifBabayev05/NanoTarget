@@ -302,7 +302,7 @@
       const e = edgeOf(S.btn, a, 6); movePointer(e.tip.x, e.tip.y, true); await wait(400); pressPointer(); S.btn.classList.add('pressed'); await wait(60); S.btn.classList.remove('pressed');
       await wait(300); S.amount.textContent = '$•,•••.••'; S.amount.classList.remove('sealed'); flash(S.amount, 'flash-mask'); notice('Masked for AI agents · balance.read → mask', 'warn');
       note('The assistant clicks, and the server answers differently', 'No pointer path and an instant press: a program. Your policy says balance → mask, so the same endpoint returns the number hidden.', 'warn', 'no path · jumped to the centre · 2 ms press');
-      await wait(1400); await aiSay('Trying “Download statement”…', 500); const e2 = edgeOf(S.btn.nextElementSibling, a, 6); movePointer(e2.tip.x, e2.tip.y, true); await wait(500); pressPointer(); await wait(150);
+      await wait(1400); await aiSay('Trying “Statement”…', 500); const e2 = edgeOf(S.btn.nextElementSibling, a, 6); movePointer(e2.tip.x, e2.tip.y, true); await wait(500); pressPointer(); await wait(150);
       S.guard.className = 'f-guard block'; S.guard.lastElementChild.textContent = 'Waiting for Ada'; flash(S.btn.nextElementSibling, 'flash-block'); notice('report.export → step_up · Ada approves with her passkey', 'bad');
       note('The export waits for the person', 'A statement export hands over the whole account in one click. The agent may ask; only Ada can approve it, with her passkey. The agent cannot do that step.', 'bad', 'report.export → you approve');
       await wait(500); await aiSay('The download needs your approval. Confirm it with Touch ID.', 600);

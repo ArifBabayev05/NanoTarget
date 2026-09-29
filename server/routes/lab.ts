@@ -58,14 +58,14 @@ export function labRoutes(engine: OneHuman, labOperator: LabOperator, opts: { ro
     if (!r) return json(res, 401, { error: 'no_session' });
     const body = await readJson(req, 16000);
     const snapshot = body === undefined ? null : parseSnapshot(body);
-    if (!snapshot) return json(res, 400, { error: 'bad_snapshot', message: 'Siqnal formatı düzgün deyil.' });
+    if (!snapshot) return json(res, 400, { error: 'bad_snapshot', message: 'Invalid signal format.' });
     const { assessment, connection } = await engine.ingest(r.room, r.session, snapshot);
     json(res, 200, explain ? { assessment, connection } : { connection: view(connection) });
   };
 
   const journal = async (req: Req, res: Res) => {
     const room = url(req).searchParams.get('room') ?? '';
-    if (!UUID.test(room) || !(await store.roomExists(room))) return json(res, 404, { error: 'room_not_found', message: 'Test otağı tapılmadı və ya 7 günlük müddəti bitib.' });
+    if (!UUID.test(room) || !(await store.roomExists(room))) return json(res, 404, { error: 'room_not_found', message: 'Test room not found, or its 7-day period has expired.' });
     const decisions = (await store.listDecisions(room, 100)).map((d) => ({ ...publicDecision(d), session: d.session, seq: d.seq, dataDelivered: d.dataDelivered, simulated: d.simulated, reasons: d.assessment.reasons }));
     const sessions = [];
     for (const s of await store.listSessions(room)) sessions.push(summarize(s, await engine.connectionFor(s)));
@@ -113,7 +113,7 @@ export function labRoutes(engine: OneHuman, labOperator: LabOperator, opts: { ro
       const resp = await fetch(target, { headers: { ...headers, cookie, 'x-oh-lab-simulated': engine.simulationToken }, cache: 'no-store' });
       runs.push({ status: resp.status, body: await resp.json() });
     }
-    json(res, 200, { operator: labOperator.operator, note: 'Lab operator açarı ilə imzalanmış iki eyni sorğu: birincisi verified, ikincisi replay.', runs });
+    json(res, 200, { operator: labOperator.operator, note: 'Two identical requests signed with the lab operator key: the first is verified, the second is a replay.', runs });
   };
 
   const audit = async (req: Req, res: Res) => {
@@ -292,7 +292,7 @@ export async function computeBenchmark(engine: OneHuman, room: string, labOperat
     falseAttachSessions,
     missedAgentSessions,
     scenarios,
-    note: 'Etiketlər eksperiment iştirakçısının bəyanıdır, detektor girişi deyil. Kiçik nümunədə faizlər statistik nəticə vermir.',
+    note: 'Labels are what the experiment participant reported, not detector input. On a small sample the percentages are not statistically meaningful.',
   };
 }
 

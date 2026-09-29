@@ -60,38 +60,38 @@ export async function verifyWebBotAuth(req: SignatureRequest, opts: VerifyOption
   const present = { signature: !!sig, signatureInput: !!input, signatureAgent: !!agent };
   const done = (status: ServerSignal['signature']['status'], reason: string, operator: string | null = null): ServerSignal['signature'] => ({ status, reason, operator, present });
 
-  if (!sig && !input && !agent) return done('absent', 'Sorğuda imza yoxdur; bu, insan sübutu deyil.');
-  if (!sig || !input || !agent) return done('invalid', 'İmza başlıqları tam deyil.');
+  if (!sig && !input && !agent) return done('absent', 'The request has no signature; this is not proof of a human.');
+  if (!sig || !input || !agent) return done('invalid', 'Signature headers are incomplete.');
   const operator = /^"([^"]+)"$/.exec(agent)?.[1] ?? null;
-  if (!operator || !(operator in KNOWN_OPERATORS)) return done('unsupported', 'Bu operator allowlist-də deyil; kataloq yüklənmir.');
-  if (sig.length > 8192 || input.length > 8192) return done('unsupported', 'İmza ölçüsü dəstəklənmir.', operator);
+  if (!operator || !(operator in KNOWN_OPERATORS)) return done('unsupported', 'This operator is not on the allowlist; its key directory is not fetched.');
+  if (sig.length > 8192 || input.length > 8192) return done('unsupported', 'Signature size is not supported.', operator);
 
   const m = /^([a-z][a-z0-9_.*-]*)=(\((?:"[a-z0-9@_-]+"(?: )?)+\))((?:;[a-z][a-z0-9_-]*=(?:"(?:[^"\\\r\n]|\\["\\])*"|[0-9]+))*)$/.exec(input);
-  if (!m) return done('unsupported', 'İmza komponentləri bu profilə uyğun deyil.', operator);
+  if (!m) return done('unsupported', 'Signature components do not match this profile.', operator);
   const label = m[1]!;
   const componentList = m[2]!;
   const paramText = m[3]!;
   const components = [...componentList.matchAll(/"([a-z0-9@_-]+)"/g)].map((x) => x[1]!);
-  if (new Set(components).size !== components.length || !components.includes('@authority')) return done('invalid', 'Domen imza ilə qorunmayıb və ya komponent təkrarlanıb.', operator);
+  if (new Set(components).size !== components.length || !components.includes('@authority')) return done('invalid', 'The domain is not covered by the signature, or a component is repeated.', operator);
 
   const params: Record<string, string | number> = {};
   for (const p of paramText.matchAll(/;([a-z][a-z0-9_-]*)=("(?:[^"\\]|\\["\\])*"|[0-9]+)/g)) {
     const key = p[1]!;
     const raw = p[2]!;
-    if (key in params) return done('invalid', 'Təkrarlanan imza parametri.', operator);
+    if (key in params) return done('invalid', 'Repeated signature parameter.', operator);
     params[key] = raw.startsWith('"') ? raw.slice(1, -1).replace(/\\(["\\])/g, '$1') : Number(raw);
   }
   const now = Math.floor((opts.now ?? Date.now()) / 1000);
-  if (params.tag !== 'web-bot-auth' || (params.alg !== undefined && params.alg !== 'ed25519') || typeof params.keyid !== 'string') return done('unsupported', 'İmza alqoritmi və ya teqi dəstəklənmir.', operator);
+  if (params.tag !== 'web-bot-auth' || (params.alg !== undefined && params.alg !== 'ed25519') || typeof params.keyid !== 'string') return done('unsupported', 'Signature algorithm or tag is not supported.', operator);
   const created = params.created;
   const expires = params.expires;
   if (
     typeof created !== 'number' || typeof expires !== 'number' || !Number.isSafeInteger(created) || !Number.isSafeInteger(expires) ||
     created > now + 30 || expires < now || expires <= created || expires - created > 300 || now - created > 300
-  ) return done('invalid', 'İmzanın vaxt intervalı qəbul edilmir.', operator);
+  ) return done('invalid', 'The signature time window is not accepted.', operator);
 
   const sm = /^([a-z][a-z0-9_.*-]*)=:([A-Za-z0-9+/]+={0,2}):$/.exec(sig);
-  if (!sm || sm[1] !== label) return done('unsupported', 'İmza kodlaşdırması dəstəklənmir.', operator);
+  if (!sm || sm[1] !== label) return done('unsupported', 'Signature encoding is not supported.', operator);
 
   const url = new URL(req.url);
   const lines: string[] = [];
@@ -105,10 +105,10 @@ export async function verifyWebBotAuth(req: SignatureRequest, opts: VerifyOption
       case '@path': value = url.pathname; break;
       case '@query': value = url.search || '?'; break;
       default:
-        if (name.startsWith('@')) return done('unsupported', 'Törəmə komponent dəstəklənmir.', operator);
+        if (name.startsWith('@')) return done('unsupported', 'Derived components are not supported.', operator);
         value = req.headers.get(name);
     }
-    if (value === null || /[^\x20-\x7e]/.test(value)) return done('invalid', 'İmzalanan komponent mövcud deyil və ya dəyişib.', operator);
+    if (value === null || /[^\x20-\x7e]/.test(value)) return done('invalid', 'A signed component is missing or has changed.', operator);
     lines.push(`"${name}": ${value.trim()}`);
   }
   lines.push(`"@signature-params": ${componentList}${paramText}`);
@@ -117,7 +117,7 @@ export async function verifyWebBotAuth(req: SignatureRequest, opts: VerifyOption
   try {
     keys = await (opts.keyLoader ?? httpsDirectoryLoader)(operator);
   } catch {
-    return done('unavailable', 'Operatorun rəsmi açar kataloquna çatmaq mümkün olmadı.', operator);
+    return done('unavailable', 'Could not reach the official key directory of the operator.', operator);
   }
   const sigBytes = Uint8Array.from(atob(sm[2]!), (c) => c.charCodeAt(0));
   const base = new TextEncoder().encode(lines.join('\n'));
@@ -130,15 +130,15 @@ export async function verifyWebBotAuth(req: SignatureRequest, opts: VerifyOption
       if (await crypto.subtle.verify('Ed25519', publicKey, sigBytes, base)) {
         const nonceKey = typeof params.nonce === 'string' ? `nonce:${operator}:${params.nonce}` : `sig:${createHash('sha256').update(sm[2]!).digest('hex')}`;
         if (opts.consumeNonce && !(await opts.consumeNonce(nonceKey, (expires - now) * 1000 + 1000))) {
-          return done('replay', 'Təsdiqlənmiş imza qısa müddətdə təkrar istifadə edilib.', operator);
+          return done('replay', 'A verified signature was reused within a short time.', operator);
         }
-        return done('verified', `${operator} açarı ilə imza təsdiqləndi.`, operator);
+        return done('verified', `Signature verified with the ${operator} key.`, operator);
       }
     } catch {
       continue;
     }
   }
-  return done('invalid', 'Rəsmi açarla imza uyğun gəlmədi. Proxy dəyişiklikləri və açar yenilənməsi də səbəb ola bilər.', operator);
+  return done('invalid', 'The signature does not match the official key. Proxy changes or key rotation can also cause this.', operator);
 }
 
 /** Build a ServerSignal from a Node request. Stores no raw UA, IP or cookies. */

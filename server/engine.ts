@@ -281,7 +281,7 @@ export class OneHuman {
     return async (req: Req, res: Res): Promise<void> => {
       const resolved = await this.resolveSession(req);
       if (!resolved) {
-        json(res, 401, { error: 'no_session', message: 'Sessiya tapılmadı. Səhifəni yenidən aç.' });
+        json(res, 401, { error: 'no_session', message: 'Session not found. Reload the page.' });
         return;
       }
       const result = await this.decide({ room: resolved.room, session: resolved.session, resource, request: req, snapshot: this.snapshotFrom(req) });

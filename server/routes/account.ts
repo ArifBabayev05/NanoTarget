@@ -30,7 +30,7 @@ export function accountRoutes(engine: OneHuman) {
   // Step 1: the decision. Returns a single-use download URL only when allowed.
   const exportRequest = engine.protect('report.export', (_req, res, ctx) => {
     if (ctx.masked) {
-      json(res, 200, { downloadUrl: null, masked: true, decision: publicDecision(ctx.decision), assessment: ctx.assessment, message: 'Bu qaydada ixrac maskalanmış rejimdə mövcud deyil.' });
+      json(res, 200, { downloadUrl: null, masked: true, decision: publicDecision(ctx.decision), assessment: ctx.assessment, message: 'Under this rule, export is not available in masked mode.' });
       return;
     }
     const token = ctx.token();
@@ -47,7 +47,7 @@ export function accountRoutes(engine: OneHuman) {
     const t = url(req).searchParams.get('t') ?? '';
     const check = await engine.redeemToken(t, resolved.session.id, 'report.export');
     if (!check.ok) {
-      json(res, 403, { error: 'token_rejected', reason: check.reason, message: 'Endirmə linki etibarsızdır, vaxtı bitib və ya artıq istifadə olunub.' });
+      json(res, 403, { error: 'token_rejected', reason: check.reason, message: 'The download link is invalid, expired or already used.' });
       return;
     }
     const { profile, balance, transactions } = demoAccount(resolved.session.id);
