@@ -99,6 +99,16 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS events_session ON events(session, id);
 CREATE INDEX IF NOT EXISTS events_room ON events(room, id);
+CREATE TABLE IF NOT EXISTS anchors (
+  room TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  hash TEXT NOT NULL,
+  tsa TEXT NOT NULL,
+  request TEXT NOT NULL,
+  response TEXT NOT NULL,
+  created INTEGER NOT NULL,
+  PRIMARY KEY (room, seq)
+);
 CREATE TABLE IF NOT EXISTS decisions (
   id TEXT PRIMARY KEY,
   room TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
@@ -292,7 +302,7 @@ CREATE TABLE IF NOT EXISTS challenges (
 
 /** additive migrations for databases created by earlier builds */
 /** The newest column of each migrated table. Add a line here whenever MIGRATIONS gains a column. */
-const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash'], ['assist_log', 'at'], ['telemetry', 'computed'], ['signature_bundles', 'added'], ['rooms', 'device'], ['visits', 'referrer'], ['rate_limits', 'n']];
+const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash'], ['assist_log', 'at'], ['telemetry', 'computed'], ['signature_bundles', 'added'], ['rooms', 'device'], ['visits', 'referrer'], ['rate_limits', 'n'], ['anchors', 'response']];
 
 /**
  * Indexes the schema check also looks for. decisions_room_seq makes (room, seq) unique so two writers can never
@@ -603,6 +613,24 @@ export class Store {
   async lastDecision(room: string): Promise<{ seq: number; hash: string }> {
     const r = (await this.sql.execute('SELECT seq, hash FROM decisions WHERE room = ? ORDER BY seq DESC LIMIT 1', [room])).rows[0];
     return r ? { seq: Number(r.seq), hash: r.hash as string } : { seq: 0, hash: 'genesis' };
+  }
+
+  // --- chain anchors (RFC 3161 timestamps of a chain head) ------------------
+  /** The head of every chain: the newest decision per room. */
+  async chainHeads(): Promise<{ room: string; seq: number; hash: string }[]> {
+    const r = await this.sql.execute('SELECT d.room AS room, d.seq AS seq, d.hash AS hash FROM decisions d JOIN (SELECT room, MAX(seq) AS seq FROM decisions GROUP BY room) m ON m.room = d.room AND m.seq = d.seq');
+    return r.rows.map((x) => ({ room: String(x.room), seq: Number(x.seq), hash: String(x.hash) }));
+  }
+  async lastAnchor(room: string): Promise<{ seq: number; created: number } | null> {
+    const r = (await this.sql.execute('SELECT seq, created FROM anchors WHERE room = ? ORDER BY seq DESC LIMIT 1', [room])).rows[0];
+    return r ? { seq: Number(r.seq), created: Number(r.created) } : null;
+  }
+  async addAnchor(a: { room: string; seq: number; hash: string; tsa: string; request: string; response: string; created: number }) {
+    await this.sql.execute('INSERT OR IGNORE INTO anchors (room, seq, hash, tsa, request, response, created) VALUES (?, ?, ?, ?, ?, ?, ?)', [a.room, a.seq, a.hash, a.tsa, a.request, a.response, a.created]);
+  }
+  async listAnchors(limit = 1000): Promise<{ room: string; seq: number; hash: string; tsa: string; request: string; response: string; created: number }[]> {
+    const r = await this.sql.execute('SELECT room, seq, hash, tsa, request, response, created FROM anchors ORDER BY created DESC LIMIT ?', [limit]);
+    return r.rows.map((x) => ({ room: String(x.room), seq: Number(x.seq), hash: String(x.hash), tsa: String(x.tsa), request: String(x.request), response: String(x.response), created: Number(x.created) }));
   }
 
   async insertDecision(row: DecisionRow, seq: number, proof: string | null = null) {

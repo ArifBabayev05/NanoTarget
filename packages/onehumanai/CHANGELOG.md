@@ -9,6 +9,8 @@
 - **SDK is lighter on busy pages**: DOM-change scans coalesced to one per frame, the globals listing at most once a second and only when globals changed, the reading shield's region lookup cached for 100 ms.
 - **`X-OH-Sample` stays under 6000 characters** (nginx refuses one header over 8 KB by default): the trajectory keeps its newest points.
 - Reason details, API errors and default policy titles are in English.
+- **Proof key rotation.** `proofEpoch` / `ONEHUMAN_PROOF_EPOCH` signs with a new key derived from the same secret and keeps publishing the older ones; `retiredProofKeys` / `ONEHUMAN_RETIRED_PROOF_KEYS` keeps the public keys of a previous secret. `npx onehumanai proof-keys` prints them.
+- **Independent timestamps for the audit chain.** `anchor: { tsa }` / `ONEHUMAN_TSA_URL` sends the chain head's hash (only the hash) to an RFC 3161 timestamp authority every hour and keeps its signed answer; `npx onehumanai anchors --out dir` writes files `openssl ts -verify` checks. Off by default. Checked against freetsa.org.
 
 ## 0.6.6
 - **An AI agent cannot approve its own action.** When a rule asks for a step-up and an agent is acting, the 428 no longer carries the code (the agent reads the page, so it could type it back). It says `stepUp.approve: true`, and only the account owner's passkey approves it: `webauthn/assert/options { resource, purpose: 'approve' }`, then assert, then retry once. That approval opens that one action; the session stays the agent's. A typed code for it is refused with `passkey_required`.

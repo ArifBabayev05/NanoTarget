@@ -9,6 +9,8 @@
  *   npx onehumanai scan [dir] --proposal           only the plain-language proposal to show the product owner
  *   npx onehumanai verify <baseUrl> <protectedPath> [--base /onehuman]   run the 4 post-integration checks
  *   npx onehumanai sidecar [--port 8788]           run the engine next to a Python, C# or Java backend
+ *   npx onehumanai anchors [--out dir]             RFC 3161 timestamps of the audit chain, as files OpenSSL verifies
+ *   npx onehumanai proof-keys                      the public keys of this deployment's proofs (keep them before changing the secret)
  *   npx onehumanai secret                          print a fresh ONEHUMAN_SECRET
  *   npx onehumanai verify-proof <bundle.json> [--keys <jwks.json | https://…/onehuman/proof-keys>]
  *                                                  check signed decision proofs offline (for an auditor)
@@ -18,8 +20,9 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderProposal, renderReport, scan } from './scan.ts';
 import { runInit } from './init.ts';
-import { inspect, report } from './data.ts';
+import { anchors, inspect, report } from './data.ts';
 import { runSidecar } from './sidecar.ts';
+import { runProofKeys } from './proof-keys.ts';
 import { thumbprint, verifyProof } from '../proof/verify.ts';
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -50,6 +53,8 @@ async function main() {
   if (cmd === 'inspect') { await inspect({ flag, has }); return; }
   if (cmd === 'report') { await report({ flag, has }); return; }
   if (cmd === 'sidecar') { await runSidecar({ flag, has }); return; }
+  if (cmd === 'proof-keys') { runProofKeys({ flag }); return; }
+  if (cmd === 'anchors') { await anchors({ flag, has }); return; }
   // `npx onehumanai` on its own sets the project up: the one command people need to remember
   if (cmd === 'init' || cmd === undefined) { await newerSetup(['init', ...rest]); await runInit(positional[0] ?? process.cwd(), { yes: has('--yes'), install: !has('--no-install') }); return; }
   if (cmd === 'scan') {

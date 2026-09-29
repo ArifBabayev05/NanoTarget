@@ -18,6 +18,7 @@ export { webauthnRoutes } from './routes/webauthn.ts';
 export { libsqlClient, sqliteClient, type SqlClient } from './sql.ts';
 export { proverFromSecret, sessionDigest, type Prover } from './proof.ts';
 export { applySignatures, clientSignatureRules, signatureState } from './signatures.ts';
+export { anchorChains, headDigest, timestampStatus, type AnchorResult } from './anchor.ts';
 
 /**
  * The engine's package version, stamped by the build (`0.0.0-dev` when run from source). `onehumanai`

@@ -8,7 +8,7 @@ import { resolve } from 'node:path';
 import { startSidecar } from '../sidecar/index.ts';
 
 /** Minimal .env reader: KEY=value lines, existing environment wins. */
-function loadEnv(file: string) {
+export function loadEnv(file: string) {
   if (!existsSync(file)) return;
   for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
     const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line);

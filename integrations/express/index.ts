@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 // The engine (BUSL-1.1) sits next to this adapter in the package; the adapter talks to it only through its
 // public surface. In this repository that is ../../server/public.ts; the build rewrites it to ./engine.js.
 import {
-  ENGINE_VERSION, OneHuman, SERVER_LIMITS, Store, applySignatures, attachModel, checkPolicy, clientSignatureRules, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
+  ENGINE_VERSION, OneHuman, SERVER_LIMITS, Store, anchorChains, applySignatures, attachModel, checkPolicy, clientSignatureRules, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
   sqliteClient, url, webauthnRoutes,
   type Assessment, type DecideResult, type DecisionRow, type Policy, type SessionRow, type SqlClient,
 } from '../../server/public.ts';
@@ -66,6 +66,15 @@ export type OneHumanOptions = {
    * (or ONEHUMAN_EXPLAIN=1); the reasons are always in the audit log and the portal.
    */
   explain?: boolean;
+  /** Rotate the proof signing key without a new secret: sign with epoch N and keep publishing 0..N-1 (default ONEHUMAN_PROOF_EPOCH). */
+  proofEpoch?: number;
+  /** Public keys of proofs made before the secret changed (what `npx onehumanai proof-keys` printed), or ONEHUMAN_RETIRED_PROOF_KEYS. */
+  retiredProofKeys?: ProofJwk[];
+  /**
+   * Anchor the audit chain with RFC 3161 timestamps: every `everyMs` (default 1 h) the chain head's hash (only the hash)
+   * goes to `tsa` and its signed answer is kept (`npx onehumanai anchors`). Off by default; or ONEHUMAN_TSA_URL.
+   */
+  anchor?: { tsa: string; everyMs?: number };
   /** cookie name (default 'oh_sid') */
   cookie?: string;
   /** set the Secure flag on the cookie; default: when the request is https or behind x-forwarded-proto=https */
@@ -237,7 +246,7 @@ export async function onehuman(opts: OneHumanOptions) {
   const store = await Store.open(await openClient(opts.db ?? 'sqlite:./onehuman.db'), { limits: SERVER_LIMITS });
   const model = await loadModel();
   attachModel(model ? { predict: (f) => predict(model, f), humanAbove: model.humanAbove, syntheticBelow: model.syntheticBelow } : null);
-  const engine = new OneHuman({ store, secret, sessionCookie: cookieName });
+  const engine = new OneHuman({ store, secret, sessionCookie: cookieName, proofEpoch: opts.proofEpoch, retiredProofKeys: opts.retiredProofKeys });
   const telemetryUrl = opts.telemetryUrl ?? process.env.ONEHUMAN_TELEMETRY_URL ?? 'https://onehuman.ai/api/v1/ingest';
   const reporter = apiKey ? createReporter(apiKey, telemetryUrl, engine.proofKeys().keys, opts.telemetryImmediate ?? SERVERLESS) : null;
   engine.webauthnReclaimEnabled = opts.webauthnReclaim ?? true;
@@ -496,6 +505,22 @@ export async function onehuman(opts: OneHumanOptions) {
 
   /** the background reporter (null without an apiKey): `await oh.telemetry?.flush()` before exit if you want the last events delivered */
   const telemetry = reporter ? { flush: () => reporter.flush(), get pending() { return reporter.pending; } } : null;
+
+  // RFC 3161 anchoring of the audit chain: off the request path, only the chain head's hash leaves
+  const tsa = opts.anchor?.tsa ?? process.env.ONEHUMAN_TSA_URL ?? '';
+  const anchors = { lastRunAt: null as number | null, anchored: 0, lastError: null as string | null };
+  async function anchorNow() {
+    if (!tsa) return [];
+    const res = await anchorChains(store, { tsa });
+    anchors.lastRunAt = Date.now();
+    anchors.anchored += res.filter((r) => r.ok).length;
+    const err = res.find((r) => !r.ok);
+    anchors.lastError = err ? err.error ?? 'failed' : null;
+    if (err) console.warn(`onehuman: anchoring the audit chain at ${tsa} failed: ${anchors.lastError}`);
+    return res;
+  }
+  const anchorTimer = tsa ? setInterval(() => { anchorNow().catch(() => {}); }, Math.max(60_000, opts.anchor?.everyMs ?? (Number(process.env.ONEHUMAN_TSA_EVERY_MS) || 3_600_000))) : null;
+  anchorTimer?.unref?.();
   /** Liveness and configuration in one object; `${basePath}/health` serves it (503 while an integration warning stands). */
   function health() {
     return {
@@ -504,6 +529,8 @@ export async function onehuman(opts: OneHumanOptions) {
       signatures: signatures.status(),
       telemetry: reporter ? { enabled: true, pending: reporter.pending, immediate: opts.telemetryImmediate ?? SERVERLESS } : { enabled: false },
       proofKey: engine.proofKeys().keys[0]!.kid,
+      proofKeys: engine.proofKeys().keys.length,
+      anchors: tsa ? { tsa, ...anchors } : { enabled: false },
       failOpen: { timeoutMs: decisionTimeoutMs, enforceFailsOpen: failOpen, ...failures },
       warnings: identityWarning ? [identityWarning] : [],
     };
@@ -534,7 +561,8 @@ export async function onehuman(opts: OneHumanOptions) {
 
   return { middleware, protect, send, sessionFor, reloadPolicy, get policy() { return currentPolicy(); }, policySource, engine, store, room, basePath, telemetry, health,
     proofKeys, proofFor, proofBundle: proofBundleFor, verifyProof: checkProof, report: localReport, reportHtml,
-    close: async () => { sync?.close(); signatures.close(); await reporter?.close(); store.close(); } };
+    anchorNow,
+    close: async () => { if (anchorTimer) clearInterval(anchorTimer); sync?.close(); signatures.close(); await reporter?.close(); store.close(); } };
 }
 
 export type OneHumanInstance = Awaited<ReturnType<typeof onehuman>>;

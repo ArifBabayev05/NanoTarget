@@ -18,7 +18,7 @@ import { renderReportHtml } from '../report/html.ts';
 
 type Flags = { flag: (n: string) => string | undefined; has: (n: string) => boolean };
 
-async function openDb(f: Flags): Promise<Store> {
+export async function openDb(f: Flags): Promise<Store> {
   const db = f.flag('--db') ?? process.env.ONEHUMAN_DB ?? 'sqlite:./onehuman.db';
   const path = db.replace(/^(sqlite|file):/, '');
   if (!/^(libsql|https):/.test(db) && db !== 'memory' && !existsSync(resolve(path))) {
@@ -83,3 +83,33 @@ export async function report(f: Flags) {
   writeFileSync(out, renderReportHtml(r));
   console.log(`${r.notes.join('\n')}\n\nReport written to ${out} — open it and print to PDF.`);
 }
+
+/**
+ * `npx onehumanai anchors [--out dir]` — the RFC 3161 timestamps of the audit chain (see the `anchor` option). With
+ * --out, each anchor becomes <room>-<seq>.tsr (the TSA's signed answer) and <room>-<seq>.head.txt (the chain head it
+ * covers), which an auditor checks with OpenSSL without trusting this server.
+ */
+export async function anchors(f: Flags) {
+  const store = await openDb(f);
+  const list = await store.listAnchors(Number(f.flag('--last') ?? 1000));
+  if (!list.length) { console.log('No anchors yet. Set the anchor option (or ONEHUMAN_TSA_URL) and let the app run.'); store.close(); return; }
+  const out = f.flag('--out');
+  if (out) {
+    const { mkdirSync } = await import('node:fs');
+    mkdirSync(resolve(out), { recursive: true });
+    for (const a of list) {
+      const base = resolve(out, `${a.room.slice(0, 8)}-${a.seq}`);
+      writeFileSync(`${base}.tsr`, Buffer.from(a.response, 'base64'));
+      writeFileSync(`${base}.tsq`, Buffer.from(a.request, 'base64'));
+      writeFileSync(`${base}.head.txt`, a.hash);
+    }
+  }
+  for (const a of list) console.log(`${new Date(a.created).toISOString()}  chain ${a.room.slice(0, 8)} up to #${a.seq}  ${a.hash.slice(0, 19)}…  ${a.tsa}`);
+  if (out) {
+    const first = `${a0(list[0]!)}`;
+    console.log(`\nWrote ${list.length} anchor(s) to ${resolve(out)}. Check one without trusting this server:\n  openssl ts -reply -in ${first}.tsr -text                     # time, TSA, and the imprint\n  openssl ts -verify -in ${first}.tsr -data ${first}.head.txt -CAfile <TSA CA certificate>`);
+  }
+  store.close();
+}
+const a0 = (a: { room: string; seq: number }) => `${a.room.slice(0, 8)}-${a.seq}`;
+

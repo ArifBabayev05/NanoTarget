@@ -26,9 +26,14 @@ export type Prover = {
   sign(row: DecisionRow, seq: number): string;
 };
 
-/** A signer whose key is derived from the engine secret: same secret, same key, on every instance. */
-export function proverFromSecret(secret: Buffer): Prover {
-  const seed = Buffer.from(hkdfSync('sha256', secret, 'onehuman', 'decision-proof-ed25519', 32));
+/**
+ * A signer whose key is derived from the engine secret: same secret, same key, on every instance. `epoch` rotates
+ * it without a new secret (0 is the original key); a deployment keeps publishing the older epochs so every proof
+ * it ever made still verifies by its kid.
+ */
+export function proverFromSecret(secret: Buffer, epoch = 0): Prover {
+  const info = epoch === 0 ? 'decision-proof-ed25519' : `decision-proof-ed25519:${epoch}`;
+  const seed = Buffer.from(hkdfSync('sha256', secret, 'onehuman', info, 32));
   const privateKey = createPrivateKey({ key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), seed]), format: 'der', type: 'pkcs8' });
   const x = (createPublicKey(privateKey).export({ format: 'jwk' }) as { x: string }).x;
   const jwk: ProofJwk = { kty: 'OKP', crv: 'Ed25519', x, kid: thumbprint(x), use: 'sig', alg: 'EdDSA' };

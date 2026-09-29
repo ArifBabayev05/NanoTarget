@@ -12,7 +12,14 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { assess, type Assessment } from './assess.ts';
 import { appendDecision } from './audit.ts';
-import { proverFromSecret, type Prover } from './proof.ts';
+import { proverFromSecret, thumbprint, type ProofJwk, type Prover } from './proof.ts';
+
+/** ONEHUMAN_RETIRED_PROOF_KEYS: a JSON array of public JWKs (what `npx onehumanai proof-keys` printed before the secret changed). */
+function retiredFromEnv(): ProofJwk[] {
+  const raw = process.env.ONEHUMAN_RETIRED_PROOF_KEYS;
+  if (!raw) return [];
+  try { const v = JSON.parse(raw); const arr = Array.isArray(v) ? v : Array.isArray(v?.keys) ? v.keys : []; return arr as ProofJwk[]; } catch { console.warn('onehuman: ONEHUMAN_RETIRED_PROOF_KEYS is not JSON; ignored'); return []; }
+}
 import { classifyConnection, type Connection } from './connection.ts';
 import { bus } from './bus.ts';
 import { VISIT_IDLE_MS, type DecisionRow, type SessionRow, type Store } from './db.ts';
@@ -31,6 +38,10 @@ export const CHALLENGE_TTL_MS = 120000;
 export type EngineOptions = {
   store: Store;
   secret?: Buffer;
+  /** proof key rotation without a new secret: sign with epoch N, keep publishing 0..N-1 (default ONEHUMAN_PROOF_EPOCH or 0) */
+  proofEpoch?: number;
+  /** public keys of proofs made before the secret changed; published next to the current key so those proofs still verify */
+  retiredProofKeys?: ProofJwk[];
   defaultPolicy?: Policy;
   keyLoader?: KeyLoader;
   sessionCookie?: string;
@@ -86,11 +97,18 @@ export class OneHuman {
     this.keyLoader = opts.keyLoader;
     this.sessionCookie = opts.sessionCookie ?? 'oh_sid';
     this.simulationToken = randomBytes(16).toString('hex');
-    this.prover = proverFromSecret(this.secret);
+    const epoch = Math.max(0, Math.floor(opts.proofEpoch ?? (Number(process.env.ONEHUMAN_PROOF_EPOCH) || 0)));
+    this.prover = proverFromSecret(this.secret, epoch);
+    const older = Array.from({ length: epoch }, (_, i) => proverFromSecret(this.secret, epoch - 1 - i).jwk);
+    const retired = (opts.retiredProofKeys ?? retiredFromEnv()).filter((k) => k && k.kty === 'OKP' && k.crv === 'Ed25519' && typeof k.x === 'string' && /^[A-Za-z0-9_-]{43}$/.test(k.x)).map((k) => ({ ...k, kid: thumbprint(k.x) }));
+    const seen = new Set<string>();
+    this.publishedKeys = [this.prover.jwk, ...older, ...retired].filter((k) => (seen.has(k.kid) ? false : (seen.add(k.kid), true)));
   }
 
-  /** The public key that verifies this engine's decision proofs, as a JWK Set. Safe to publish. */
-  proofKeys() { return { keys: [this.prover.jwk] }; }
+  private readonly publishedKeys: ProofJwk[];
+
+  /** The keys that verify this engine's decision proofs, as a JWK Set: the current key first, then older ones. Safe to publish. */
+  proofKeys() { return { keys: this.publishedKeys }; }
 
   /**
    * Connection classification for a session from its arrival request and the
