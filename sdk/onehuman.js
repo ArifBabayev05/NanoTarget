@@ -167,11 +167,15 @@
     };
     const report = () => queueMicrotask(() => { if (typeof flush === 'function') flush().catch(() => {}); });
     let sensChecks = 0, sensWin = 0;
+    // textContent/innerText run on every read the page makes: whether any sealable region exists is looked up at
+    // most every 100 ms, not on each read
+    let sealTargets = false, sealTargetsAt = -1e9;
+    const hasSealTargets = (t) => { if (t - sealTargetsAt > 100) { sealTargetsAt = t; sealTargets = !!document.querySelector(SEAL_SELECTOR); } return sealTargets; };
     const note = (target) => {
       const t = now();
       // Reading shield: an evaluated (URL-less) script touching a sensitive region seals it *before* the
       // getter returns, so even the first read sees the redacted text. Stack checks are capped per window.
-      if (target && target.nodeType === 1 && document.querySelector(SEAL_SELECTOR)) {
+      if (target && target.nodeType === 1 && hasSealTargets(t)) {
         if (t - sensWin > 250) { sensWin = t; sensChecks = 0; }
         if (sensChecks < 20) {
           const touches = target === document.body || target === document.documentElement || target.tagName === 'MAIN' || target.closest(SEAL_SELECTOR) || target.querySelector(SEAL_SELECTOR);
@@ -327,25 +331,31 @@
   document.addEventListener('pointerdown', firstTouch, { capture: true, once: true, passive: true });
   document.addEventListener('keydown', firstTouch, { capture: true, once: true, passive: true });
 
+  // Listing the window's own properties is the costly part of a scan. It runs at most once a second, and only when
+  // the number of globals changed since the last pass (an agent tool injecting its globals changes it).
+  let globalsCount = -1, globalsAt = -1e9;
+  function scanGlobals(t) {
+    if (t - globalsAt < 1000) return;
+    globalsAt = t;
+    let names;
+    try { names = Object.getOwnPropertyNames(window); } catch { return; }
+    if (names.length === globalsCount) return;
+    globalsCount = names.length;
+    if (!early.environment.clipboardBridge && names.some((n) => n.startsWith('__browserUseClipboard'))) { early.environment.clipboardBridge = true; early.environment.clipboardBridgeAtMs = now(); }
+    if (early.environment.agentGlobals.length < 10) {
+      for (const n of names) {
+        if ((GLOBAL_PREFIX.test(n) || EXTRA_GLOBALS.has(n) || EXTRA_PREFIXES.some((x) => n.startsWith(x))) && !early.environment.agentGlobals.includes(n) && early.environment.agentGlobals.length < 10) early.environment.agentGlobals.push(n.slice(0, 64));
+      }
+    }
+  }
+
   function scan() {
     early.observedMs = now();
     early.webdriver = navigator.webdriver === true;
     if (!early.environment.codexModelContext && Object.prototype.hasOwnProperty.call(window, '__codexWebMcpModelContext')) early.environment.codexModelContext = true;
     if (!early.environment.modelContextApi && ('modelContext' in navigator || 'modelContext' in document)) early.environment.modelContextApi = true;
-    if (!early.environment.clipboardBridge) {
-      let bridge = Object.prototype.hasOwnProperty.call(window, '__browserUseClipboardBridge');
-      if (!bridge) {
-        try { bridge = Object.getOwnPropertyNames(window).some((n) => n.startsWith('__browserUseClipboard')); } catch { /* ignore */ }
-      }
-      if (bridge) { early.environment.clipboardBridge = true; early.environment.clipboardBridgeAtMs = now(); }
-    }
-    if (early.environment.agentGlobals.length < 10) {
-      try {
-        for (const n of Object.getOwnPropertyNames(window)) {
-          if ((GLOBAL_PREFIX.test(n) || EXTRA_GLOBALS.has(n) || EXTRA_PREFIXES.some((x) => n.startsWith(x))) && !early.environment.agentGlobals.includes(n) && early.environment.agentGlobals.length < 10) early.environment.agentGlobals.push(n.slice(0, 64));
-        }
-      } catch { /* ignore */ }
-    }
+    if (!early.environment.clipboardBridge && Object.prototype.hasOwnProperty.call(window, '__browserUseClipboardBridge')) { early.environment.clipboardBridge = true; early.environment.clipboardBridgeAtMs = now(); }
+    scanGlobals(early.observedMs);
     if (early.dataDomMs === null && document.querySelector('[data-oh-sensitive]')) early.dataDomMs = now();
     let attachedNow = false;
     for (const [name, selector] of PROBES) {
@@ -367,7 +377,16 @@
   scan();
   const scanTimer = setInterval(scan, 250);
   setTimeout(() => clearInterval(scanTimer), 60000);
-  const observer = new MutationObserver(scan);
+  // Many DOM changes in a row (a list rendering) cause one scan, in the next frame (before paint), not one each.
+  let scanQueued = false;
+  const queueScan = () => {
+    if (scanQueued) return;
+    scanQueued = true;
+    const run = () => { if (!scanQueued) return; scanQueued = false; scan(); };
+    if (document.visibilityState === 'visible' && typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
+    setTimeout(run, 250);   // hidden tabs get no frames; this also bounds the wait
+  };
+  const observer = new MutationObserver(queueScan);
   observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['id', 'data-codex-favicon-badge', 'data-oh-sensitive'] });
 
   // ---------------------------------------------------------- interactions
@@ -567,11 +586,28 @@
   }, 500);
   setInterval(() => flush().catch(() => {}), 15000);
 
+  /**
+   * The snapshot as a header value, at most 6000 characters: one header over 8 KB is refused by nginx's defaults, and
+   * then the customer's own request fails (fail-open cannot help). The trajectory is trimmed to its newest points
+   * first (the approach to the target is what counts), then dropped.
+   */
+  const SAMPLE_MAX = 6000;
+  function sampleHeader(snap) {
+    let s = JSON.stringify(snap);
+    const click = snap.interaction && snap.interaction.click;
+    if (s.length <= SAMPLE_MAX || !click) return s.length <= SAMPLE_MAX ? s : JSON.stringify({ ...snap, interaction: null });
+    while (s.length > SAMPLE_MAX && Array.isArray(click.traj) && click.traj.length > 12) {
+      click.traj = click.traj.slice(-Math.floor(click.traj.length * 0.6));
+      s = JSON.stringify(snap);
+    }
+    return s.length <= SAMPLE_MAX ? s : JSON.stringify({ ...snap, interaction: { ...snap.interaction, click: { ...click, traj: [] } } });
+  }
+
   /** fetch() wrapper: attaches the current snapshot so the server decides with fresh telemetry. */
   function protectedFetch(input, init) {
     const snap = snapshot(true);   // taken now: the click that caused this call belongs to it
     const headers = new Headers((init && init.headers) || {});
-    headers.set('X-OH-Sample', JSON.stringify(snap));
+    headers.set('X-OH-Sample', sampleHeader(snap));
     if (sessionId) headers.set('X-OH-Session', sessionId);
     return ensureSession().then(() => fetch(input, { ...(init || {}), headers, credentials: 'same-origin', cache: 'no-store' }));
   }

@@ -32,7 +32,7 @@ export function webauthnRoutes(engine: OneHuman) {
       publicKey: {
         challenge,
         rp: { id: rpId, name: 'OneHuman Lab' },
-        user: { id: Buffer.from(r.room).toString('base64url'), name: `lab-${r.room.slice(0, 8)}`, displayName: 'OneHuman demo istifadəçisi' },
+        user: { id: Buffer.from(r.room).toString('base64url'), name: `lab-${r.room.slice(0, 8)}`, displayName: 'OneHuman demo user' },
         pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }, { type: 'public-key', alg: -8 }],
         authenticatorSelection: { residentKey: 'preferred', userVerification: 'required' },
         excludeCredentials: existing.map((c) => ({ type: 'public-key', id: c.id })),
@@ -48,7 +48,7 @@ export function webauthnRoutes(engine: OneHuman) {
     if (!r) return json(res, 401, { error: 'no_session' });
     const body = (await readJson(req, 64000)) as Record<string, unknown> | null | undefined;
     if (!body || typeof body.challengeId !== 'string' || typeof body.clientDataJSON !== 'string' || typeof body.attestationObject !== 'string') return json(res, 400, { error: 'bad_request' });
-    if (!(await store.consumeChallenge(body.challengeId, r.session.id, 'register'))) return json(res, 400, { error: 'challenge', message: 'Qeydiyyat sorğusu tapılmadı və ya vaxtı bitib.' });
+    if (!(await store.consumeChallenge(body.challengeId, r.session.id, 'register'))) return json(res, 400, { error: 'challenge', message: 'Registration challenge not found or expired.' });
     const { rpId, origin } = rpFromUrl(url(req));
     try {
       const cred = verifyRegistration({ clientDataJSON: body.clientDataJSON, attestationObject: body.attestationObject }, { challenge: body.challengeId, origin, rpId }, typeof body.label === 'string' ? body.label.slice(0, 40) : 'passkey');
@@ -69,7 +69,7 @@ export function webauthnRoutes(engine: OneHuman) {
     // Default ('reclaim'): the person takes the whole session back for a few minutes.
     const approve = body?.purpose === 'approve' && resource !== null;
     const creds = await store.credentialsForRoom<StoredCredential>(r.room);
-    if (!creds.length) return json(res, 404, { error: 'no_credentials', message: 'Bu otaqda passkey qeydiyyatı yoxdur.' });
+    if (!creds.length) return json(res, 404, { error: 'no_credentials', message: 'No passkey is registered in this room.' });
     const { rpId } = rpFromUrl(url(req));
     const challenge = newChallenge();
     await store.createChallenge(challenge, r.session.id, approve ? 'approve' : 'assert', resource, CHALLENGE_TTL_MS);
@@ -83,7 +83,7 @@ export function webauthnRoutes(engine: OneHuman) {
     const body = (await readJson(req, 64000)) as Record<string, unknown> | null | undefined;
     if (!body || typeof body.challengeId !== 'string' || typeof body.id !== 'string' || typeof body.clientDataJSON !== 'string' || typeof body.authenticatorData !== 'string' || typeof body.signature !== 'string') return json(res, 400, { error: 'bad_request' });
     const ch = await store.consumeChallenge(body.challengeId, r.session.id, ['assert', 'approve']);
-    if (!ch) return json(res, 400, { error: 'challenge', message: 'Təsdiq sorğusu tapılmadı və ya vaxtı bitib.' });
+    if (!ch) return json(res, 400, { error: 'challenge', message: 'Verification challenge not found or expired.' });
     const cred = await store.getCredential<StoredCredential>(body.id);
     if (!cred) return json(res, 404, { error: 'unknown_credential' });
     const { rpId, origin } = rpFromUrl(url(req));

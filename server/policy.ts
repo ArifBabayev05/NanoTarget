@@ -54,10 +54,10 @@ export const DEFAULT_POLICY: Policy = {
   version: 'policy-default-2',
   enforcement: 'enforce',
   rules: [
-    { resource: 'profile.read', title: 'Profil məlumatı', onAgent: 'mask', onUnknown: 'allow', onHumanLike: 'allow', onArtifact: 'allow', actOn: DEFAULT_ACT_ON, minScore: 65 },
+    { resource: 'profile.read', title: 'Profile data', onAgent: 'mask', onUnknown: 'allow', onHumanLike: 'allow', onArtifact: 'allow', actOn: DEFAULT_ACT_ON, minScore: 65 },
     { resource: 'balance.read', title: 'Balans', onAgent: 'block', onUnknown: 'allow', onHumanLike: 'allow', onArtifact: 'mask', actOn: DEFAULT_ACT_ON, minScore: 65 },
-    { resource: 'transactions.search', title: 'Əməliyyat axtarışı', onAgent: 'mask', onUnknown: 'allow', onHumanLike: 'allow', onArtifact: 'allow', actOn: DEFAULT_ACT_ON, minScore: 65 },
-    { resource: 'report.export', title: 'CSV ixracı', onAgent: 'block', onUnknown: 'step_up', onHumanLike: 'allow', onArtifact: 'step_up', actOn: DEFAULT_ACT_ON, minScore: 65 },
+    { resource: 'transactions.search', title: 'Transaction search', onAgent: 'mask', onUnknown: 'allow', onHumanLike: 'allow', onArtifact: 'allow', actOn: DEFAULT_ACT_ON, minScore: 65 },
+    { resource: 'report.export', title: 'CSV export', onAgent: 'block', onUnknown: 'step_up', onHumanLike: 'allow', onArtifact: 'step_up', actOn: DEFAULT_ACT_ON, minScore: 65 },
   ],
 };
 
