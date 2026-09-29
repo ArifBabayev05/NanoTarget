@@ -24,7 +24,7 @@ import { classifyConnection, type Connection } from './connection.ts';
 import { bus } from './bus.ts';
 import { VISIT_IDLE_MS, type DecisionRow, type SessionRow, type Store } from './db.ts';
 import { cookies, headerGetter, json, url, type Req, type Res } from './http.ts';
-import { DEFAULT_POLICY, evaluate, type Decision, type Policy } from './policy.ts';
+import { applyOwnerChoice, DEFAULT_POLICY, evaluate, ownerMayLoosen, type Decision, type Policy } from './policy.ts';
 import { parseSnapshot, type ClientSnapshot, type ServerSignal } from './signals.ts';
 import { issueToken, verifyToken, type TokenCheck } from './tokens.ts';
 import { observeRequest, type KeyLoader } from './web-bot-auth.ts';
@@ -45,7 +45,15 @@ export type EngineOptions = {
   defaultPolicy?: Policy;
   keyLoader?: KeyLoader;
   sessionCookie?: string;
+  /**
+   * Whose choices the owner's agent-access settings are: 'session' (default: an app's OneHuman session, one per login
+   * with identify()) or 'room' (the lab: a demo room is one account, the person and their agent may use two tabs).
+   */
+  accessScope?: 'session' | 'room';
 };
+
+/** How long an owner's 'allow' for their agent lasts. */
+export const OWNER_ALLOW_TTL_MS = 60 * 60 * 1000;
 
 export type DecideInput = {
   room: string;
@@ -89,6 +97,75 @@ export class OneHuman {
   readonly prover: Prover;
   /** when true, an agent-blocked resource advertises the WebAuthn reclaim path */
   webauthnReclaimEnabled = true;
+  readonly accessBy: 'session' | 'room';
+
+  /** The key the account owner's agent-access choices are stored under. */
+  accessScope(session: Pick<SessionRow, 'id' | 'room'>): string { return this.accessBy === 'room' ? `room:${session.room}` : `session:${session.id}`; }
+
+  /**
+   * What the account owner sees about their own AI agent: whether one is connected, each protected action with what
+   * the company allows an agent, what the owner chose and what applies now, and what the agent did recently.
+   */
+  async agentAccess(session: SessionRow, now = Date.now()) {
+    const policy = await this.policyFor(session.room);
+    const choices = new Map((await this.store.agentAccess(this.accessScope(session), now)).map((c) => [c.resource, c]));
+    const connection = await this.connectionFor(session, now);
+    const fresh = await this.store.getSession(session.id);
+    const actions = policy.rules.map((r) => {
+      const c = choices.get(r.resource) ?? null;
+      const mayLoosen = ownerMayLoosen(r);
+      const effective = c?.choice === 'never' ? 'block' : c?.choice === 'allow' && mayLoosen ? 'allow' : r.onAgent;
+      return { resource: r.resource, title: r.title, company: r.onAgent, mayLoosen, choice: c?.choice ?? null, until: c?.until ?? null, effective };
+    });
+    const rows = (await this.store.listDecisions(session.room, 200))
+      .filter((d) => (this.accessBy === 'room' || d.session === session.id) && (d.branch === 'agent' || d.branch === 'artifact' || d.resource.startsWith('access.')))
+      .sort((a, b) => b.created - a.created).slice(0, 25);
+    return {
+      connected: connection.state === 'agent_attached' || connection.state === 'signed_agent' || fresh?.agentAttachedAt != null,
+      nearby: connection.state === 'agent_environment',
+      tools: connection.tools,
+      since: fresh?.agentAttachedAt ?? null,
+      actions,
+      activity: rows.map((d) => ({ at: d.created, resource: d.resource, decision: d.decision, owner: d.reasonCodes.includes('OWNER_ALLOWED') ? 'allowed' : d.reasonCodes.includes('OWNER_DENIED') ? 'denied' : null, passkey: d.reasonCodes.includes('HUMAN_VERIFIED_WEBAUTHN'), tools: d.tools ?? [] })),
+    };
+  }
+
+  /**
+   * Change the owner's choice for one resource (or every rule, resource '*'). `verified`: the person proved it is them
+   * with a passkey just now. Without it, only stricter changes go through ('never', or taking back an 'allow'): an agent
+   * can always restrict itself, never widen what it may do.
+   */
+  async setAgentAccess(session: SessionRow, resource: string, choice: 'allow' | 'never' | null, verified: boolean, now = Date.now()): Promise<{ ok: true } | { ok: false; error: 'passkey_required' | 'not_allowed' | 'unknown_resource' }> {
+    const policy = await this.policyFor(session.room);
+    const scope = this.accessScope(session);
+    const targets = resource === '*' ? policy.rules : policy.rules.filter((r) => r.resource === resource);
+    if (!targets.length) return { ok: false, error: 'unknown_resource' };
+    if (resource === '*' && choice !== 'never') return { ok: false, error: 'not_allowed' };
+    for (const rule of targets) {
+      const current = await this.store.agentAccessFor(scope, rule.resource, now);
+      const looser = choice === 'allow' || (choice === null && current?.choice === 'never');
+      if (choice === 'allow' && !ownerMayLoosen(rule)) return { ok: false, error: 'not_allowed' };
+      if (looser && !verified) return { ok: false, error: 'passkey_required' };
+    }
+    for (const rule of targets) {
+      await this.store.setAgentAccess(scope, rule.resource, choice, choice === 'allow' ? now + OWNER_ALLOW_TTL_MS : null, verified ? 'owner_passkey' : 'session', now);
+      await this.recordAccessChange(session, rule.resource, choice, verified, policy.version, now);
+    }
+    return { ok: true };
+  }
+
+  /** The owner's change goes into the signed audit chain, so it can be proven later who widened or narrowed what. */
+  private async recordAccessChange(session: SessionRow, resource: string, choice: 'allow' | 'never' | null, verified: boolean, policyVersion: string, now: number) {
+    const code = choice === 'allow' ? 'OWNER_ALLOWED' : choice === 'never' ? 'OWNER_DENIED' : 'OWNER_RESET';
+    const reasons = [{ code, kind: verified ? 'human' : 'context', tier: verified ? 'verified' : 'behavioral', detail: `${choice ?? 'default'} for ${resource}${verified ? ', confirmed with a passkey' : ''}` }];
+    await appendDecision(this.store, {
+      id: crypto.randomUUID(), room: session.room, session: session.id, resource: `access.${resource}`, decision: choice === 'never' ? 'block' : 'allow', computed: choice === 'never' ? 'block' : 'allow', enforced: true,
+      branch: verified ? 'human_like' : 'unknown', actor: verified ? 'human_like' : 'unknown', score: null, tiers: verified ? ['verified'] : [], reasonCodes: verified ? [code, 'HUMAN_VERIFIED_WEBAUTHN'] : [code],
+      policyVersion, signalVersion: 'access-v1', latencyMs: 0, dataDelivered: false, simulated: false, tools: [], connection: 'none', created: now,
+      assessment: { actor: verified ? 'human_like' : 'unknown', score: null, tiers: verified ? ['verified'] : [], reasons, metrics: {}, version: 'access-v1' },
+    } as unknown as Parameters<typeof appendDecision>[1], (r, seq) => this.prover.sign(r, seq));
+    bus.publish({ type: 'decision', room: session.room, session: session.id, at: now, id: `access-${now}`, resource: `access.${resource}`, decision: choice === 'never' ? 'block' : 'allow', actor: verified ? 'human_like' : 'unknown', reasonCodes: [code] });
+  }
 
   constructor(opts: EngineOptions) {
     this.store = opts.store;
@@ -96,6 +173,7 @@ export class OneHuman {
     this.defaultPolicy = opts.defaultPolicy ?? DEFAULT_POLICY;
     this.keyLoader = opts.keyLoader;
     this.sessionCookie = opts.sessionCookie ?? 'oh_sid';
+    this.accessBy = opts.accessScope ?? 'session';
     this.simulationToken = randomBytes(16).toString('hex');
     const epoch = Math.max(0, Math.floor(opts.proofEpoch ?? (Number(process.env.ONEHUMAN_PROOF_EPOCH) || 0)));
     this.prover = proverFromSecret(this.secret, epoch);
@@ -240,6 +318,11 @@ export class OneHuman {
 
     const policy = await this.policyFor(input.room);
     let decision: Decision = evaluate(policy, input.resource, assessment, crypto.randomUUID());
+    // the account owner's own say over their agent, inside the company's bounds (policy.ts applyOwnerChoice)
+    if (decision.branch === 'agent' || decision.branch === 'artifact') {
+      const owner = await this.store.agentAccessFor(this.accessScope(input.session), input.resource, now);
+      decision = applyOwnerChoice(decision, policy.rules.find((r) => r.resource === input.resource), owner?.choice ?? null);
+    }
     let stepUp: DecideResult['stepUp'] = null;
     if (decision.decision === 'step_up' || (decision.decision === 'block' && decision.branch === 'agent' && !reclaimed && this.webauthnReclaimEnabled)) {
       if (await this.store.consumeStepUpGrant(input.session.id, input.resource, now)) {

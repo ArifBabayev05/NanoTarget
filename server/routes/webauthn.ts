@@ -63,16 +63,18 @@ export function webauthnRoutes(engine: OneHuman) {
     if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
     const r = await engine.resolveSession(req);
     if (!r) return json(res, 401, { error: 'no_session' });
-    const body = (await readJson(req, 2000)) as { resource?: unknown; purpose?: unknown } | null | undefined;
+    const body = (await readJson(req, 2000)) as { resource?: unknown; purpose?: unknown; choice?: unknown } | null | undefined;
     const resource = body && typeof body.resource === 'string' && /^[a-z][a-z0-9_.]{1,60}$/.test(body.resource) ? body.resource : null;
     // 'approve': the person approves one action an AI agent asked for; the session stays the agent's.
+    // 'permit': the owner gives their agent more access (choice 'allow', or 'default' to lift a 'never').
     // Default ('reclaim'): the person takes the whole session back for a few minutes.
     const approve = body?.purpose === 'approve' && resource !== null;
+    const permit = body?.purpose === 'permit' && resource !== null && (body.choice === 'allow' || body.choice === 'default') ? body.choice : null;
     const creds = await store.credentialsForRoom<StoredCredential>(r.room);
     if (!creds.length) return json(res, 404, { error: 'no_credentials', message: 'No passkey is registered in this room.' });
     const { rpId } = rpFromUrl(url(req));
     const challenge = newChallenge();
-    await store.createChallenge(challenge, r.session.id, approve ? 'approve' : 'assert', resource, CHALLENGE_TTL_MS);
+    await store.createChallenge(challenge, r.session.id, permit ? 'permit' : approve ? 'approve' : 'assert', permit ? `${permit}|${resource}` : resource, CHALLENGE_TTL_MS);
     json(res, 200, { challengeId: challenge, publicKey: { challenge, rpId, allowCredentials: creds.map((c) => ({ type: 'public-key', id: c.id })), userVerification: 'required', timeout: CHALLENGE_TTL_MS } });
   };
 
@@ -82,7 +84,7 @@ export function webauthnRoutes(engine: OneHuman) {
     if (!r) return json(res, 401, { error: 'no_session' });
     const body = (await readJson(req, 64000)) as Record<string, unknown> | null | undefined;
     if (!body || typeof body.challengeId !== 'string' || typeof body.id !== 'string' || typeof body.clientDataJSON !== 'string' || typeof body.authenticatorData !== 'string' || typeof body.signature !== 'string') return json(res, 400, { error: 'bad_request' });
-    const ch = await store.consumeChallenge(body.challengeId, r.session.id, ['assert', 'approve']);
+    const ch = await store.consumeChallenge(body.challengeId, r.session.id, ['assert', 'approve', 'permit']);
     if (!ch) return json(res, 400, { error: 'challenge', message: 'Verification challenge not found or expired.' });
     const cred = await store.getCredential<StoredCredential>(body.id);
     if (!cred) return json(res, 404, { error: 'unknown_credential' });
@@ -92,6 +94,13 @@ export function webauthnRoutes(engine: OneHuman) {
     cred.signCount = result.newSignCount;
     await store.updateCredential(cred);
     const now = Date.now();
+    if (ch.kind === 'permit') {
+      // the owner widened what their agent may do; the session is not reclaimed and nothing is granted once
+      const [choice, resource] = (ch.resource ?? '').split('|');
+      const out = await engine.setAgentAccess(r.session, resource!, choice === 'allow' ? 'allow' : null, true, now);
+      if (!out.ok) return json(res, 403, { error: out.error });
+      return json(res, 200, { ok: true, permitted: resource, choice, access: await engine.agentAccess(r.session, now) });
+    }
     const approval = ch.kind === 'approve';
     // an approval grants that one action; only a reclaim marks the whole session as the person's
     if (!approval) await store.markHumanVerified(r.session.id, now);

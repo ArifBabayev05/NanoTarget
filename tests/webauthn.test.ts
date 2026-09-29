@@ -208,3 +208,70 @@ test('an AI agent asks, the person approves: no code for the agent, one passkey 
   const st = await (await fetch(`${base}/api/v1/webauthn/status${s.q}`, { headers: { cookie: s.cookie } })).json();
   assert.equal(st.humanVerifiedAt, null);
 });
+
+test('the owner decides for their own agent: stricter at once, wider only with a passkey, never past the company\'s block; every change is signed', async () => {
+  const s = await open('human');
+  const rp = { rpId: '127.0.0.1', origin: base };
+  const auth = new SoftAuthenticator();
+  const ro = await (await fetch(`${base}/api/v1/webauthn/register/options${s.q}`, { method: 'POST', headers: s.h, body: '{}' })).json();
+  assert.equal((await fetch(`${base}/api/v1/webauthn/register${s.q}`, { method: 'POST', headers: s.h, body: JSON.stringify({ challengeId: ro.challengeId, id: b64u(auth.credId), ...auth.register(ro.challengeId, rp.origin, rp.rpId) }) })).status, 201);
+  const rule = (resource: string, onAgent: string) => ({ resource, title: resource, onAgent, onArtifact: onAgent, onUnknown: 'allow', onHumanLike: 'allow', actOn: ['verified', 'strong', 'control', 'behavioral'], minScore: 65 });
+  assert.equal((await fetch(`${base}/api/v1/policy${s.q}`, { method: 'PUT', headers: s.h, body: JSON.stringify({ enforcement: 'enforce', rules: [rule('transfer.create', 'step_up'), rule('balance.read', 'mask'), rule('card.details', 'block')] }) })).status, 200);
+  await fetch(`${base}/api/v1/signals${s.q}`, { method: 'POST', headers: s.h, body: JSON.stringify({ early: { ...earlyBase, markers: [{ name: 'claude-stop', atMs: 900 }] }, interaction: null }) });
+  const set = (resource: string, choice: string | null) => fetch(`${base}/api/v1/access${s.q}`, { method: 'POST', headers: s.h, body: JSON.stringify({ resource, choice }) });
+  const permit = async (resource: string, choice: 'allow' | 'default') => {
+    const ao = await (await fetch(`${base}/api/v1/webauthn/assert/options${s.q}`, { method: 'POST', headers: s.h, body: JSON.stringify({ resource, purpose: 'permit', choice }) })).json();
+    return fetch(`${base}/api/v1/webauthn/assert${s.q}`, { method: 'POST', headers: s.h, body: JSON.stringify({ challengeId: ao.challengeId, ...auth.assert(ao.challengeId, rp.origin, rp.rpId) }) });
+  };
+  const view = async () => (await fetch(`${base}/api/v1/access${s.q}`, { headers: s.h })).json();
+
+  const first = await view();
+  assert.equal(first.connected, true);
+  assert.deepEqual(first.actions.map((a: { resource: string; effective: string; mayLoosen: boolean }) => [a.resource, a.effective, a.mayLoosen]), [['transfer.create', 'step_up', true], ['balance.read', 'mask', true], ['card.details', 'block', false]]);
+
+  // the agent tries to widen its own access: refused
+  assert.equal((await (await set('transfer.create', 'allow')).json()).error, 'passkey_required');
+  assert.equal((await (await set('card.details', 'allow')).json()).error, 'not_allowed', 'the company\'s block is not the owner\'s to lift');
+  assert.equal((await fetch(`${base}/api/v1/r/transfer.create${s.q}&f.amount=250`, { method: 'POST', headers: s.h })).status, 428);
+
+  // stricter: at once, no passkey
+  assert.equal((await set('balance.read', 'never')).status, 200);
+  const denied = await fetch(`${base}/api/v1/r/balance.read${s.q}`, { headers: s.h });
+  assert.equal(denied.status, 403);
+  assert.ok((await denied.json()).decision.reasonCodes.includes('OWNER_DENIED'));
+  assert.equal((await (await set('balance.read', null)).json()).error, 'passkey_required', 'lifting a never is wider too');
+
+  // wider, with the owner's passkey: transfers go through for the hour, each one marked as the owner's permission
+  const ok = await permit('transfer.create', 'allow');
+  assert.equal(ok.status, 200);
+  for (let i = 0; i < 2; i++) {
+    const t = await fetch(`${base}/api/v1/r/transfer.create${s.q}&f.amount=250`, { method: 'POST', headers: s.h });
+    assert.equal(t.status, 200);
+    assert.ok((await t.json()).decision.reasonCodes.includes('OWNER_ALLOWED'));
+  }
+  assert.equal((await permit('balance.read', 'default')).status, 200);
+  const masked = await fetch(`${base}/api/v1/r/balance.read${s.q}`, { headers: s.h });
+  assert.equal(masked.status, 200);
+  assert.equal((await masked.json()).masked, true);
+
+  // "close everything to it"
+  assert.equal((await set('*', 'never')).status, 200);
+  assert.equal((await fetch(`${base}/api/v1/r/transfer.create${s.q}&f.amount=250`, { method: 'POST', headers: s.h })).status, 403);
+  const after = await view();
+  assert.ok(after.actions.every((a: { effective: string }) => a.effective === 'block'));
+  assert.ok(after.activity.some((a: { resource: string; owner: string }) => a.resource === 'access.transfer.create' && a.owner === 'allowed'));
+  assert.ok(after.activity.some((a: { resource: string; owner: string }) => a.resource === 'transfer.create' && a.owner === 'allowed'));
+  const { verifyChain } = await import('../server/audit.ts');
+  assert.equal((await verifyChain(app.store, s.room)).ok, true, 'owner changes sit in the signed chain');
+});
+
+test('an owner\'s choice never touches a person at the controls', async () => {
+  const { applyOwnerChoice } = await import('../server/policy.ts');
+  type D = Parameters<typeof applyOwnerChoice>[0]; type R = NonNullable<Parameters<typeof applyOwnerChoice>[1]>;
+  const d: D = { id: 'x', resource: 'balance.read', decision: 'allow', computed: 'allow', enforced: true, actor: 'human_like', score: 10, tiers: [], reasonCodes: [], policyVersion: 'p', signalVersion: 'v', branch: 'human_like' };
+  const r: R = { resource: 'balance.read', title: 'b', onAgent: 'mask', onArtifact: 'mask', onUnknown: 'allow', onHumanLike: 'allow', actOn: ['verified'], minScore: 65 };
+  assert.equal(applyOwnerChoice(d, r, 'never').decision, 'allow');
+  const agent = applyOwnerChoice({ ...d, branch: 'agent', decision: 'mask', computed: 'mask', enforced: false }, r, 'never');
+  assert.equal(agent.computed, 'block');
+  assert.equal(agent.decision, 'allow', 'observe mode records the owner\'s choice without enforcing it');
+});

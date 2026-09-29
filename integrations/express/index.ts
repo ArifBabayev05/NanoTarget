@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 // public surface. In this repository that is ../../server/public.ts; the build rewrites it to ./engine.js.
 import {
   ENGINE_VERSION, OneHuman, SERVER_LIMITS, Store, anchorChains, applySignatures, attachModel, checkPolicy, clientSignatureRules, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
-  sqliteClient, url, webauthnRoutes,
+  sqliteClient, url, webauthnRoutes, accessRoutes,
   type Assessment, type DecideResult, type DecisionRow, type Policy, type SessionRow, type SqlClient,
 } from '../../server/public.ts';
 import { proofBundle, verifyProof, type ProofJwk } from '../proof/verify.ts';
@@ -350,6 +350,7 @@ export async function onehuman(opts: OneHumanOptions) {
   const clientDecision = (d: DecisionRow) => (explain ? publicDecision(d) : { id: d.id, resource: d.resource, decision: d.decision });
   const lab = labRoutes(engine, null, { explain });
   const wa = webauthnRoutes(engine);
+  const access = accessRoutes(engine);
   const api: Record<string, (req: IncomingMessage, res: ServerResponse) => void | Promise<void>> = {
     'POST /signals': lab.signals,
     'GET /connection': lab.connection,
@@ -360,6 +361,8 @@ export async function onehuman(opts: OneHumanOptions) {
     'POST /webauthn/assert/options': wa.assertOptions,
     'POST /webauthn/assert': wa.assert,
     'GET /webauthn/status': wa.status,
+    'GET /access': access.get,
+    'POST /access': access.set,
   };
   let sdkCache: Buffer | null = null;
 

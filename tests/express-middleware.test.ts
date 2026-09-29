@@ -113,3 +113,18 @@ test('by default the page learns the outcome, not the reasons (they would teach 
     assert.equal(JSON.stringify(body).includes('actor'), false, 'nor who it looked like');
   } finally { server2.close(); await quiet.close(); }
 });
+
+test('the owner\'s screen for their agent is served next to the SDK: what it may do, what it did, stricter at once', async () => {
+  const h = { 'x-user': 'user-77', 'Content-Type': 'application/json', Origin: base };
+  await fetch(`${base}/onehuman/signals`, { method: 'POST', headers: h, body: JSON.stringify({ early: { ...early, markers: [{ name: 'claude-stop', atMs: 400 }] }, interaction: null }) });
+  assert.equal((await fetch(`${base}/api/balance`, { headers: h })).status, 403);
+  const v = await (await fetch(`${base}/onehuman/access`, { headers: h })).json();
+  assert.equal(v.connected, true);
+  assert.deepEqual(v.tools, ['claude-chrome']);
+  assert.deepEqual(v.actions.map((a: { resource: string; mayLoosen: boolean }) => [a.resource, a.mayLoosen]), [['balance.read', false], ['transfer.make', false]]);
+  assert.ok(v.activity.some((a: { resource: string; decision: string }) => a.resource === 'balance.read' && a.decision === 'block'));
+  assert.equal((await (await fetch(`${base}/onehuman/access`, { method: 'POST', headers: h, body: JSON.stringify({ resource: 'balance.read', choice: 'allow' }) })).json()).error, 'not_allowed');
+  assert.equal((await fetch(`${base}/onehuman/access`, { method: 'POST', headers: h, body: JSON.stringify({ resource: '*', choice: 'never' }) })).status, 200);
+  const other = await (await fetch(`${base}/onehuman/access`, { headers: { 'x-user': 'user-78' } })).json();
+  assert.ok(other.actions.every((a: { choice: string | null }) => a.choice === null), 'one login\'s choices are its own');
+});

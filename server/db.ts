@@ -46,6 +46,10 @@ export type SessionRow = {
   lastSeen: number;
 };
 
+export type ChallengeKind = 'register' | 'assert' | 'approve' | 'permit';
+/** The account owner's choice for their own agent on one resource. */
+export type AgentAccess = { resource: string; choice: 'allow' | 'never'; until: number | null; by: string; created: number };
+
 export type EventRow = {
   id: number;
   room: string;
@@ -109,6 +113,17 @@ CREATE TABLE IF NOT EXISTS portal_alerts (
   seen INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS portal_alerts_account ON portal_alerts (account, at);
+-- what the account owner lets their own AI agent do, per resource: 'allow' (given with a passkey, until a time) or
+-- 'never'. scope = the account (lab: the room; an app: the OneHuman session of that login)
+CREATE TABLE IF NOT EXISTS agent_access (
+  scope TEXT NOT NULL,
+  resource TEXT NOT NULL,
+  choice TEXT NOT NULL,
+  until INTEGER,
+  by_whom TEXT NOT NULL,
+  created INTEGER NOT NULL,
+  PRIMARY KEY (scope, resource)
+);
 CREATE TABLE IF NOT EXISTS anchors (
   room TEXT NOT NULL,
   seq INTEGER NOT NULL,
@@ -312,7 +327,7 @@ CREATE TABLE IF NOT EXISTS challenges (
 
 /** additive migrations for databases created by earlier builds */
 /** The newest column of each migrated table. Add a line here whenever MIGRATIONS gains a column. */
-const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash'], ['assist_log', 'at'], ['telemetry', 'computed'], ['signature_bundles', 'added'], ['rooms', 'device'], ['visits', 'referrer'], ['rate_limits', 'n'], ['anchors', 'response'], ['portal_alerts', 'seen']];
+const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash'], ['assist_log', 'at'], ['telemetry', 'computed'], ['signature_bundles', 'added'], ['rooms', 'device'], ['visits', 'referrer'], ['rate_limits', 'n'], ['anchors', 'response'], ['portal_alerts', 'seen'], ['agent_access', 'by_whom']];
 
 /**
  * Indexes the schema check also looks for. decisions_room_seq makes (room, seq) unique so two writers can never
@@ -1188,18 +1203,34 @@ export class Store {
     await this.sql.execute('UPDATE credentials SET body = ? WHERE id = ?', [JSON.stringify(cred), cred.id]);
   }
 
-  async createChallenge(id: string, session: string, kind: 'register' | 'assert' | 'approve', resource: string | null, ttlMs: number, now = Date.now()) {
+  async createChallenge(id: string, session: string, kind: ChallengeKind, resource: string | null, ttlMs: number, now = Date.now()) {
     await this.sql.execute('DELETE FROM challenges WHERE expires < ?', [now]);
     await this.sql.execute('INSERT INTO challenges (id, session, kind, resource, expires) VALUES (?, ?, ?, ?, ?)', [id, session, kind, resource, now + ttlMs]);
   }
 
   /** Single use: returns the challenge row and deletes it. */
-  async consumeChallenge(id: string, session: string, kind: 'register' | 'assert' | 'approve' | readonly ('assert' | 'approve')[], now = Date.now()): Promise<{ resource: string | null; kind: string } | null> {
+  async consumeChallenge(id: string, session: string, kind: ChallengeKind | readonly ChallengeKind[], now = Date.now()): Promise<{ resource: string | null; kind: string } | null> {
     const kinds = typeof kind === 'string' ? [kind] : [...kind];
     const r = (await this.sql.execute(`SELECT resource, expires, kind FROM challenges WHERE id = ? AND session = ? AND kind IN (${kinds.map(() => '?').join(', ')})`, [id, session, ...kinds])).rows[0] as { resource: string | null; expires: number; kind: string } | undefined;
     await this.sql.execute('DELETE FROM challenges WHERE id = ?', [id]);
     if (!r || Number(r.expires) < now) return null;
     return { resource: r.resource, kind: String(r.kind) };
+  }
+
+  // --- the owner's choices for their own agent -------------------------------
+  /** Unexpired choices for a scope, newest first. */
+  async agentAccess(scope: string, now = Date.now()): Promise<AgentAccess[]> {
+    const r = await this.sql.execute('SELECT resource, choice, until, by_whom, created FROM agent_access WHERE scope = ? AND (until IS NULL OR until > ?) ORDER BY created DESC', [scope, now]);
+    return r.rows.map((x) => ({ resource: String(x.resource), choice: String(x.choice) as AgentAccess['choice'], until: x.until == null ? null : Number(x.until), by: String(x.by_whom), created: Number(x.created) }));
+  }
+  async agentAccessFor(scope: string, resource: string, now = Date.now()): Promise<AgentAccess | null> {
+    const r = (await this.sql.execute('SELECT resource, choice, until, by_whom, created FROM agent_access WHERE scope = ? AND resource = ? AND (until IS NULL OR until > ?)', [scope, resource, now])).rows[0];
+    return r ? { resource: String(r.resource), choice: String(r.choice) as AgentAccess['choice'], until: r.until == null ? null : Number(r.until), by: String(r.by_whom), created: Number(r.created) } : null;
+  }
+  /** Set (or with choice null, clear) the owner's choice for one resource. */
+  async setAgentAccess(scope: string, resource: string, choice: AgentAccess['choice'] | null, until: number | null, by: string, now = Date.now()) {
+    if (choice === null) { await this.sql.execute('DELETE FROM agent_access WHERE scope = ? AND resource = ?', [scope, resource]); return; }
+    await this.sql.execute('INSERT INTO agent_access (scope, resource, choice, until, by_whom, created) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(scope, resource) DO UPDATE SET choice = excluded.choice, until = excluded.until, by_whom = excluded.by_whom, created = excluded.created', [scope, resource, choice, until, by, now]);
   }
 
   // --- step-up -------------------------------------------------------------
