@@ -294,7 +294,15 @@ CREATE TABLE IF NOT EXISTS challenges (
 /** The newest column of each migrated table. Add a line here whenever MIGRATIONS gains a column. */
 const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash'], ['assist_log', 'at'], ['telemetry', 'computed'], ['signature_bundles', 'added'], ['rooms', 'device'], ['visits', 'referrer'], ['rate_limits', 'n']];
 
+/**
+ * Indexes the schema check also looks for. decisions_room_seq makes (room, seq) unique so two writers can never
+ * both append seq N (the chain would fork). It covers rows from 29 Sep 2026 on: older demo rooms may already hold
+ * duplicates from before the fix, and a full unique index would fail to build on them.
+ */
+const INDEX_MARKERS = ['decisions_room_seq'];
+
 const MIGRATIONS = [
+  'CREATE UNIQUE INDEX IF NOT EXISTS decisions_room_seq ON decisions(room, seq) WHERE created >= 1790640000000',
   'ALTER TABLE sessions ADD COLUMN agent_attached_at INTEGER',
   'ALTER TABLE sessions ADD COLUMN agent_attached_client_ms INTEGER',
   "ALTER TABLE sessions ADD COLUMN scenario TEXT NOT NULL DEFAULT ''",
@@ -392,8 +400,9 @@ export class Store {
     // predates a column must still get its ALTERs, or every insert naming that column fails.
     const probe = (await c.execute(`SELECT
       (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('rooms','challenges','samples','training_sessions','telemetry','admin_keys')) AS tables,
-      ${SCHEMA_MARKERS.map(([t, col]) => `(SELECT COUNT(*) FROM pragma_table_info('${t}') WHERE name='${col}')`).join(' + ')} AS columns`)).rows[0] ?? {};
-    const ready = Number(probe.tables) === 6 && Number(probe.columns) === SCHEMA_MARKERS.length;
+      ${SCHEMA_MARKERS.map(([t, col]) => `(SELECT COUNT(*) FROM pragma_table_info('${t}') WHERE name='${col}')`).join(' + ')} AS columns,
+      (SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN (${INDEX_MARKERS.map((n) => `'${n}'`).join(',')})) AS indexes`)).rows[0] ?? {};
+    const ready = Number(probe.tables) === 6 && Number(probe.columns) === SCHEMA_MARKERS.length && Number(probe.indexes) === INDEX_MARKERS.length;
     if (!ready || opts.migrate) {
       await c.executeMultiple(SCHEMA);
       for (const m of MIGRATIONS) { try { await c.execute(m); } catch { /* column exists */ } }
