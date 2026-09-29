@@ -99,6 +99,16 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS events_session ON events(session, id);
 CREATE INDEX IF NOT EXISTS events_room ON events(room, id);
+CREATE TABLE IF NOT EXISTS portal_alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  resource TEXT NOT NULL,
+  action TEXT NOT NULL,
+  tools TEXT NOT NULL,
+  seen INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS portal_alerts_account ON portal_alerts (account, at);
 CREATE TABLE IF NOT EXISTS anchors (
   room TEXT NOT NULL,
   seq INTEGER NOT NULL,
@@ -302,7 +312,7 @@ CREATE TABLE IF NOT EXISTS challenges (
 
 /** additive migrations for databases created by earlier builds */
 /** The newest column of each migrated table. Add a line here whenever MIGRATIONS gains a column. */
-const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash'], ['assist_log', 'at'], ['telemetry', 'computed'], ['signature_bundles', 'added'], ['rooms', 'device'], ['visits', 'referrer'], ['rate_limits', 'n'], ['anchors', 'response']];
+const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['telemetry', 'feedback_at'], ['api_keys', 'proof_keys'], ['sessions', 'human_verified_at'], ['key_policies', 'seen_at'], ['policy_changes', 'decided_at'], ['key_resources', 'last_seen'], ['policy_cache', 'pushed_file_hash'], ['assist_log', 'at'], ['telemetry', 'computed'], ['signature_bundles', 'added'], ['rooms', 'device'], ['visits', 'referrer'], ['rate_limits', 'n'], ['anchors', 'response'], ['portal_alerts', 'seen']];
 
 /**
  * Indexes the schema check also looks for. decisions_room_seq makes (room, seq) unique so two writers can never
@@ -613,6 +623,18 @@ export class Store {
   async lastDecision(room: string): Promise<{ seq: number; hash: string }> {
     const r = (await this.sql.execute('SELECT seq, hash FROM decisions WHERE room = ? ORDER BY seq DESC LIMIT 1', [room])).rows[0];
     return r ? { seq: Number(r.seq), hash: r.hash as string } : { seq: 0, hash: 'genesis' };
+  }
+
+  // --- portal security alerts: an AI agent did something in a customer's own portal account ------------
+  async addPortalAlert(a: { account: string; at: number; resource: string; action: string; tools: string[] }) {
+    await this.sql.execute('INSERT INTO portal_alerts (account, at, resource, action, tools) VALUES (?, ?, ?, ?, ?)', [a.account, a.at, a.resource, a.action.slice(0, 120), JSON.stringify(a.tools.slice(0, 8))]);
+  }
+  async listPortalAlerts(account: string, since: number, limit = 50): Promise<{ id: number; at: number; resource: string; action: string; tools: string[]; seen: boolean }[]> {
+    const r = await this.sql.execute('SELECT id, at, resource, action, tools, seen FROM portal_alerts WHERE account = ? AND at >= ? ORDER BY at DESC LIMIT ?', [account, since, limit]);
+    return r.rows.map((x) => ({ id: Number(x.id), at: Number(x.at), resource: String(x.resource), action: String(x.action), tools: (() => { try { return JSON.parse(String(x.tools)) as string[]; } catch { return []; } })(), seen: Number(x.seen) === 1 }));
+  }
+  async markPortalAlertsSeen(account: string) {
+    await this.sql.execute('UPDATE portal_alerts SET seen = 1 WHERE account = ? AND seen = 0', [account]);
   }
 
   // --- chain anchors (RFC 3161 timestamps of a chain head) ------------------
