@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>OneHumanAI.AspNetCore</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>OneHuman</Authors>
+    <Description>Control the AI agents your customers bring into your ASP.NET Core app: hide private data, ask the account owner's passkey for risky actions, sign every decision. Talks to the local OneHuman sidecar (npx onehumanai sidecar).</Description>
+    <PackageTags>ai-agent;agent-detection;security;aspnetcore;passkey;webauthn</PackageTags>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://onehuman.ai</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/OneHumanAI/onehumanai</RepositoryUrl>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+</Project>
