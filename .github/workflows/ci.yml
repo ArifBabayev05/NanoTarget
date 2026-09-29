@@ -59,4 +59,20 @@ jobs:
             10.0.x
       - name: ASP.NET Core adapter against a real sidecar
         run: node scripts/with-sidecar.mjs -- dotnet run --project packages/dotnet/tests/Smoke
+  java:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Servlet filter and Spring MVC interceptor against a real sidecar
+        run: node scripts/with-sidecar.mjs -- mvn -B -f packages/java/pom.xml test
 
