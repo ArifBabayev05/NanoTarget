@@ -21,7 +21,10 @@ export function labRoutes(engine: OneHuman, labOperator: LabOperator, opts: { ro
   // The lab shows why (it is a lab). On a customer's site the page — and so the agent in it — learns only the outcome:
   // the evidence behind it would teach an agent what to hide.
   const explain = opts.explain ?? true;
-  const view = <T extends { state: string }>(c: T) => (explain ? c : { state: c.state });
+  // With explain off the page gets only what the SDK needs to seal: that an agent attached (or signed in). No actor,
+  // no environment verdict: an agent that could read its own verdict could tune its cursor until it reads human.
+  const SEAL = new Set(['agent_attached', 'signed_agent']);
+  const view = <T extends { state: string }>(c: T) => (explain ? c : SEAL.has(c.state) ? { state: c.state } : null);
 
   const createRoom = async (req: Req, res: Res) => {
     if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
@@ -45,6 +48,7 @@ export function labRoutes(engine: OneHuman, labOperator: LabOperator, opts: { ro
     if (!r) return json(res, 401, { error: 'no_session' });
     const c = await engine.connectionFor(r.session);
     const s = (await store.getSession(r.session.id))!;
+    if (!explain) return json(res, 200, { connection: view(c) });
     json(res, 200, { session: s.id, connection: view(c), attachedAt: s.agentAttachedAt, attachedClientMs: s.agentAttachedClientMs, sinceStartMs: s.agentAttachedAt ? s.agentAttachedAt - s.created : null });
   };
 
@@ -56,7 +60,7 @@ export function labRoutes(engine: OneHuman, labOperator: LabOperator, opts: { ro
     const snapshot = body === undefined ? null : parseSnapshot(body);
     if (!snapshot) return json(res, 400, { error: 'bad_snapshot', message: 'Siqnal formatı düzgün deyil.' });
     const { assessment, connection } = await engine.ingest(r.room, r.session, snapshot);
-    json(res, 200, explain ? { assessment, connection } : { assessment: { actor: assessment.actor }, connection: view(connection) });
+    json(res, 200, explain ? { assessment, connection } : { connection: view(connection) });
   };
 
   const journal = async (req: Req, res: Res) => {

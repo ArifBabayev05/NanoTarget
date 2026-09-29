@@ -49,8 +49,9 @@ test('an agent attaches in the page: the next decision is the rule for agents, w
   assert.equal(r.body.decision, 'block');
   assert.equal(r.body.status, 403);
   assert.equal(r.body.body.error, 'blocked');
-  assert.equal(r.body.body.decision.actor, 'agent_likely');
-  assert.equal(r.body.body.decision.reasonCodes, undefined, 'the page learns the outcome, never the reasons');
+  assert.equal(r.body.actor, 'agent_likely', 'the app is told who acted');
+  assert.equal(r.body.body.decision.actor, undefined, 'the page learns the outcome, not the verdict');
+  assert.equal(r.body.body.decision.reasonCodes, undefined, 'nor the reasons');
   const masked = await decide('profile.read', { cookie });
   assert.equal(masked.body.decision, 'mask');
   assert.equal(masked.body.masked, true);
