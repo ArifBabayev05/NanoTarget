@@ -85,6 +85,8 @@ const TYPES: Record<string, string> = {
   '.xml': 'application/xml; charset=utf-8',
   '.png': 'image/png',
   '.webmanifest': 'application/manifest+json',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
 };
 
 export async function serveStatic(res: Res, root: string, path: string, extraHeaders: Record<string, string> = {}): Promise<boolean> {
