@@ -209,7 +209,7 @@
   <div class="grid3">
     <article class="feat reveal"><h3>API keys and server calls</h3><p>If an agent calls your API with a customer's API key or token, there is no browser and no page: OneHuman sees nothing. It protects signed-in web sessions.</p></article>
     <article class="feat reveal"><h3>Native mobile apps</h3><p>iOS and Android apps are not covered. Mobile browsers are, but a tap often stays “undecided” today. Your rules say what happens then.</p></article>
-    <article class="feat reveal"><h3>Backends that are not Node</h3><p>The middleware runs in Node: Express, Connect, plain <code>http</code>, a Next.js custom server. Java, .NET, Go or Python need a Node service in front, which we have not shipped.</p></article>
+    <article class="feat reveal"><h3>Go, Ruby and PHP backends</h3><p>Node runs the middleware directly. Python (Flask, Django, FastAPI), .NET and Java (Spring, servlets) use a small local sidecar with the same engine. Go, Ruby and PHP are not covered yet.</p></article>
     <article class="feat reveal"><h3>Identify people</h3><p>It answers one question per session: is a program acting? It keeps no profile of a person. A passkey proves presence, not identity.</p></article>
     <article class="feat reveal"><h3>Stop every script</h3><p>A script written for one site that fakes a human pointer can pass the behaviour check. That is why critical actions ask for a passkey. <a href="/measurements">What gets through →</a></p></article>
     <article class="feat reveal"><h3>Send your data anywhere</h3><p>Detection, rules, audit log and proofs run on your server. The portal only gets decision metadata, and only with an API key. <a href="/trust">Trust &amp; privacy →</a></p></article>

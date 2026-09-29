@@ -79,7 +79,7 @@
     <dt>What it collects</dt>
     <dd>In the browser: the timing and pointer path of clicks, and the traces agent tools leave in a page. <b>Never</b> page content, typed text, form values, request or response bodies, names, e-mails or IP addresses. Kept in your own database. With an API key, decision metadata goes to the portal and nothing else. Check it yourself: <code>npx onehumanai inspect</code>.</dd>
     <dt>What it does not do</dt>
-    <dd>API keys and server-to-server calls, native mobile apps, backends that are not Node. It does not identify people. A script written for one site can pass the behaviour check, so critical actions should ask for a passkey. <a href="/measurements">How we measured</a> · <a href="/trust">Trust &amp; privacy</a></dd>
+    <dd>API keys and server-to-server calls, native mobile apps, Go, Ruby and PHP backends (Node runs it directly; Python, .NET and Java through a local sidecar). It does not identify people. A script written for one site can pass the behaviour check, so critical actions should ask for a passkey. <a href="/measurements">How we measured</a> · <a href="/trust">Trust &amp; privacy</a></dd>
   </dl>
   <h2>Install</h2>
   <pre class="code">npx onehumanai init                          <span class="c"># installs the package, asks what to protect, shows every change before writing it</span>

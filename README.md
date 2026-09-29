@@ -87,7 +87,7 @@ signals from the page (untrusted) + what the server sees (trusted)
 - **API keys and server calls.** No browser, no page: nothing to see. It protects signed-in web sessions.
 - **Native mobile apps.** Mobile browsers are covered; iOS and Android apps are not.
 - **Every custom script.** A program written to fake a person's clicks can pass the click check. That is why money-moving actions ask everyone for a passkey by default.
-- **Backends that are not Node.** Java, .NET, Go or Python need a small Node service in front, which is not shipped yet.
+- **Go, Ruby and PHP backends.** Node runs the middleware directly; Python (`packages/python`), .NET (`packages/dotnet`) and Java (`packages/java`) use a local sidecar with the same engine (`npx onehumanai sidecar`). Go, Ruby and PHP are not covered yet.
 
 ## Roadmap
 

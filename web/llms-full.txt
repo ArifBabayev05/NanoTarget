@@ -30,7 +30,7 @@ Bot management (for example Cloudflare Bot Management, Akamai, DataDome, reCAPTC
 
 ## How to install
 
-Requirements: a Node.js server, version 22.13 or newer. Supported: Express 4 and 5, Connect, Next.js custom server, plain `node:http`. Other backends (Java, .NET, Go, Python) need a Node service in front, which is not shipped yet.
+Requirements: a Node.js server, version 22.13 or newer. Supported: Express 4 and 5, Connect, Next.js custom server, plain `node:http`. Python (Flask, Django, FastAPI), .NET (ASP.NET Core) and Java (Spring MVC, Jakarta Servlet) run through a small local sidecar with the same engine (`npx onehumanai sidecar`). Go, Ruby and PHP are not covered yet.
 
 ```bash
 npx onehumanai init
