@@ -1,18 +1,21 @@
 # Changelog
 
-## 0.7.2
-(0.7.1 was never published: its upload stayed staged on npm, waiting for approval.)
+## 0.7.3
+- **Fixed: an agent seen before the login was known was missed on the first protected request.** The page script reports from the first page, often before the app's login middleware has run; that evidence now moves to the login's session before its first decision.
+- **Fixed: an agent could add a passkey of its own.** A passkey is added only while no agent is connected, and the click behind the request must not be a program's (or, inside an AI browser, must be there at all). A virtual authenticator can no longer approve its own actions.
+- **Fixed: passkeys were shared by all users of a deployment.** They belong to the login that registered them; another user's passkey is neither offered nor accepted.
+- **`<script src="/onehuman/sdk.js" data-fetch="auto" data-step-up="auto">`**: the click behind every same-origin `fetch()` and `XMLHttpRequest` travels with it, with no change to the page's code, and a 428 is answered with a passkey dialog, then the request is repeated once. Without it a person was "unknown" and met a passkey request the page could not show.
+- **`npx onehumanai init`** mounts the middleware after the app's session or login middleware, puts the page script before the page's own scripts with both options on, and names `--cookie` in the verify step for apps behind a login.
+
+(0.7.2 was never published: npm kept the version number from an upload that did not finish.)
+
+## 0.7.1
 - **What it is, in one line:** access control for the AI agents your customers log in with. Package description, README and keywords say so.
 - **Owner's control.** `GET/POST /onehuman/access`: the account owner sees whether an AI agent is connected to their account, what it may do and what it did, and chooses per action. Stricter (`never`, or everything with `'*'`) applies at once; wider (`allow` for an hour, lifting a `never`) needs the owner's passkey (`purpose: 'permit'`), so an agent cannot widen its own access; a rule's `block` cannot be opened. Every change is signed in the audit chain (`OWNER_ALLOWED` / `OWNER_DENIED` / `OWNER_RESET`), and so is every decision it changes.
 - **`OneHuman.presence()`** and the `onehuman:presence` event: what the page itself sees (an agent driving the tab, or a side panel beside it) for your own banner; `data-report="off"` runs the page script locally without sending anything.
 - **Passkey dialogs name your site** (the relying party's host), not "OneHuman Lab".
 - **The engine's page routes are only what the page script needs** (signals, connection, session, step-up). Demo-room limits and the lab's simulation flag are gone from the engine; a store opened by the middleware uses per-session limits by default.
 - The example app is in English. Tests run from paths with spaces (Windows user folders).
-- **Fixed: an agent seen before the login was known was missed on the first protected request.** The page script reports from the first page, often before the app's login middleware has run; that evidence now moves to the login's session before its first decision.
-- **Fixed: an agent could add a passkey of its own.** A passkey is added only while no agent is connected, and the click behind the request must not be a program's (or, inside an AI browser, must be there at all). A virtual authenticator can no longer approve its own actions.
-- **Fixed: passkeys were shared by all users of a deployment.** They belong to the login that registered them; another user's passkey is neither offered nor accepted.
-- **`<script src="/onehuman/sdk.js" data-fetch="auto" data-step-up="auto">`**: the click behind every same-origin `fetch()` and `XMLHttpRequest` travels with it, with no change to the page's code, and a 428 is answered with a passkey dialog, then the request is repeated once. Without it a person was "unknown" and met a passkey request the page could not show.
-- **`npx onehumanai init`** mounts the middleware after the app's session or login middleware, puts the page script before the page's own scripts with both options on, and names `--cookie` in the verify step for apps behind a login.
 
 ## 0.7.0
 - **Python, .NET and Java.** `npx onehumanai sidecar` runs the same engine as a small local service (127.0.0.1:8788) for backends that are not Node. Adapters: `onehumanai` for Python (Flask, Django, FastAPI), `OneHumanAI.AspNetCore` (minimal APIs, MVC) and `ai.onehuman:onehumanai` (Jakarta Servlet, Spring MVC). Each forwards the page script's `/onehuman/*` requests and asks `POST /v1/decide` before a protected handler; same 403/428 bodies, masking, download tokens and fail open as Express.
