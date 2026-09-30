@@ -12,10 +12,10 @@ Every new source file starts with its licence: `// SPDX-License-Identifier: Apac
 
 ```bash
 git clone https://github.com/OneHumanAI/onehumanai.git
-cd OneHuman
+cd onehumanai
 npm install
-npm run dev        # http://localhost:8787 (node:sqlite in data/lab.db)
 npm run check      # tsc + tests — must pass before a PR
+npm run example    # the engine behind a small Express app, http://localhost:3000
 ```
 
 Node ≥ 22.13 (the engine uses `node:sqlite`). No build step for development; TypeScript runs directly.
@@ -26,14 +26,13 @@ Node ≥ 22.13 (the engine uses `node:sqlite`). No build step for development; T
 | --- | --- |
 | Add a detection signal | `sdk/onehuman.js` (collect) → `server/signals.ts` (validate) → `server/assess.ts` (weigh) → `server/connection.ts` (attach-time) |
 | Change how a click is judged | `server/kinematics.ts` (features + rules), `server/kinematics-model.ts` (learned model) |
-| Retrain the model | `node scripts/kinematics-train.mjs` — grouped CV by client, zero-FP thresholds; commit `server/kinematics-model.json` |
+| Retrain the model | Maintainers retrain on the recorded dataset (grouped CV by client, zero-FP thresholds) and commit `server/kinematics-model.json` |
 | Add a policy branch or mode | `server/policy.ts` |
 | Change the integration API | `integrations/express/index.ts` + `docs/INTEGRATION.md` + package README |
-| Add a training task | `web/training.js` `TASKS` |
 
 ## Rules we hold ourselves to
 
-1. **Zero human false positives is the constraint, not a target.** Any change to kinematics or assessment must keep `node scripts/kinematics-eval.mjs` at 0 misjudged real-browser human clicks and `node scripts/training-eval.mjs --recompute` at 0 engine misses on human runs.
+1. **Zero human false positives is the constraint, not a target.** Any change to kinematics or assessment must keep 0 misjudged real-browser human clicks and 0 engine misses on recorded human runs; maintainers check it against the recorded dataset before merging.
 2. **"Unknown" is never human.** Do not add a path that treats missing telemetry as evidence of a person.
 3. **Environment ≠ agent.** An installed extension or an AI app's browser is a trace about the browser, not the hand. It must not, on its own, block a person.
 4. **Page-side observation with standard web APIs only.** We do not reverse-engineer vendors' bundled code or ship per-vendor fingerprints beyond publicly visible DOM markers and globals.

@@ -7,7 +7,6 @@ import { Store } from '../server/db.ts';
 import { sqliteClient } from '../server/sql.ts';
 import { OneHuman } from '../server/engine.ts';
 import { verifyChain } from '../server/audit.ts';
-import { parseEvent, parseProofKeys } from '../server/routes/portal.ts';
 import type { Req } from '../server/http.ts';
 
 const secret = Buffer.alloc(32, 7);
@@ -77,26 +76,14 @@ test('the engine signs every decision in the same insert, and the hash chain sti
   store.close();
 });
 
-test('portal ingest: keys are recomputed, never trusted; a proof must belong to its event', () => {
-  const p = proverFromSecret(secret);
-  assert.equal(parseProofKeys([{ ...p.jwk, kid: 'lies' }])[0]!.kid, p.jwk.kid);
-  assert.equal(parseProofKeys([{ ...p.jwk, d: 'secret' }]).length, 0, 'a private key is refused');
-  assert.equal(parseProofKeys([{ kty: 'RSA', n: 'x' }]).length, 0);
-  const ev = parseEvent({ session: 'abcdef0123456789', resource: 'report.export', decision: 'block', actor: 'agent_likely', proof: p.sign(row, 1) }, Date.now());
-  assert.ok(ev?.proof);
-  assert.equal(parseEvent({ session: 'abcdef0123456789', resource: 'r.x', decision: 'allow', proof: '<script>' }, Date.now())!.proof, null);
-});
-
 test('an existing database that predates proofs is migrated on open, not skipped', async () => {
   const client = await sqliteClient(':memory:');
   await Store.open(client);
-  // simulate a database created before this release: the tables exist, the new columns do not
+  // simulate a database created before this release: the tables exist, the new column does not
   await client.execute('ALTER TABLE decisions DROP COLUMN proof');
-  await client.execute('ALTER TABLE telemetry DROP COLUMN proof_ok');
   const cols = async (t: string) => (await client.execute(`SELECT name FROM pragma_table_info('${t}')`)).rows.map((r) => r.name);
   assert.equal((await cols('decisions')).includes('proof'), false);
   const store = await Store.open(client);
   assert.equal((await cols('decisions')).includes('proof'), true, 'decisions.proof added');
-  assert.equal((await cols('telemetry')).includes('proof_ok'), true, 'telemetry.proof_ok added');
   store.close();
 });

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="web/favicon.svg" width="56" alt="">
+  <img src="brand/onehuman-mark.svg" width="56" alt="">
 </p>
 <h1 align="center">OneHuman</h1>
 <p align="center">
@@ -111,14 +111,17 @@ signals from the page (untrusted) + what the server sees (trusted)
 | `integrations/express/` | The middleware in `onehumanai` |
 | `integrations/cli/` | `npx onehumanai init · verify · scan · inspect · report` |
 | `packages/onehumanai/` | The published npm package |
-| `web/` | Landing page, three demo apps, portal |
-| `tests/` | engine, middleware, sidecar and portal tests (`npm test`); Python adapters in `packages/python/tests` |
-| `docs/` | Integration guides, deploy and release notes |
+| `packages/python`, `packages/dotnet`, `packages/java` | Adapters for Python, .NET and Java backends (they talk to `npx onehumanai sidecar`) |
+| `examples/express-bank/` | A small Express app protected end to end |
+| `tests/` | engine, middleware, CLI and sidecar tests (`npm test`); Python adapters in `packages/python/tests` |
+| `docs/` | Integration guides and release notes |
+
+This repository is the engine and everything you install. The website, the hosted portal and the live demos at [onehuman.ai](https://onehuman.ai) are not part of it.
 
 ```bash
 npm install
-npm run dev            # http://localhost:8787
 npm run check          # typecheck + tests
+npm run example        # a protected Express app on http://localhost:3000
 npm run build:package  # packages/onehumanai/dist
 ```
 
