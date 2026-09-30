@@ -1,6 +1,7 @@
 # Changelog
 
-## 0.7.1
+## 0.7.2
+(0.7.1 was never published: its upload stayed staged on npm, waiting for approval.)
 - **What it is, in one line:** access control for the AI agents your customers log in with. Package description, README and keywords say so.
 - **Owner's control.** `GET/POST /onehuman/access`: the account owner sees whether an AI agent is connected to their account, what it may do and what it did, and chooses per action. Stricter (`never`, or everything with `'*'`) applies at once; wider (`allow` for an hour, lifting a `never`) needs the owner's passkey (`purpose: 'permit'`), so an agent cannot widen its own access; a rule's `block` cannot be opened. Every change is signed in the audit chain (`OWNER_ALLOWED` / `OWNER_DENIED` / `OWNER_RESET`), and so is every decision it changes.
 - **`OneHuman.presence()`** and the `onehuman:presence` event: what the page itself sees (an agent driving the tab, or a side panel beside it) for your own banner; `data-report="off"` runs the page script locally without sending anything.

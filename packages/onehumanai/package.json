@@ -1,6 +1,6 @@
 {
   "name": "onehumanai",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Access control for the AI agents your customers log in with (Claude in Chrome, ChatGPT agent, Codex, Comet): hide private data from them, ask the account owner's passkey before anything risky, sign every decision on your own server. Node.js middleware + browser SDK. npx onehumanai init",
   "type": "module",
   "license": "(Apache-2.0 AND BUSL-1.1)",
