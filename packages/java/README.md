@@ -1,6 +1,6 @@
 # OneHuman for Java
 
-Control the AI agents your customers bring into your web app. When a customer lets Claude in Chrome, ChatGPT agent, Codex or Comet use their signed-in account, each protected handler decides: allow it, hide the private fields, wait for the account owner's passkey, or keep it closed. Every decision is signed on your own server.
+Access control for the AI agents your customers log in with. When a customer lets Claude in Chrome, ChatGPT agent, Codex or Comet use their signed-in account, each protected handler decides: allow it, hide the private fields, wait for the account owner's passkey, or keep it closed. Every decision is signed on your own server.
 
 The engine runs next to your app as a small local service; this library is the part inside your app. Java 17+, no runtime dependencies (Jakarta Servlet and Spring MVC are provided by your app).
 

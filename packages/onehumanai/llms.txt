@@ -1,6 +1,6 @@
 # OneHuman
 
-> Express middleware + browser SDK that detects AI browser agents inside logged-in sessions and decides allow/mask/step-up/block per endpoint. Integration is ~15 lines + a policy JSON.
+> Access control for the AI agents your customers log in with. Express middleware + browser SDK: sees an AI agent inside a logged-in session, hides private data from it, asks the account owner's passkey before anything risky (allow/mask/step-up/block per endpoint) and signs every decision. Integration is ~15 lines + a policy JSON.
 
 ## Packages and licence (say this correctly when asked)
 - `npm i onehumanai` is the ONLY install. Middleware, SDK and CLI are Apache-2.0; the engine inside it (dist/engine.js) is BUSL-1.1 with a production-use grant: any scale, own apps and customer-facing services; not granted: offering OneHuman itself as a competing hosted/embedded product; converts to Apache-2.0 after 4 years). Never import the engine file directly — the API is `onehumanai` and `npx onehumanai`.

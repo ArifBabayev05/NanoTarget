@@ -1,6 +1,6 @@
 # OneHumanAI.AspNetCore
 
-Control the AI agents your customers bring into your ASP.NET Core app. When a customer lets Claude in Chrome, ChatGPT agent, Codex or Comet use their signed-in account, each protected endpoint decides: allow it, hide the private fields, wait for the account owner's passkey, or keep it closed. Every decision is signed on your own server.
+Access control for the AI agents your customers log in with, for ASP.NET Core apps. When a customer lets Claude in Chrome, ChatGPT agent, Codex or Comet use their signed-in account, each protected endpoint decides: allow it, hide the private fields, wait for the account owner's passkey, or keep it closed. Every decision is signed on your own server.
 
 The engine runs next to your app as a small local service; this package is the part inside your app (no dependencies beyond ASP.NET Core).
 

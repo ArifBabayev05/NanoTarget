@@ -5,7 +5,7 @@
   <artifactId>onehumanai</artifactId>
   <version>0.1.0</version>
   <name>OneHuman for Java</name>
-  <description>Control the AI agents your customers bring into your web app: hide private data, ask the account owner's passkey for risky actions, sign every decision. Jakarta Servlet filter and Spring MVC interceptor; talks to the local OneHuman sidecar (npx onehumanai sidecar).</description>
+  <description>Access control for the AI agents your customers log in with: hide private data, ask the account owner's passkey for risky actions, sign every decision. Jakarta Servlet filter and Spring MVC interceptor; talks to the local OneHuman sidecar (npx onehumanai sidecar).</description>
   <url>https://onehuman.ai</url>
   <licenses><license><name>Apache-2.0</name><url>https://www.apache.org/licenses/LICENSE-2.0</url></license></licenses>
   <scm>

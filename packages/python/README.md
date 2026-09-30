@@ -1,6 +1,6 @@
 # onehumanai for Python
 
-Control the AI agents your customers bring into your web app. When a customer lets Claude in Chrome, ChatGPT agent, Codex or Comet use their signed-in account, each protected view decides: allow it, hide the private fields, wait for the account owner's passkey, or keep it closed. Every decision is signed on your own server.
+Access control for the AI agents your customers log in with. When a customer lets Claude in Chrome, ChatGPT agent, Codex or Comet use their signed-in account, each protected view decides: allow it, hide the private fields, wait for the account owner's passkey, or keep it closed. Every decision is signed on your own server.
 
 The engine runs next to your app as a small local service; this package is the part inside your app. It has no dependencies.
 

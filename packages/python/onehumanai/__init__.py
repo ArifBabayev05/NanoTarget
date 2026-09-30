@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""OneHuman for Python: control the AI agents your customers bring into your web app.
+"""OneHuman for Python: access control for the AI agents your customers log in with.
 
 The decision engine runs next to your app as a small local service (``npx onehumanai sidecar``). This package is
 the part inside your app, with no dependencies: it forwards the page script's requests to the sidecar and asks it

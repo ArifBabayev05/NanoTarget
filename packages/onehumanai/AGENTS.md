@@ -1,6 +1,6 @@
 # OneHuman
 
-**Decide what AI agents may do for your customers — and keep proof that a human agreed.** When a customer sends an AI agent into your product, OneHuman decides what it may do on their behalf and signs every decision on your server, so you can show which actions a person approved.
+**Access control for the AI agents your customers log in with.** Your customers now log into your product with AI agents: Claude in Chrome, ChatGPT agent, Codex, Comet. OneHuman decides what those agents may see and do. It hides private data from them, asks the account owner (with a passkey) before anything risky, and signs every decision on your own server. It is for your customers' AI agents, not your team's AI or agents your company builds.
 
 Customers now hand their logged-in bank, CRM and insurance sessions to Claude, ChatGPT Agent, Codex and other agentic browsers. Bot management stops bots at the door; it does nothing once a legitimate user is inside and an agent is operating their session. OneHuman works *inside* the session: it detects the moment an agent attaches, redacts what is already on screen, and lets each endpoint decide per resource — **allow · mask · step-up · block** — with a human-verified way back.
 

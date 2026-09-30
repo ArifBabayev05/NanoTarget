@@ -4,7 +4,7 @@
 <h1 align="center">OneHuman</h1>
 <p align="center">
   <b>Your customers log in with AI agents. Decide what they may see and do.</b><br>
-  OneHuman sees when an AI agent is working inside a signed-in session, decides per endpoint what it may see or do,<br>and signs every decision on your own server.
+  Access control for your customers' AI agents. OneHuman hides private data from AI agents and asks the owner<br>before anything risky. Every decision is signed on your own server.
 </p>
 <p align="center">
   <a href="https://www.npmjs.com/package/onehumanai"><img alt="npm" src="https://img.shields.io/npm/v/onehumanai?color=3ddc84&label=npm"></a>

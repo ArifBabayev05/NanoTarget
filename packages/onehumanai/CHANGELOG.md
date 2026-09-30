@@ -1,8 +1,14 @@
 # Changelog
 
-## 0.7.0
+## 0.7.1
+- **What it is, in one line:** access control for the AI agents your customers log in with. Package description, README and keywords say so.
 - **Owner's control.** `GET/POST /onehuman/access`: the account owner sees whether an AI agent is connected to their account, what it may do and what it did, and chooses per action. Stricter (`never`, or everything with `'*'`) applies at once; wider (`allow` for an hour, lifting a `never`) needs the owner's passkey (`purpose: 'permit'`), so an agent cannot widen its own access; a rule's `block` cannot be opened. Every change is signed in the audit chain (`OWNER_ALLOWED` / `OWNER_DENIED` / `OWNER_RESET`), and so is every decision it changes.
 - **`OneHuman.presence()`** and the `onehuman:presence` event: what the page itself sees (an agent driving the tab, or a side panel beside it) for your own banner; `data-report="off"` runs the page script locally without sending anything.
+- **Passkey dialogs name your site** (the relying party's host), not "OneHuman Lab".
+- **The engine's page routes are only what the page script needs** (signals, connection, session, step-up). Demo-room limits and the lab's simulation flag are gone from the engine; a store opened by the middleware uses per-session limits by default.
+- The example app is in English. Tests run from paths with spaces (Windows user folders).
+
+## 0.7.0
 - **Python, .NET and Java.** `npx onehumanai sidecar` runs the same engine as a small local service (127.0.0.1:8788) for backends that are not Node. Adapters: `onehumanai` for Python (Flask, Django, FastAPI), `OneHumanAI.AspNetCore` (minimal APIs, MVC) and `ai.onehuman:onehumanai` (Jakarta Servlet, Spring MVC). Each forwards the page script's `/onehuman/*` requests and asks `POST /v1/decide` before a protected handler; same 403/428 bodies, masking, download tokens and fail open as Express.
 - **Audit chain holds under parallel traffic.** Appends to one chain are serialised in the process, and a unique (room, seq) index with a retry keeps it whole across instances. Before, three cards loading at once could all write seq 1 and break verification.
 - **The chain hash covers the evidence.** v2 hashes canonical JSON (keys sorted at every level), so editing a nested reason, metric or engine version breaks the chain. v1 rows still verify.

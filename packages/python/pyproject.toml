@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "onehumanai"
 version = "0.1.0"
-description = "Control the AI agents your customers bring into your web app (Claude in Chrome, ChatGPT agent, Codex, Comet): hide private data, ask the account owner's passkey for risky actions, sign every decision. Flask, Django, FastAPI."
+description = "Access control for the AI agents your customers log in with (Claude in Chrome, ChatGPT agent, Codex, Comet): hide private data, ask the account owner's passkey for risky actions, sign every decision. Flask, Django, FastAPI."
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"

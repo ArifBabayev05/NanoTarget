@@ -1,7 +1,7 @@
 {
   "name": "onehumanai",
   "version": "0.7.0",
-  "description": "Detect AI agents (Claude in Chrome, ChatGPT agent, Codex, Comet, Playwright) inside signed-in sessions and decide per endpoint: allow, mask, passkey or block, with a signed proof a human agreed. Node.js middleware + browser SDK. npx onehumanai init",
+  "description": "Access control for the AI agents your customers log in with (Claude in Chrome, ChatGPT agent, Codex, Comet): hide private data from them, ask the account owner's passkey before anything risky, sign every decision on your own server. Node.js middleware + browser SDK. npx onehumanai init",
   "type": "module",
   "license": "(Apache-2.0 AND BUSL-1.1)",
   "engines": {
@@ -33,9 +33,9 @@
     "NOTICE"
   ],
   "keywords": [
+    "access-control",
     "ai-agent",
     "browser-agent",
-    "bot-detection",
     "agentic-browser",
     "express",
     "middleware",
@@ -43,8 +43,6 @@
     "claude",
     "chatgpt-agent",
     "web-bot-auth",
-    "ai-security",
-    "prompt-injection",
     "data-exfiltration",
     "pii-masking",
     "webauthn",
@@ -64,11 +62,12 @@
     "playwright-detection",
     "puppeteer-detection",
     "human-verification",
-    "bot-protection",
     "nextjs",
     "nodejs",
-    "access-control",
-    "llm-security"
+    "customer-agent-control",
+    "ai-agent-access-control",
+    "b2b-saas",
+    "fintech"
   ],
   "peerDependencies": {
     "express": ">=4"
