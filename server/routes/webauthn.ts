@@ -22,16 +22,20 @@ export function webauthnRoutes(engine: OneHuman) {
     if (!sameOrigin(req)) return json(res, 403, { error: 'origin' });
     const r = await engine.resolveSession(req);
     if (!r) return json(res, 401, { error: 'no_session' });
+    // An agent in this session could register a passkey of its own (a virtual authenticator) and then approve its
+    // own actions. A passkey is added only while no agent is connected.
+    if (await engine.agentPresent(r.session, req)) return json(res, 403, { error: 'agent_present', message: 'A passkey can be added only while no AI agent is connected to this session.' });
     const { rpId } = rpFromUrl(url(req));
     const challenge = newChallenge();
     await store.createChallenge(challenge, r.session.id, 'register', null, CHALLENGE_TTL_MS);
-    const existing = await store.credentialsForRoom<StoredCredential>(r.room);
+    const existing = await engine.credentialsFor<StoredCredential>(r.session);
+    const owner = engine.accessBy === 'room' ? r.room : r.session.id;
     json(res, 200, {
       challengeId: challenge,
       publicKey: {
         challenge,
         rp: { id: rpId, name: rpId },
-        user: { id: Buffer.from(r.room).toString('base64url'), name: `account-${r.room.slice(0, 8)}`, displayName: 'This account' },
+        user: { id: Buffer.from(owner).toString('base64url'), name: `account-${owner.slice(0, 8)}`, displayName: 'This account' },
         pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }, { type: 'public-key', alg: -8 }],
         authenticatorSelection: { residentKey: 'preferred', userVerification: 'required' },
         excludeCredentials: existing.map((c) => ({ type: 'public-key', id: c.id })),
@@ -48,6 +52,7 @@ export function webauthnRoutes(engine: OneHuman) {
     const body = (await readJson(req, 64000)) as Record<string, unknown> | null | undefined;
     if (!body || typeof body.challengeId !== 'string' || typeof body.clientDataJSON !== 'string' || typeof body.attestationObject !== 'string') return json(res, 400, { error: 'bad_request' });
     if (!(await store.consumeChallenge(body.challengeId, r.session.id, 'register'))) return json(res, 400, { error: 'challenge', message: 'Registration challenge not found or expired.' });
+    if (await engine.agentPresent(r.session)) return json(res, 403, { error: 'agent_present', message: 'A passkey can be added only while no AI agent is connected to this session.' });
     const { rpId, origin } = rpFromUrl(url(req));
     try {
       const cred = verifyRegistration({ clientDataJSON: body.clientDataJSON, attestationObject: body.attestationObject }, { challenge: body.challengeId, origin, rpId }, typeof body.label === 'string' ? body.label.slice(0, 40) : 'passkey');
@@ -69,8 +74,8 @@ export function webauthnRoutes(engine: OneHuman) {
     // Default ('reclaim'): the person takes the whole session back for a few minutes.
     const approve = body?.purpose === 'approve' && resource !== null;
     const permit = body?.purpose === 'permit' && resource !== null && (body.choice === 'allow' || body.choice === 'default') ? body.choice : null;
-    const creds = await store.credentialsForRoom<StoredCredential>(r.room);
-    if (!creds.length) return json(res, 404, { error: 'no_credentials', message: 'No passkey is registered in this room.' });
+    const creds = await engine.credentialsFor<StoredCredential>(r.session);
+    if (!creds.length) return json(res, 404, { error: 'no_credentials', message: 'No passkey is registered for this account.' });
     const { rpId } = rpFromUrl(url(req));
     const challenge = newChallenge();
     await store.createChallenge(challenge, r.session.id, permit ? 'permit' : approve ? 'approve' : 'assert', permit ? `${permit}|${resource}` : resource, CHALLENGE_TTL_MS);
@@ -85,7 +90,8 @@ export function webauthnRoutes(engine: OneHuman) {
     if (!body || typeof body.challengeId !== 'string' || typeof body.id !== 'string' || typeof body.clientDataJSON !== 'string' || typeof body.authenticatorData !== 'string' || typeof body.signature !== 'string') return json(res, 400, { error: 'bad_request' });
     const ch = await store.consumeChallenge(body.challengeId, r.session.id, ['assert', 'approve', 'permit']);
     if (!ch) return json(res, 400, { error: 'challenge', message: 'Verification challenge not found or expired.' });
-    const cred = await store.getCredential<StoredCredential>(body.id);
+    // only this account's own passkeys count: another user's passkey never approves or reclaims this session
+    const cred = (await engine.ownsCredential(r.session, body.id)) ? await store.getCredential<StoredCredential>(body.id) : null;
     if (!cred) return json(res, 404, { error: 'unknown_credential' });
     const { rpId, origin } = rpFromUrl(url(req));
     const result = verifyAssertion({ credentialId: body.id, clientDataJSON: body.clientDataJSON, authenticatorData: body.authenticatorData, signature: body.signature }, cred, { challenge: body.challengeId, origin, rpId });
@@ -113,7 +119,7 @@ export function webauthnRoutes(engine: OneHuman) {
   const status = async (req: Req, res: Res) => {
     const r = await engine.resolveSession(req);
     if (!r) return json(res, 401, { error: 'no_session' });
-    const creds = await store.credentialsForRoom<StoredCredential>(r.room);
+    const creds = await engine.credentialsFor<StoredCredential>(r.session);
     const s = (await store.getSession(r.session.id))!;
     json(res, 200, { credentials: creds.map((c) => ({ id: c.id, alg: c.alg, label: c.label, createdAt: c.createdAt })), humanVerifiedAt: s.humanVerifiedAt, validForMs: HUMAN_RECLAIM_TTL_MS });
   };

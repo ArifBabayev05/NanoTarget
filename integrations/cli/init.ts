@@ -189,13 +189,9 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   // the page script and OneHuman.fetch are part of the setup, not questions: both are listed in the plan below
   const addScript = !!html;
   // The page's own requests must carry the click that caused them, or a person's click never counts as human evidence
-  // (and in protect mode a real person meets a passkey request). The page's local scripts that call fetch():
-  const pageScripts = addScript && html
-    ? [...readFileSync(html, 'utf8').matchAll(/<script[^>]*\ssrc=["'](?!https?:|\/\/|\/onehuman\/)([^"'?#]+)["']/gi)]
-        .map((m) => [resolve(dirname(html), m[1]!.replace(/^\//, '')), resolve(dirname(html), '.' + (m[1]!.startsWith('/') ? m[1] : '/' + m[1]))])
-        .flat().filter((f, i, a) => a.indexOf(f) === i && existsSync(f) && /(?<![.\w$])fetch\s*\(/.test(readFileSync(f, 'utf8')))
-    : [];
-  const wrapFetch = pageScripts.length > 0;
+  // (and in protect mode a real person meets a passkey request). The script tag does it for every same-origin fetch()
+  // and XMLHttpRequest of the page (data-fetch="auto": inline scripts, bundles and axios alike, no code rewritten), and
+  // answers a passkey request with a dialog of its own (data-step-up="auto").
 
   // ---------------------------------------------------------------- the plan
   const edits: Edit[] = [];
@@ -297,8 +293,9 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
       const m = appRe.exec(t)!;
       const indent = m[1]!, app = m[2]!;
       if (!t.includes(`${app}.use(onehuman.middleware())`)) {
-        const at = m.index + m[0].length;
-        put(entry, t.slice(0, at) + `\n${indent}${app}.use(onehuman.middleware());   // OneHuman: the page script and its API, before your routes` + t.slice(at), `${app}.use(onehuman.middleware()) right after the app is created`);
+        const at = afterLoginMiddleware(t, app, m.index + m[0].length);
+        const where = at.after ? `right after ${at.after}` : 'right after the app is created';
+        put(entry, t.slice(0, at.index) + `\n${indent}${app}.use(onehuman.middleware());   // OneHuman: the page script and its API, after the login middleware so identify() sees who is signed in` + t.slice(at.index), `${app}.use(onehuman.middleware()) ${where}`);
       }
     }
     for (const x of chosen) {
@@ -333,14 +330,15 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   }
   if (addScript && html) {
     const t = read(html);
-    put(html, t.replace(/<\/head>/i, '  <script src="/onehuman/sdk.js"></script>\n</head>'), 'adds the page script in <head>');
+    // before the page's own scripts, so their first requests already go through it
+    const tag = '<script src="/onehuman/sdk.js" data-fetch="auto" data-step-up="auto"></script>';
+    const head = t.slice(0, t.search(/<\/head>/i));
+    const first = head.search(/<script\b/i);
+    put(html, first >= 0 ? t.slice(0, first) + tag + '\n  ' + t.slice(first) : t.replace(/<\/head>/i, `  ${tag}\n</head>`), 'adds the page script in <head>, before your scripts (it adds the click behind each request and asks for a passkey when the rules say so)');
     if (r.frontend.kind === 'spa') notes.push('If the page is served by a separate dev server (Vite, webpack), proxy /onehuman to your API server so /onehuman/sdk.js loads.');
   }
-  for (const f of wrapFetch ? pageScripts : []) {
-    const t = read(f);
-    put(f, t.replace(/(?<![.\w$])fetch\s*\(/g, '(window.OneHuman?.fetch ?? fetch)('), 'fetch() → OneHuman.fetch (same arguments; falls back to fetch if the script is missing)');
-  }
-  if (addScript && !wrapFetch && r.frontend.fetchCalls) notes.push('Call protected endpoints with OneHuman.fetch(url, init) instead of fetch(): it carries the click behind the request, so a person is recognised as a person.');
+  if (!addScript && r.frontend.fetchCalls) notes.push('Add <script src="/onehuman/sdk.js" data-fetch="auto" data-step-up="auto"></script> to your pages: it carries the click behind each request, so a person is recognised as a person, and asks for a passkey when the rules say so.');
+  if (chosen.some((x) => x.method === 'GET' && !PRESETS[presetFor.get(x)!]!.m.includes('mask') && /\.(csv|pdf|xlsx?|zip|json)$|export|download|statement/i.test(x.path))) notes.push('Downloads opened with a plain link (<a href>) carry no click evidence and cannot show a passkey dialog. Fetch the file with fetch() and save it from the page, or issue a single-use link after the decision (req.onehuman.token()).');
   const installed = !!deps['onehumanai'];
 
   // ---------------------------------------------------------------- show it, then do it
@@ -375,7 +373,8 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   const port = entryText.match(/\.listen\(\s*(?:process\.env\.PORT\s*(?:\|\||\?\?)\s*)?(\d{2,5})/)?.[1] ?? entryText.match(/\bPORT\s*(?:\|\||\?\?)\s*['"]?(\d{2,5})/)?.[1] ?? '3000';
   // verify sends GET requests: show it a protected route it can call
   const verifyPath = (chosen.find((x) => x.method === 'GET') ?? chosen[0])?.path.replace(/:\w+/g, '1') ?? '/api/…';
-  say(`  2. Check it: ${cyan(`npx onehumanai verify http://localhost:${port} ${verifyPath}`)}`);
+  say(`  2. Check it: ${cyan(`npx onehumanai verify http://localhost:${port} ${verifyPath}${identifyExpr ? ' --cookie "<your session cookie>"' : ''}`)}`);
+  if (identifyExpr) say(`     The route needs a signed-in user: sign in with a test account and copy the session cookie from the browser. Add --attach to also check an attached agent (it marks that login as an agent for this visit).`);
   say(`  3. ${apiKey ? 'See it in the portal: https://onehuman.ai/portal' : 'For the portal (agents seen, rules without a deploy): create a key at https://onehuman.ai/portal and add ONEHUMAN_API_KEY to .env.'}`);
   for (const n of notes) say(`\n${yellow('!')} ${n}`);
   say('');
@@ -397,4 +396,30 @@ function listFiles(root: string): string[] {
   };
   walk(root, 0);
   return out;
+}
+
+/**
+ * Where app.use(onehuman.middleware()) goes: after the app's session or login middleware (express-session,
+ * cookie-session, passport, a JWT or auth middleware), so identify() sees who is signed in on the page script's own
+ * requests too. Only app.use(...) lines before the first route count; otherwise right after the app is created.
+ */
+export function afterLoginMiddleware(text: string, app: string, created: number): { index: number; after: string | null } {
+  const e = app.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const route = new RegExp(`\\b${e}\\s*\\.\\s*(get|post|put|patch|delete|all|route)\\s*\\(|\\b${e}\\s*\\.\\s*use\\s*\\(\\s*['"\`]/`, 'g');
+  route.lastIndex = created;
+  const firstRoute = route.exec(text)?.index ?? text.length;
+  const use = new RegExp(`\\b${e}\\s*\\.\\s*use\\s*\\(`, 'g');
+  use.lastIndex = created;
+  let best: { index: number; after: string | null } = { index: created, after: null };
+  for (let mm = use.exec(text); mm && mm.index < firstRoute; mm = use.exec(text)) {
+    // the whole statement: up to the parenthesis that closes app.use(
+    let depth = 0, i = mm.index + mm[0].length - 1;
+    for (; i < text.length; i++) { const c = text[i]; if (c === '(') depth++; else if (c === ')' && --depth === 0) break; }
+    const stmt = text.slice(mm.index, i + 1);
+    if (!/session|passport|auth|jwt|clerk|lucia|cookieParser|cookie-parser|supabase/i.test(stmt) || /onehuman/.test(stmt)) continue;
+    let end = i + 1;
+    if (text[end] === ';') end++;
+    best = { index: end, after: stmt.replace(/\s+/g, ' ').slice(0, 60) + (stmt.length > 60 ? '…' : '') };
+  }
+  return best;
 }

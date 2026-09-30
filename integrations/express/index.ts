@@ -331,11 +331,15 @@ export async function onehuman(opts: OneHumanOptions) {
     if (identity) {
       watchIdentity(String(identity), req);
       const id = derivedUuid(secret, 'session', String(identity));
-      const existing = await store.getSession(id);
-      if (existing) { if (cookies(req)[cookieName] !== id) setCookie(req, res, id); return existing; }
-      const s = await store.ensureSession(id, room, await engine.observe(req));
-      setCookie(req, res, id);
-      return s;
+      const fromCookie = cookies(req)[cookieName];
+      const existing = await store.getSession(id) ?? await store.ensureSession(id, room, await engine.observe(req));
+      if (fromCookie !== id) {
+        // this browser reported to its own session before the login was known (the page script runs from the first
+        // page, often before the login): its evidence moves to the login's session before the first decision
+        if (fromCookie && UUID.test(fromCookie)) await store.carryOverEvidence(fromCookie, id).catch(() => false);
+        setCookie(req, res, id);
+      }
+      return existing;
     }
     const fromCookie = cookies(req)[cookieName];
     if (fromCookie && UUID.test(fromCookie)) { const s = await store.getSession(fromCookie); if (s && s.room === room) return s; }

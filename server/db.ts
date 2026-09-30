@@ -330,6 +330,30 @@ export class Store {
     return r.rowsAffected > 0;
   }
 
+  /**
+   * A browser's evidence moves with it when it logs in: the page script reported to the browser's own session before
+   * the login was known, and the login's session must not start blind. Copies the newest page snapshot (if it is newer
+   * than any the login's session has) and an earlier agent attachment. Only evidence moves, never a person's clicks.
+   */
+  async carryOverEvidence(from: string, to: string, now = Date.now(), windowMs = VISIT_IDLE_MS): Promise<boolean> {
+    if (from === to) return false;
+    const src = await this.getSession(from);
+    const dst = await this.getSession(to);
+    if (!src || !dst || src.room !== dst.room) return false;
+    const newest = async (s: string) => (await this.sql.execute("SELECT id, payload, created FROM events WHERE session = ? AND kind = 'signal' ORDER BY id DESC LIMIT 1", [s])).rows[0];
+    const a = await newest(from);
+    const b = await newest(to);
+    let moved = false;
+    if (a && Number(a.created) > now - windowMs && (!b || Number(a.created) > Number(b.created))) {
+      await this.addEvent(dst.room, to, 'signal', JSON.parse(String(a.payload)), Number(a.created));
+      moved = true;
+    }
+    if (src.agentAttachedAt != null && now - src.agentAttachedAt <= windowMs) {
+      if (await this.markAgentAttached(to, src.agentAttachedAt, src.agentAttachedClientMs)) { await this.markFirstAgent(to, src.agentAttachedAt); moved = true; }
+    }
+    return moved;
+  }
+
   async markHumanVerified(session: string, now = Date.now()) {
     await this.sql.execute('UPDATE sessions SET human_verified_at = ? WHERE id = ?', [now, session]);
   }
@@ -533,9 +557,20 @@ export class Store {
     return (await this.sql.execute('SELECT body FROM credentials WHERE room = ? ORDER BY created DESC', [room])).rows.map((r) => JSON.parse(r.body as string) as T);
   }
 
+  /** Passkeys registered by one session (in a deployment with identify(), one login). */
+  async credentialsForSession<T>(session: string): Promise<T[]> {
+    return (await this.sql.execute('SELECT body FROM credentials WHERE session = ? ORDER BY created DESC', [session])).rows.map((r) => JSON.parse(r.body as string) as T);
+  }
+
   async getCredential<T>(id: string): Promise<T | null> {
     const r = (await this.sql.execute('SELECT body FROM credentials WHERE id = ?', [id])).rows[0];
     return r ? (JSON.parse(r.body as string) as T) : null;
+  }
+
+  /** Where a credential was registered: its room and session. */
+  async credentialOwner(id: string): Promise<{ room: string; session: string } | null> {
+    const r = (await this.sql.execute('SELECT room, session FROM credentials WHERE id = ?', [id])).rows[0];
+    return r ? { room: String(r.room), session: String(r.session) } : null;
   }
 
   async updateCredential(cred: { id: string }) {

@@ -110,9 +110,9 @@ test('a router in its own file with its own name is found; login is never propos
   const { checkPolicy } = await import('../server/policy.ts');
   assert.ok('policy' in checkPolicy(policy, 'v'), 'the engine accepts what init wrote');
   assert.match(readFileSync(join(dir, 'onehuman.js'), 'utf8'), /identify: \(req\) => req\.session\?\.user\?\.email \?\? null/, 'a login id, not the user object');
-  const page = readFileSync(join(dir, 'public', 'app.js'), 'utf8');
-  assert.match(page, /await \(window\.OneHuman\?\.fetch \?\? fetch\)\('\/api\/hr\/employees'\)/, 'the page sends its requests through OneHuman.fetch');
-  assert.match(page, /window\.fetch\('\/x'\)/, 'a member call is left alone');
+  // the page's own code is not rewritten: the script tag carries the click behind every same-origin request
+  assert.equal(readFileSync(join(dir, 'public', 'app.js'), 'utf8'), "const r = await fetch('/api/hr/employees');\nconst j = await window.fetch('/x');\n");
+  assert.match(readFileSync(join(dir, 'public', 'index.html'), 'utf8'), /<script src="\/onehuman\/sdk\.js" data-fetch="auto" data-step-up="auto"><\/script>\s*<script src="\/app\.js">/, 'the page script comes before the page\'s own');
   assert.match(r.stdout, /verify http:\/\/localhost:3100 \/api\/hr\/employees/, 'the check uses the real port and a GET route');
 });
 

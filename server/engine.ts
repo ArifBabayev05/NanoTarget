@@ -99,6 +99,34 @@ export class OneHuman {
   webauthnReclaimEnabled = true;
   readonly accessBy: 'session' | 'room';
 
+  /**
+   * The passkeys that belong to this session's account. With accessScope 'session' (an app's middleware, one session
+   * per login) that is the login's own passkeys, never another user's; with 'room' (the lab) the room's.
+   */
+  credentialsFor<T>(session: Pick<SessionRow, 'id' | 'room'>): Promise<T[]> {
+    return this.accessBy === 'room' ? this.store.credentialsForRoom<T>(session.room) : this.store.credentialsForSession<T>(session.id);
+  }
+  async ownsCredential(session: Pick<SessionRow, 'id' | 'room'>, credentialId: string): Promise<boolean> {
+    const o = await this.store.credentialOwner(credentialId);
+    return !!o && (this.accessBy === 'room' ? o.room === session.room : o.session === session.id);
+  }
+
+  /**
+   * An AI agent drives this session now, did earlier in this visit (and no person has reclaimed it since), or made the
+   * request itself: with `request`, the click behind it is judged like any protected call (and the attempt is logged
+   * as a decision on `resource`).
+   */
+  async agentPresent(session: SessionRow, request?: Req, resource = 'webauthn.register', now = Date.now()): Promise<boolean> {
+    const c = await this.connectionFor(session, now);
+    if (c.state === 'agent_attached' || c.state === 'signed_agent') return true;
+    const s = await this.store.getSession(session.id);
+    if (s?.agentAttachedAt && !(s.humanVerifiedAt != null && s.humanVerifiedAt > s.agentAttachedAt && now - s.humanVerifiedAt <= HUMAN_RECLAIM_TTL_MS)) return true;
+    if (!request) return false;
+    const r = await this.decide({ room: session.room, session, resource, request, snapshot: this.snapshotFrom(request) });
+    // a program's click, or no click at all from inside an AI browser or beside an agent's side panel
+    return r.assessment.actor === 'agent_likely' || (r.assessment.actor === 'unknown' && c.state === 'agent_environment');
+  }
+
   /** The key the account owner's agent-access choices are stored under. */
   accessScope(session: Pick<SessionRow, 'id' | 'room'>): string { return this.accessBy === 'room' ? `room:${session.room}` : `session:${session.id}`; }
 
@@ -335,7 +363,7 @@ export class OneHuman {
         // Only the person can approve, with a passkey (purpose 'approve'); the session stays the agent's.
         stepUp = agentBranch
           ? { id, challenge: '', expiresAt: now + STEP_UP_TTL_MS, webauthn: true, approve: true }
-          : { id, challenge, expiresAt: now + STEP_UP_TTL_MS, webauthn: (await this.store.credentialsForRoom(input.room)).length > 0 };
+          : { id, challenge, expiresAt: now + STEP_UP_TTL_MS, webauthn: (await this.credentialsFor(input.session)).length > 0 };
       } else {
         // blocked as agent: offer the WebAuthn reclaim path in the response, decision stays block
         stepUp = { id: '', challenge: '', expiresAt: now + STEP_UP_TTL_MS, webauthn: true, reclaim: true };

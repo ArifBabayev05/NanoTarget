@@ -32,6 +32,10 @@
   const sessionMeta = document.querySelector('meta[name="oh-session"]');
   const sessionId = (sessionMeta && sessionMeta.content) || null;
   const sessionHeaders = () => (sessionId ? { 'X-OH-Session': sessionId } : {});
+  // the page's own fetch, before data-fetch="auto" wraps it: the SDK's reports and retries never go through the wrapper
+  const nativeFetch = typeof window.fetch === 'function' ? window.fetch.bind(window) : null;
+  // the middleware's routes live next to the signals endpoint (<base>/signals → <base>/webauthn/…)
+  const apiBase = endpoint.replace(/\/signals(\?.*)?$/, '');
   // Transport state lives up here: probes may report (flush) while the page is still loading, before the
   // transport section below has run, and a `let` read before its line would throw and take the SDK down.
   let flushing = null;
@@ -555,7 +559,7 @@
   }
   async function post(snap) {
     if (!reportEnabled) { for (const fn of listeners) { try { fn(null, snap, null); } catch { /* ignore */ } } return null; }
-    const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', ...sessionHeaders() }, body: JSON.stringify(snap), credentials: 'same-origin', cache: 'no-store', keepalive: true });
+    const r = await nativeFetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', ...sessionHeaders() }, body: JSON.stringify(snap), credentials: 'same-origin', cache: 'no-store', keepalive: true });
     if (!r.ok) throw new Error('signals ' + r.status);
     const d = await r.json();
     lastAssessment = d.assessment || null;
@@ -633,12 +637,109 @@
   }
 
   /** fetch() wrapper: attaches the current snapshot so the server decides with fresh telemetry. */
-  function protectedFetch(input, init) {
+  let protectedFetch = function (input, init) {
     const snap = snapshot(true);   // taken now: the click that caused this call belongs to it
     const headers = new Headers((init && init.headers) || {});
     headers.set('X-OH-Sample', sampleHeader(snap));
     if (sessionId) headers.set('X-OH-Session', sessionId);
-    return ensureSession().then(() => fetch(input, { ...(init || {}), headers, credentials: 'same-origin', cache: 'no-store' }));
+    return ensureSession().then(() => nativeFetch(input, { ...(init || {}), headers, credentials: 'same-origin', cache: 'no-store' }));
+  }
+
+  // ------------------------------------------------------------ data-fetch="auto" · data-step-up="auto"
+  // Without the click that caused a call, the server cannot tell a person from a program, so every person is
+  // "unknown". data-fetch="auto" carries it on every same-origin fetch() and XMLHttpRequest of the page, with no
+  // change to the page's code. data-step-up="auto" answers a 428 (the rules ask for the person) with a passkey
+  // dialog, then repeats the request once.
+  const autoFetch = (script && script.dataset.fetch === 'auto') || config.fetch === 'auto';
+  const autoStepUp = (script && script.dataset.stepUp === 'auto') || config.stepUp === 'auto';
+  const sameOrigin = (u) => { try { const x = new URL(u, location.href); return x.origin === location.origin && !x.pathname.startsWith(apiBase + '/'); } catch { return false; } };
+  const urlOf = (input) => (typeof input === 'string' ? input : input instanceof URL ? input.href : input && input.url) || '';
+  const b64uToBuf = (v) => Uint8Array.from(atob(v.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(v.length / 4) * 4, '=')), (c) => c.charCodeAt(0));
+  const bufToB64u = (b) => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  // the click behind a passkey request travels with it: the server refuses to add a passkey for a program
+  const api = (path, body) => nativeFetch(apiBase + path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-OH-Sample': sampleHeader(snapshot(true)), ...sessionHeaders() }, body: JSON.stringify(body || {}), credentials: 'same-origin', cache: 'no-store' })
+    .then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok) throw Object.assign(new Error(d.message || d.error || String(r.status)), { code: d.error }); return d; });
+
+  /** The person confirms with a passkey (registering one first when this account has none). Resolves true when confirmed. */
+  async function confirmWithPasskey(stepUp, resource) {
+    if (!window.PublicKeyCredential || !navigator.credentials) throw new Error('This browser has no passkey support.');
+    const purpose = stepUp && stepUp.approve ? 'approve' : null;
+    let o;
+    try { o = await api('/webauthn/assert/options', { resource, purpose }); }
+    catch (e) {
+      if (e.code !== 'no_credentials') throw e;
+      const ro = await api('/webauthn/register/options', {});
+      const pk = ro.publicKey;
+      const cred = await navigator.credentials.create({ publicKey: { ...pk, challenge: b64uToBuf(pk.challenge), user: { ...pk.user, id: b64uToBuf(pk.user.id) }, excludeCredentials: (pk.excludeCredentials || []).map((c) => ({ ...c, id: b64uToBuf(c.id) })) } });
+      await api('/webauthn/register', { challengeId: ro.challengeId, id: cred.id, clientDataJSON: bufToB64u(cred.response.clientDataJSON), attestationObject: bufToB64u(cred.response.attestationObject), label: 'passkey' });
+      o = await api('/webauthn/assert/options', { resource, purpose });
+    }
+    const pk = o.publicKey;
+    const a = await navigator.credentials.get({ publicKey: { ...pk, challenge: b64uToBuf(pk.challenge), allowCredentials: (pk.allowCredentials || []).map((c) => ({ ...c, id: b64uToBuf(c.id) })) } });
+    const d = await api('/webauthn/assert', { challengeId: o.challengeId, id: a.id, clientDataJSON: bufToB64u(a.response.clientDataJSON), authenticatorData: bufToB64u(a.response.authenticatorData), signature: bufToB64u(a.response.signature) });
+    if (d.reclaim) unseal(d.reclaim);
+    return true;
+  }
+
+  /** A small dialog of the SDK's own; resolves true when the person confirmed. */
+  function stepUpDialog(body) {
+    return new Promise((resolve) => {
+      const approve = !!(body.stepUp && body.stepUp.approve);
+      const wrap = document.createElement('div');
+      wrap.setAttribute('role', 'dialog'); wrap.setAttribute('aria-modal', 'true');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(10,10,11,.45);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif';
+      const box = document.createElement('div');
+      box.style.cssText = 'background:#fff;color:#0b0c0f;max-width:380px;width:calc(100% - 32px);border-radius:14px;padding:20px 20px 16px;box-shadow:0 20px 60px rgba(0,0,0,.3)';
+      const h = document.createElement('b'); h.textContent = approve ? 'Your approval is needed' : 'Confirm it is you';
+      const p = document.createElement('p'); p.style.margin = '8px 0 14px';
+      p.textContent = approve ? 'An AI agent in this session asked for this action. Only you can approve it, with Touch ID, Face ID or Windows Hello.' : 'Confirm this action with Touch ID, Face ID or Windows Hello.';
+      const err = document.createElement('p'); err.style.cssText = 'color:#b42318;margin:0 0 10px;font-size:13px';
+      const ok = document.createElement('button'); ok.textContent = 'Confirm with passkey';
+      ok.style.cssText = 'font:inherit;background:#0b0c0f;color:#fff;border:0;border-radius:10px;padding:9px 14px;cursor:pointer;margin-right:8px';
+      const no = document.createElement('button'); no.textContent = 'Cancel';
+      no.style.cssText = 'font:inherit;background:#f1f3f6;color:#0b0c0f;border:0;border-radius:10px;padding:9px 14px;cursor:pointer';
+      box.append(h, p, err, ok, no); wrap.append(box); document.body.append(wrap);
+      const done = (v) => { wrap.remove(); resolve(v); };
+      no.onclick = () => done(false);
+      ok.onclick = async () => {
+        ok.disabled = true; err.textContent = '';
+        try { done(await confirmWithPasskey(body.stepUp, body.resource)); }
+        catch (e) { ok.disabled = false; err.textContent = e && e.name === 'NotAllowedError' ? 'Not confirmed. Try again, or cancel.' : e.code === 'agent_present' ? 'A passkey can be added only while no AI agent is connected.' : (e.message || 'Could not confirm.'); }
+      };
+    });
+  }
+
+  async function withStepUp(response, retry) {
+    if (!autoStepUp || response.status !== 428) return response;
+    const body = await response.clone().json().catch(() => null);
+    if (!body || !body.stepUp) return response;
+    return (await stepUpDialog(body)) ? retry() : response;
+  }
+
+  if (autoFetch && nativeFetch) {
+    window.fetch = function (input, init) {
+      if (!sameOrigin(urlOf(input))) return nativeFetch(input, init);
+      const send = () => {
+        const headers = new Headers((init && init.headers) || (input instanceof Request ? input.headers : undefined));
+        headers.set('X-OH-Sample', sampleHeader(snapshot(true)));
+        if (sessionId) headers.set('X-OH-Session', sessionId);
+        return ensureSession().then(() => nativeFetch(input instanceof Request ? input.clone() : input, { ...(init || {}), headers }));
+      };
+      return send().then((r) => withStepUp(r, send));
+    };
+    const X = window.XMLHttpRequest && window.XMLHttpRequest.prototype;
+    if (X) {
+      const open = X.open, sendX = X.send;
+      X.open = function (method, url) { this.__ohSame = sameOrigin(String(url)); return open.apply(this, arguments); };
+      X.send = function () {
+        if (this.__ohSame) { try { this.setRequestHeader('X-OH-Sample', sampleHeader(snapshot(true))); if (sessionId) this.setRequestHeader('X-OH-Session', sessionId); } catch { /* headers already sent */ } }
+        return sendX.apply(this, arguments);
+      };
+    }
+  } else if (autoStepUp && nativeFetch) {
+    // step-up only: OneHuman.fetch answers a 428 with the dialog too
+    const plain = protectedFetch;
+    protectedFetch = (input, init) => plain(input, init).then((r) => withStepUp(r, () => plain(input, init)));
   }
 
   /** Register a read-only WebMCP tool when the browser exposes the API. Calls are counted as strong agent evidence. */
