@@ -30,6 +30,39 @@ const flag = (name: string) => { const i = rest.indexOf(name); return i >= 0 ? r
 const has = (name: string) => rest.includes(name);
 const positional = rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && rest[i - 1] !== '--json'));
 
+const HELP = `onehumanai: access control for the AI agents your customers log in with
+
+Set up and check
+  npx onehumanai init [dir] [--yes] [--no-install]
+      three questions, shows every change, writes it on yes (--yes: the recommended answers)
+  npx onehumanai verify <baseUrl> <protectedPath> [--base /onehuman] [--cookie "name=value"] [--attach]
+      four checks against your running app. Behind a login, pass a signed-in session cookie with --cookie;
+      --attach also simulates an attached agent (it marks that login as an agent for this visit: use a test account)
+  npx onehumanai scan [dir] [--json | --proposal]
+      routes, what they expose, the login, a draft policy (onehuman.policy.draft.json)
+
+See what happened
+  npx onehumanai inspect [--sessions] [--session <id>] [--db sqlite:./onehuman.db]
+      exactly what the page script sent
+  npx onehumanai report [--days 30] [--out file.html] [--json]
+      the 30-day report from your own audit log
+
+Proofs
+  npx onehumanai verify-proof <bundle.json> [--keys <jwks.json | https://your-app/onehuman/proof-keys>]
+      check signed decisions offline (for an auditor)
+  npx onehumanai proof-keys
+      this deployment's public proof keys (keep them before changing the secret)
+  npx onehumanai anchors [--out dir]
+      RFC 3161 timestamps of the audit chain, as files OpenSSL verifies
+
+Other backends and secrets
+  npx onehumanai sidecar [--port 8788] [--dir .]
+      the engine next to a Python, .NET or Java app (packages: onehumanai, OneHumanAI.AspNetCore, ai.onehuman:onehumanai)
+  npx onehumanai secret
+      a fresh ONEHUMAN_SECRET
+
+Docs: https://onehuman.ai/docs`;
+
 declare const __ONEHUMAN_VERSION__: string | undefined;
 const VERSION = typeof __ONEHUMAN_VERSION__ === 'string' ? __ONEHUMAN_VERSION__ : '0.0.0-dev';
 
@@ -110,7 +143,8 @@ async function main() {
     // `decision; computed=…; actor=…` — present on every protected answer, whatever the app's body looks like
     const outcome = (r: Response | null) => { const h = r?.headers.get('x-oh-outcome') ?? ''; const m = /^(\w+); computed=(\w+); actor=(\w+)/.exec(h); return m ? { decision: m[1]!, computed: m[2]!, actor: m[3]! } : null; };
     const decisionHeader = r1?.headers.get('x-oh-decision');
-    const needsLogin = !!r1 && !decisionHeader && (r1.status === 401 || r1.status === 403 || (r1.status >= 300 && r1.status < 400));
+    // a 401 is the app's own login check, whether or not OneHuman decided first; a 403 or a redirect without a decision too
+    const needsLogin = !!r1 && (r1.status === 401 || (!decisionHeader && (r1.status === 403 || (r1.status >= 300 && r1.status < 400))));
     results.push({ name: 'Decision on protected endpoint', ok: !!r1 && !!decisionHeader && (r1.status === 200 || r1.status === 403 || r1.status === 428), detail: `GET ${path} → ${r1?.status ?? 'unreachable'}, X-OH-Decision ${decisionHeader ? 'present' : 'MISSING (protect() not applied?)'}, ${outcome(r1) ? `decision=${outcome(r1)!.decision}, rules say ${outcome(r1)!.computed}` : `decision=${b1?._onehuman?.decision ?? b1?.decision?.decision ?? '-'}`}` });
     // 3. environment-only evidence (AI app browser UA) reaches the onArtifact branch
     const r2 = await fetch(u(path), { headers: { 'user-agent': 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Claude/2.2553.1 Chrome/152.0.0.0 Safari/537.36', ...(login ? { cookie: login } : {}) } }).catch(() => null);
@@ -146,7 +180,9 @@ async function main() {
     process.exit(allOk ? 0 : 1);
   }
   if (cmd === 'secret') { console.log(randomBytes(32).toString('base64url')); return; }
-  console.log('onehumanai <init [dir] [--yes] | inspect [--sessions] | report [--days 30] | scan [dir] [--json] | verify <baseUrl> <protectedPath> [--base /onehuman] | verify-proof <bundle.json> [--keys <jwks|url>] | secret>');
-  process.exit(cmd ? 2 : 0);
+  const help = !cmd || cmd === 'help' || cmd === '--help' || cmd === '-h';
+  if (!help) console.error(`onehumanai: unknown command "${cmd}"\n`);
+  console.log(HELP);
+  process.exit(help ? 0 : 2);
 }
 main().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });

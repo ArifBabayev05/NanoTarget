@@ -576,8 +576,9 @@ export async function onehuman(opts: OneHumanOptions) {
 
 export type OneHumanInstance = Awaited<ReturnType<typeof onehuman>>;
 
-const KEEP_KEYS = new Set(['id', '_id']);
-/** The `mask: 'auto'` variant: every value hidden, the shape and ids kept, so the page still renders. */
+/** Keys whose values say what a record is, not what it holds: ids, codes such as a currency, status and dates. */
+const KEEP_KEYS = new Set(['id', '_id', 'currency', 'unit', 'status', 'state', 'type', 'kind', 'date', 'createdAt', 'updatedAt', 'created_at', 'updated_at']);
+/** The `mask: 'auto'` variant: every value hidden, the shape kept, and ids, currency/status/type codes and dates left as they are, so the page still renders. */
 export function autoMask(value: unknown, key = ''): unknown {
   if (Array.isArray(value)) return value.map((v) => autoMask(v));
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, autoMask(v, k)]));

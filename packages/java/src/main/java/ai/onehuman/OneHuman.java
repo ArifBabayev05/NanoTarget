@@ -157,12 +157,15 @@ public final class OneHuman {
     }
 
     /** Every value hidden, the shape and ids kept (the same as the Node middleware's mask: 'auto'). Works on Map / List / scalars. */
+    /** Keys whose values say what a record is, not what it holds: ids, codes such as a currency, status and dates. */
+    private static final java.util.Set<String> KEEP_KEYS = java.util.Set.of("id", "_id", "currency", "unit", "status", "state", "type", "kind", "date", "createdAt", "updatedAt", "created_at", "updated_at");
+
     public static Object autoMask(Object value) { return autoMask(value, ""); }
 
     private static Object autoMask(Object value, String key) {
         if (value instanceof Map<?, ?> m) { Map<String, Object> out = new LinkedHashMap<>(); m.forEach((k, v) -> out.put(String.valueOf(k), autoMask(v, String.valueOf(k)))); return out; }
         if (value instanceof Iterable<?> it) { List<Object> out = new ArrayList<>(); it.forEach((v) -> out.add(autoMask(v, ""))); return out; }
-        if (key.equals("id") || key.equals("_id") || value == null || value instanceof Boolean) return value;
+        if (KEEP_KEYS.contains(key) || value == null || value instanceof Boolean) return value;
         return value instanceof Number ? null : "••••";
     }
 

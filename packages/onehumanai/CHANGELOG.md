@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.4
+- **`npx onehumanai init` puts `protect()` after the route's own login check** (`requireLogin`, `passport.authenticate(…)`, `auth.required`): a signed-out request is the app's 401, not a OneHuman decision.
+- **Reads follow the documented matrix:** personal data, balances and transaction lists are shown to an agent with details hidden (mask), not refused; credentials are refused, health records refused for proven agents.
+- **`mask: 'auto'` keeps what describes a record:** ids, `currency`, `unit`, `status`, `state`, `type`, `kind` and dates stay; amounts and names are still hidden. Same in the Python, .NET and Java adapters.
+- **The login is found when the app sets it itself** (`req.user = { id }`, `req.auth = …`), and `init`'s own `onehuman.js` is no longer read as part of the app.
+- **`init` says what else to do:** mark on-screen values `data-oh-sensitive="full"`, and use a test account's cookie for `verify --attach`; its mask example names one of your routes.
+- **`verify` explains a 401** (the route needs a signed-in user: `--cookie`) even when OneHuman decided before the app's login check.
+- **`npx onehumanai --help`** lists every command and option; an unknown command says so.
+
 ## 0.7.3
 - **Fixed: an agent seen before the login was known was missed on the first protected request.** The page script reports from the first page, often before the app's login middleware has run; that evidence now moves to the login's session before its first decision.
 - **Fixed: an agent could add a passkey of its own.** A passkey is added only while no agent is connected, and the click behind the request must not be a program's (or, inside an AI browser, must be there at all). A virtual authenticator can no longer approve its own actions.

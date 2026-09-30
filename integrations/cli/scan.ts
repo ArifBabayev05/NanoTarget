@@ -76,9 +76,11 @@ const ROUTE_PATTERNS: { framework: string; re: RegExp; method: (m: RegExpExecArr
   { framework: 'hono', re: /\bhono\s*\.\s*(get|post|put|patch|delete)\s*\(\s*(['"`])([^'"`]+)\2/g, method: (m) => m[1]!.toUpperCase(), path: (m) => m[3]! },
 ];
 
-const IDENTITY_PATTERNS: { framework: string; re: RegExp }[] = [
+const IDENTITY_PATTERNS: { framework: string; re: RegExp; expr?: (m: RegExpExecArray) => string }[] = [
   { framework: 'express-session', re: /req\.session\??\.\w+(?:\.\w+)?/g },
   { framework: 'passport / req.user', re: /req\.user\??\.\w+/g },
+  // the app's own login middleware: req.user = { id: … } / req.auth = decoded
+  { framework: 'custom middleware', re: /\breq\.(user|auth|account|currentUser|member)\s*=(?!=)/g, expr: (m) => `req.${m[1]}` },
   { framework: 'jwt', re: /jwt\.verify\s*\(|jsonwebtoken|jose\b|verifyToken\(/g },
   { framework: 'next-auth / auth.js', re: /getServerSession\(|auth\(\)|getToken\(/g },
   { framework: 'clerk', re: /getAuth\(|clerkMiddleware|auth\(\)\.userId/g },
@@ -130,7 +132,10 @@ function proposal(h: { sensitivity: number; kind: RouteHit['kind']; signals: str
   const s = h.sensitivity;
   if (h.kind === 'download') return { onAgent: 'block', onArtifact: 'step_up', onUnknown: s >= 60 ? 'step_up' : 'allow' };
   if (h.kind === 'write') return s >= 40 ? { onAgent: 'block', onArtifact: 'step_up', onUnknown: 'step_up' } : { onAgent: 'step_up', onArtifact: 'allow', onUnknown: 'allow' };
-  if (s >= 60) return { onAgent: 'block', onArtifact: 'mask', onUnknown: 'allow' };
+  // reads: the documented matrix. Credentials never reach a model, health records are refused; money, personal and
+  // customer data are shown with details hidden, so the page keeps working for an agent the person sent
+  if (h.signals.includes('credentials')) return { onAgent: 'block', onArtifact: 'block', onUnknown: 'step_up' };
+  if (h.signals.includes('health')) return { onAgent: 'block', onArtifact: 'mask', onUnknown: 'allow' };
   if (s >= 30) return { onAgent: 'mask', onArtifact: 'mask', onUnknown: 'allow' };
   return { onAgent: 'mask', onArtifact: 'allow', onUnknown: 'allow' };
 }
@@ -169,7 +174,8 @@ export function scan(root: string): ScanResult {
 
   for (const [i, f] of files.entries()) {
     const text = texts[i]!;
-    if (!text) continue;
+    // skip the file `init` wrote itself: its commented example of identify() is not the app's login
+    if (!text || /written by `npx onehumanai init`/.test(text.slice(0, 200))) continue;
     const rel = relative(root, f);
     const ext = extname(f);
     if (HTML_EXT.has(ext)) {
@@ -223,7 +229,7 @@ export function scan(root: string): ScanResult {
     for (const pat of IDENTITY_PATTERNS) {
       pat.re.lastIndex = 0;
       let m: RegExpExecArray | null; let n = 0;
-      while ((m = pat.re.exec(text)) && n < 3) { n++; identity.push({ file: rel, line: lineOf(text, m.index), expression: m[0], framework: pat.framework }); }
+      while ((m = pat.re.exec(text)) && n < 3) { n++; identity.push({ file: rel, line: lineOf(text, m.index), expression: pat.expr ? pat.expr(m) : m[0], framework: pat.framework }); }
     }
   }
 

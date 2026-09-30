@@ -163,7 +163,7 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   } else say(dim('\nNothing looks sensitive yet. You can add rules later in the portal or in onehuman.policy.json.'));
 
   // ---------------------------------------------------------------- 3. who is logged in
-  const exprs = [...new Set(r.identity.map((i) => i.expression).filter((e) => /^req\.(session|user|auth)\b/.test(e)))].slice(0, 5);
+  const exprs = [...new Set(r.identity.map((i) => i.expression).filter((e) => /^req\.(session|user|auth|account|currentUser|member)\b/.test(e)))].slice(0, 5);
   // who is signed in: taken from the code, not asked (it is a technical question); init says what it chose
   const identifyExpr: string | null = exprs[0] ?? null;
 
@@ -310,7 +310,9 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
         if (lines[i]!.includes('onehuman.protect(')) { done = true; break; }
         const preset = presetFor.get(x)!;
         const mask = PRESETS[preset]!.m.includes('mask') && x.method === 'GET' ? ", { mask: 'auto' }" : '';
-        const cut = mm.index + mm[0].length;
+        // after the route's own login check (requireLogin, passport.authenticate(…), …): a signed-out request is the
+        // app's 401, not a OneHuman decision, and identify() already knows the user when OneHuman decides
+        const cut = mm.index + mm[0].length + afterAuthHandlers(lines[i]!.slice(mm.index + mm[0].length));
         lines[i] = `${lines[i]!.slice(0, cut)} onehuman.protect('${x.resource}'${mask}),${lines[i]!.slice(cut)}`;
         put(x.file, lines.join('\n'), `protects ${x.method} ${x.path}`);
         protectedFiles.add(x.file);
@@ -319,7 +321,9 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
       if (!done) notes.push(`Could not place protect() on ${x.method} ${x.path} (${relative(root, x.file)}:${x.line}). Add onehuman.protect('${x.resource}') as the first handler of that route.`);
     }
     for (const f of protectedFiles) addImport(f);
-    if (chosen.some((x) => PRESETS[presetFor.get(x)!]!.m.includes('mask'))) notes.push("Routes that hide details use mask: 'auto' — every value hidden, shape and ids kept. For a precise mask, replace it with your own function: onehuman.protect('balance.read', { mask: (body) => ({ ...body, amount: null }) }).");
+    const masked = chosen.find((x) => x.method === 'GET' && PRESETS[presetFor.get(x)!]!.m.includes('mask'));
+    if (masked) notes.push(`Routes that hide details use mask: 'auto': values are hidden, while ids, dates, flags and codes such as a currency are kept, and so is the shape. For a precise mask, pass your own function: onehuman.protect('${masked.resource}', { mask: (body) => ({ ...body, amount: null }) }).`);
+    notes.push('Mark the values your pages show from protected routes with data-oh-sensitive="full" (the element that holds the balance, the e-mail, the IBAN). The page script hides them on screen the moment an agent attaches; without the mark, what is already on screen stays readable.');
   } else {
     const snippet = {
       fastify: "import { onehuman } from 'onehumanai';\nconst oh = await onehuman({ secret: process.env.ONEHUMAN_SECRET, policy: './onehuman.policy.json', apiKey: process.env.ONEHUMAN_API_KEY });\nfastify.addHook('onRequest', (req, reply, done) => oh.middleware()(req.raw, reply.raw, done));\n// on each protected route: { onRequest: (req, reply, done) => oh.protect('balance.read')(req.raw, reply.raw, done) }",
@@ -422,4 +426,19 @@ export function afterLoginMiddleware(text: string, app: string, created: number)
     best = { index: end, after: stmt.replace(/\s+/g, ' ').slice(0, 60) + (stmt.length > 60 ? '…' : '') };
   }
   return best;
+}
+
+/**
+ * Route handlers written before the route's own function that check the login (requireLogin, isAuthenticated,
+ * passport.authenticate('jwt'), auth.required, …): how far into `rest` protect() goes so it comes after them.
+ */
+export function afterAuthHandlers(rest: string): number {
+  const AUTH = /^(?:require|ensure|check|verify|must|is)?[a-z]*(?:auth|login|logged|session|signed|user)[a-z]*$/i;
+  let at = 0;
+  for (;;) {
+    const m = /^\s*([\w$.]+)(\s*\((?:[^()]|\([^()]*\))*\))?\s*,/.exec(rest.slice(at));
+    if (!m) return at;
+    if (!m[1]!.split('.').some((part) => AUTH.test(part))) return at;
+    at += m[0].length;
+  }
 }

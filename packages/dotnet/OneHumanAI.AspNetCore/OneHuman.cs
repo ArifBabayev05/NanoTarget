@@ -157,12 +157,15 @@ public sealed class OneHumanClient
     }
 
     /// <summary>Every value hidden, the shape and ids kept (the same as the Node middleware's mask: 'auto').</summary>
+    /// <summary>Keys whose values say what a record is, not what it holds: ids, codes such as a currency, status and dates.</summary>
+    static readonly HashSet<string> KeepKeys = new() { "id", "_id", "currency", "unit", "status", "state", "type", "kind", "date", "createdAt", "updatedAt", "created_at", "updated_at" };
+
     public static JsonNode? AutoMask(JsonNode? value, string key = "") => value switch
     {
         JsonArray a => new JsonArray(a.Select(x => AutoMask(x)).ToArray()),
         JsonObject o => new JsonObject(o.Select(p => KeyValuePair.Create(p.Key, AutoMask(p.Value, p.Key)))),
         null => null,
-        JsonValue v when key is "id" or "_id" || v.GetValueKind() is JsonValueKind.True or JsonValueKind.False => v.DeepClone(),
+        JsonValue v when KeepKeys.Contains(key) || v.GetValueKind() is JsonValueKind.True or JsonValueKind.False => v.DeepClone(),
         JsonValue v when v.GetValueKind() == JsonValueKind.Number => null,
         _ => JsonValue.Create("••••"),
     };

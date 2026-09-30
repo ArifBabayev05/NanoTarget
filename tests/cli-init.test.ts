@@ -63,6 +63,7 @@ test('a CommonJS app with routes in their own file gets require() in both files'
 test("mask: 'auto' hides every value and keeps the shape and ids", () => {
   assert.deepEqual(autoMask({ id: 7, balance: 10.5, owner: 'Ada', active: true, items: [{ _id: 'x', memo: 'rent' }], none: null }),
     { id: 7, balance: null, owner: '••••', active: true, items: [{ _id: 'x', memo: '••••' }], none: null });
+  assert.deepEqual(autoMask({ balance: 4939.1, currency: 'USD', status: 'active', date: '2026-09-28', iban: 'GB29NWBK60161331926819' }), { balance: null, currency: 'USD', status: 'active', date: '2026-09-28', iban: '••••' }, 'codes, status and dates stay: the page can still say "USD ••••"');
 });
 
 test('init installs with the project\'s own package manager (npm breaks inside a pnpm node_modules)', async () => {
@@ -136,4 +137,59 @@ test('the dependency the package manager adds stays in package.json (init writes
   const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
   assert.equal(pkg.dependencies.onehumanai, '^0.6.1', 'installed and listed');
   assert.match(pkg.scripts.start, /--env-file-if-exists=\.env/, 'and init\'s own change is there too');
+});
+
+test('behind a login: OneHuman goes after the session middleware and after each route\'s own login check; reads follow the documented matrix', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'oh-init-login-'));
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'bank', type: 'module', scripts: { start: 'node server.js' }, dependencies: { express: '^5', 'express-session': '^1' } }, null, 2));
+  writeFileSync(join(dir, 'server.js'), [
+    "import express from 'express';",
+    "import session from 'express-session';",
+    'const app = express();',
+    'app.use(express.json());',
+    "app.use(session({ secret: 's', resave: false, saveUninitialized: false }));",
+    'const requireLogin = (req, res, next) => (req.session.userId ? next() : res.status(401).end());',
+    "app.get('/api/me', requireLogin, (req, res) => res.json({ name: 'Ada', email: 'a@example.com' }));",
+    "app.get('/api/transactions', requireLogin, (req, res) => res.json({ rows: [] }));",
+    "app.post('/api/transfer', requireLogin, (req, res) => res.json({ ok: true }));",
+    'app.listen(3000);',
+  ].join('\n'));
+  const r = run(dir);
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  const server = readFileSync(join(dir, 'server.js'), 'utf8');
+  assert.match(server, /app\.use\(session\(\{[^\n]*\}\)\);\napp\.use\(onehuman\.middleware\(\)\);/, 'after express-session, so identify() sees the login on the page script\'s requests');
+  assert.match(server, /app\.get\('\/api\/me', requireLogin, onehuman\.protect\('me\.read'/, 'after the route\'s own login check');
+  assert.match(server, /app\.post\('\/api\/transfer', requireLogin, onehuman\.protect\('transfer\.make'\)/);
+  const rules = Object.fromEntries(JSON.parse(readFileSync(join(dir, 'onehuman.policy.json'), 'utf8')).rules.map((x: { resource: string; onAgent: string }) => [x.resource, x.onAgent]));
+  assert.equal(rules['me.read'], 'mask', 'personal data: hidden from an agent, not refused (the documented matrix)');
+  assert.equal(rules['transactions.read'], 'mask');
+  assert.equal(rules['transfer.make'], 'block');
+  assert.match(r.stdout, /verify http:\/\/localhost:3000 \/api\/[a-z]+ --cookie/, 'the check names the login cookie');
+  assert.match(r.stdout, /data-oh-sensitive="full"/, 'it says how to hide what is already on screen');
+});
+
+test('a login set by the app\'s own middleware is found (req.user = …), and init\'s own file is not read as the app', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'oh-init-requser-'));
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'shop', scripts: { start: 'node index.js' }, dependencies: { express: '^4' } }, null, 2));
+  writeFileSync(join(dir, 'index.js'), [
+    "const express = require('express');",
+    'const app = express();',
+    "app.use((req, _res, next) => { req.user = req.headers['x-user'] ? { id: req.headers['x-user'] } : null; next(); });",
+    "app.get('/api/orders', (req, res) => res.json({ orders: [] }));",
+    'app.listen(3100);',
+  ].join('\n'));
+  const r = run(dir);
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  assert.match(readFileSync(join(dir, 'onehuman.js'), 'utf8'), /identify: \(req\) => req\.user\?\.id \?\? null/);
+  assert.equal(run(dir).status, 0);
+  assert.match(readFileSync(join(dir, 'onehuman.js'), 'utf8'), /identify: \(req\) => req\.user\?\.id \?\? null/, 'unchanged on a second run');
+});
+
+test('--help lists every command and the verify options; an unknown command says so', () => {
+  const h = spawnSync(process.execPath, [CLI, '--help'], { encoding: 'utf8' });
+  assert.equal(h.status, 0);
+  for (const w of ['init', 'verify', '--cookie', '--attach', 'scan', 'inspect', 'report', 'verify-proof', 'proof-keys', 'anchors', 'sidecar', 'secret']) assert.ok(h.stdout.includes(w), w);
+  const u = spawnSync(process.execPath, [CLI, 'nope'], { encoding: 'utf8' });
+  assert.equal(u.status, 2);
+  assert.match(u.stderr, /unknown command "nope"/);
 });

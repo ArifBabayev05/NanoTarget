@@ -93,6 +93,10 @@ class Core(unittest.TestCase):
         strict = OneHuman("http://127.0.0.1:9", timeout=0.3, fail_open=False)
         self.assertEqual(strict.decide("balance.read", method="GET", path="/", headers=[], host="h").status, 503)
 
+    def test_auto_mask_keeps_codes_status_and_dates(self):
+        self.assertEqual(auto_mask({"balance": 4939.1, "currency": "USD", "status": "active", "date": "2026-09-28", "iban": "GB1"}),
+                         {"balance": None, "currency": "USD", "status": "active", "date": "2026-09-28", "iban": "••••"})
+
     def test_auto_mask_keeps_shape_and_ids(self):
         self.assertEqual(auto_mask({"id": 7, "name": "Ada", "amount": 12.5, "ok": True, "rows": [{"_id": "x", "iban": "GB1"}]}),
                          {"id": 7, "name": "••••", "amount": None, "ok": True, "rows": [{"_id": "x", "iban": "••••"}]})

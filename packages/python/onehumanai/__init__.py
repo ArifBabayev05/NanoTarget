@@ -57,11 +57,11 @@ class Decision:
         return cls(failed_open=reason, headers={"X-OH-Decision": f"failed-open:{reason}"})
 
 
-_KEEP = {"id", "_id"}
+_KEEP = {"id", "_id", "currency", "unit", "status", "state", "type", "kind", "date", "createdAt", "updatedAt", "created_at", "updated_at"}
 
 
 def auto_mask(value: Any, key: str = "") -> Any:
-    """Every value hidden, the shape and ids kept, so the page still renders (the same as Express `mask: 'auto'`)."""
+    """Every value hidden; the shape, ids, currency/status/type codes and dates kept, so the page still renders (the same as Express `mask: 'auto'`)."""
     if isinstance(value, list):
         return [auto_mask(v) for v in value]
     if isinstance(value, dict):
