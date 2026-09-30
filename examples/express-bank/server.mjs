@@ -15,7 +15,7 @@ const oh = await onehuman({ secret: process.env.ONEHUMAN_SECRET ?? 'dev-secret-c
 app.use(oh.middleware());
 
 // --- 2. your data and your own mask functions ---
-const account = { owner: 'Aysel Məmmədova', iban: 'AZ21NABZ00000000137010001944', balance: 2920.74, currency: 'AZN' };
+const account = { owner: 'Ada Lindqvist', iban: 'GB29NWBK60161331926819', balance: 2920.74, currency: 'USD' };
 const maskBalance = (a) => ({ ...a, balance: null, iban: a.iban.slice(0, 4) + ' •••• ' + a.iban.slice(-4) });
 const maskProfile = (a) => ({ owner: a.owner.split(' ')[0] + ' •.', iban: '•••• ' + a.iban.slice(-4) });
 

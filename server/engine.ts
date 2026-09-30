@@ -47,7 +47,7 @@ export type EngineOptions = {
   sessionCookie?: string;
   /**
    * Whose choices the owner's agent-access settings are: 'session' (default: an app's OneHuman session, one per login
-   * with identify()) or 'room' (the lab: a demo room is one account, the person and their agent may use two tabs).
+   * with identify()) or 'room' (a room is one account, and the person and their agent may use two tabs).
    */
   accessScope?: 'session' | 'room';
 };
@@ -62,6 +62,8 @@ export type DecideInput = {
   request: Req;
   /** snapshot carried with the request (X-OH-Sample) — untrusted */
   snapshot: ClientSnapshot | null;
+  /** a request the host application sent itself to demonstrate a path: recorded, but kept out of first-data/first-agent marks */
+  simulated?: boolean;
 };
 
 export type DecideResult = {
@@ -91,8 +93,6 @@ export class OneHuman {
   readonly defaultPolicy: Policy;
   readonly keyLoader: KeyLoader | undefined;
   readonly sessionCookie: string;
-  /** requests carrying this token in X-OH-Lab-Simulated are lab simulations and are excluded from benchmarks */
-  readonly simulationToken: string;
   /** signs every decision; the key is derived from `secret`, so it is the same on every instance */
   readonly prover: Prover;
   /** when true, an agent-blocked resource advertises the WebAuthn reclaim path */
@@ -174,7 +174,6 @@ export class OneHuman {
     this.keyLoader = opts.keyLoader;
     this.sessionCookie = opts.sessionCookie ?? 'oh_sid';
     this.accessBy = opts.accessScope ?? 'session';
-    this.simulationToken = randomBytes(16).toString('hex');
     const epoch = Math.max(0, Math.floor(opts.proofEpoch ?? (Number(process.env.ONEHUMAN_PROOF_EPOCH) || 0)));
     this.prover = proverFromSecret(this.secret, epoch);
     const older = Array.from({ length: epoch }, (_, i) => proverFromSecret(this.secret, epoch - 1 - i).jwk);
@@ -232,7 +231,7 @@ export class OneHuman {
   }
 
   /**
-   * Resolve the lab session. The page-bound X-OH-Session header wins over the profile-wide
+   * Resolve the session. The page-bound X-OH-Session header wins over the profile-wide
    * cookie, so two tabs in one browser profile never report under each other's session.
    * Production replaces this with the application's own authenticated session lookup.
    */
@@ -304,7 +303,7 @@ export class OneHuman {
     if (snapshot?.early) await this.store.addEvent(input.room, input.session.id, 'signal', snapshot.early, now);
     if (snapshot?.interaction) await this.store.addEvent(input.room, input.session.id, 'interaction', snapshot.interaction, now);
     await this.store.touchSession(input.session.id, now);
-    const simulated = input.request.headers['x-oh-lab-simulated'] === this.simulationToken;
+    const simulated = input.simulated === true;
     const conn = simulated ? null : await this.connectionFor(input.session, now);
     // Once an agent has attached to this session, the fact sticks: a control indicator that
     // disappeared (agent paused, or a person took over) does not make the session clean again.
@@ -378,14 +377,14 @@ export class OneHuman {
    * Node http adapter. Resolves the session, decides, writes the audit row and
    * either responds (block / step-up) or calls the handler with the context.
    */
-  protect(resource: string, handler: (req: Req, res: Res, ctx: ProtectContext) => void | Promise<void>) {
+  protect(resource: string, handler: (req: Req, res: Res, ctx: ProtectContext) => void | Promise<void>, opts: { simulated?: (req: Req) => boolean } = {}) {
     return async (req: Req, res: Res): Promise<void> => {
       const resolved = await this.resolveSession(req);
       if (!resolved) {
         json(res, 401, { error: 'no_session', message: 'Session not found. Reload the page.' });
         return;
       }
-      const result = await this.decide({ room: resolved.room, session: resolved.session, resource, request: req, snapshot: this.snapshotFrom(req) });
+      const result = await this.decide({ room: resolved.room, session: resolved.session, resource, request: req, snapshot: this.snapshotFrom(req), simulated: opts.simulated?.(req) ?? false });
       const { decision, assessment } = result;
       const headers = { 'X-OH-Decision': decision.id, 'X-OH-Policy': decision.policyVersion };
       if (decision.decision === 'block') {

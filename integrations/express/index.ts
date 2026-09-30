@@ -20,8 +20,8 @@ import { fileURLToPath } from 'node:url';
 // The engine (BUSL-1.1) sits next to this adapter in the package; the adapter talks to it only through its
 // public surface. In this repository that is ../../server/public.ts; the build rewrites it to ./engine.js.
 import {
-  ENGINE_VERSION, OneHuman, SERVER_LIMITS, Store, anchorChains, applySignatures, attachModel, checkPolicy, clientSignatureRules, cookies, json, labRoutes, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
-  sqliteClient, url, webauthnRoutes, accessRoutes,
+  ENGINE_VERSION, OneHuman, SERVER_LIMITS, Store, anchorChains, applySignatures, attachModel, checkPolicy, clientSignatureRules, cookies, json, libsqlClient, loadModel, parsePolicy, predict, publicDecision,
+  sessionRoutes, sqliteClient, url, webauthnRoutes, accessRoutes,
   type Assessment, type DecideResult, type DecisionRow, type Policy, type SessionRow, type SqlClient,
 } from '../../server/public.ts';
 import { proofBundle, verifyProof, type ProofJwk } from '../proof/verify.ts';
@@ -348,14 +348,14 @@ export async function onehuman(opts: OneHumanOptions) {
   // what the page sees of a decision: the outcome; the reasons stay in the audit log and the portal (explain: true shows them)
   const explain = opts.explain ?? process.env.ONEHUMAN_EXPLAIN === '1';
   const clientDecision = (d: DecisionRow) => (explain ? publicDecision(d) : { id: d.id, resource: d.resource, decision: d.decision });
-  const lab = labRoutes(engine, null, { explain });
+  const pageRoutes = sessionRoutes(engine, { explain });
   const wa = webauthnRoutes(engine);
   const access = accessRoutes(engine);
   const api: Record<string, (req: IncomingMessage, res: ServerResponse) => void | Promise<void>> = {
-    'POST /signals': lab.signals,
-    'GET /connection': lab.connection,
-    'GET /session': lab.me,
-    'POST /step-up': lab.stepUp,
+    'POST /signals': pageRoutes.signals,
+    'GET /connection': pageRoutes.connection,
+    'GET /session': pageRoutes.me,
+    'POST /step-up': pageRoutes.stepUp,
     'POST /webauthn/register/options': wa.registerOptions,
     'POST /webauthn/register': wa.register,
     'POST /webauthn/assert/options': wa.assertOptions,

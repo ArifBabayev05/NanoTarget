@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 /**
- * WebAuthn routes. In the lab, credentials are scoped to the room (the room is
- * the "user"). In production they belong to the authenticated account.
+ * WebAuthn routes, served under the middleware's basePath. Credentials are scoped to the store's room.
  *
- *   POST /api/v1/webauthn/register/options  → { challenge, rp, user, pubKeyCredParams, authenticatorSelection }
- *   POST /api/v1/webauthn/register          ← { challengeId, id, clientDataJSON, attestationObject }
- *   POST /api/v1/webauthn/assert/options    → { challenge, allowCredentials, userVerification }
- *   POST /api/v1/webauthn/assert            ← { challengeId, id, clientDataJSON, authenticatorData, signature, resource? }
+ *   POST /webauthn/register/options  → { challenge, rp, user, pubKeyCredParams, authenticatorSelection }
+ *   POST /webauthn/register          ← { challengeId, id, clientDataJSON, attestationObject }
+ *   POST /webauthn/assert/options    → { challenge, allowCredentials, userVerification }
+ *   POST /webauthn/assert            ← { challengeId, id, clientDataJSON, authenticatorData, signature, resource? }
  *
  * A successful assertion marks the session human-verified for HUMAN_RECLAIM_TTL_MS
  * and grants the requested resource once.
@@ -31,8 +30,8 @@ export function webauthnRoutes(engine: OneHuman) {
       challengeId: challenge,
       publicKey: {
         challenge,
-        rp: { id: rpId, name: 'OneHuman Lab' },
-        user: { id: Buffer.from(r.room).toString('base64url'), name: `lab-${r.room.slice(0, 8)}`, displayName: 'OneHuman demo user' },
+        rp: { id: rpId, name: rpId },
+        user: { id: Buffer.from(r.room).toString('base64url'), name: `account-${r.room.slice(0, 8)}`, displayName: 'This account' },
         pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }, { type: 'public-key', alg: -8 }],
         authenticatorSelection: { residentKey: 'preferred', userVerification: 'required' },
         excludeCredentials: existing.map((c) => ({ type: 'public-key', id: c.id })),

@@ -17,7 +17,7 @@
  */
 (() => {
   const script = document.currentScript;
-  // Integration package serves the SDK at <base>/sdk.js and its API next to it; the lab uses /api/v1/*.
+  // The middleware serves the SDK at <base>/sdk.js and its API next to it; another host sets data-endpoint.
   const scriptSrc = (script && script.src) || '';
   // bundled (npm i onehumanai/sdk): set window.OneHumanConfig = { endpoint: '/onehuman/signals' } before the import
   const config = (typeof window.OneHumanConfig === 'object' && window.OneHumanConfig) || {};

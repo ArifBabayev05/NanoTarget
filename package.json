@@ -18,12 +18,12 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^24.0.0",
+    "esbuild": "^0.28.2",
     "express": "^5.2.1",
     "typescript": "^5.9.0"
   },
   "dependencies": {
-    "@libsql/client": "^0.18.0",
-    "esbuild": "^0.28.2"
+    "@libsql/client": "^0.18.0"
   },
   "license": "SEE LICENSE IN LICENSE",
   "repository": {

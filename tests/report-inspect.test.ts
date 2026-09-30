@@ -14,6 +14,7 @@ import type { AddressInfo } from 'node:net';
 import { onehuman } from '../integrations/express/index.ts';
 import { buildReport } from '../integrations/report/build.ts';
 import { renderReportHtml } from '../integrations/report/html.ts';
+import { fileURLToPath } from 'node:url';
 
 const dir = mkdtempSync(join(tmpdir(), 'oh-report-'));
 const db = `sqlite:${join(dir, 'onehuman.db')}`;
@@ -31,7 +32,7 @@ const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 after(async () => { server.close(); await oh.close(); });
 
 const early = { startedMs: 0, observedMs: 500, webdriver: false, firstInteractionMs: null, dataDomMs: null, markers: [{ name: 'claude-stop', atMs: 100 }, { name: 'claude-cursor', atMs: 100 }], environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: [], focusWhileHiddenMs: null }, focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0, reading: { loadedHidden: false, readBursts: 0, firstReadBurstMs: null, lastReadBurstReads: 0, readBurstAnonymous: false, textExtracts: 0, firstTextExtractMs: null, visibilityFlickers: 0, firstFlickerMs: null, flickerResize: null, renderWhileHiddenMs: null, firstClick: null } };
-const CLI = new URL('../integrations/cli/index.ts', import.meta.url).pathname;
+const CLI = fileURLToPath(new URL('../integrations/cli/index.ts', import.meta.url));
 const cli = (...args: string[]) => spawnSync(process.execPath, [CLI, ...args, '--db', db], { encoding: 'utf8' });
 
 test('observe mode: nothing is blocked, and the report says what protect mode would have done', async () => {

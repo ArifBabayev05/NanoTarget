@@ -169,8 +169,8 @@ export async function observeRequest(req: SignatureRequest, opts: VerifyOptions 
 }
 
 // ---------------------------------------------------------------------------
-// Test helper: sign a request the way an operator would. Used by tests and by
-// the "simulate signed agent" lab button. Never used to accept anything.
+// Test helper: sign a request the way an operator would. Used by tests and demos.
+// Never used to accept anything.
 // ---------------------------------------------------------------------------
 export async function signRequest(
   privateKey: CryptoKey,

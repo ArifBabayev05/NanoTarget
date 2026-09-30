@@ -115,7 +115,7 @@ export async function runInit(dir: string, flags: { yes: boolean; install: boole
   async function confirm(question: string, def = true): Promise<boolean> {
     if (flags.yes) return def;
     const a = (await rl!.question(`\n${bold('? ' + question)} ${dim(def ? '(Y/n)' : '(y/N)')} `)).trim().toLowerCase();
-    return a ? a.startsWith('y') || a === 'hə' || a === 'he' : def;
+    return a ? a.startsWith('y') : def;
   }
 
   // ---------------------------------------------------------------- read the project

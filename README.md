@@ -95,7 +95,7 @@ signals from the page (untrusted) + what the server sees (trusted)
 - [ ] Hosted agent-signature updates for self-hosted engines
 - [ ] Fastify and Next.js adapters
 - [ ] Touch layer for mobile browsers
-- [ ] Node sidecar for non-Node backends
+- [x] Sidecar and adapters for Python, .NET and Java backends
 
 ## Repository
 
@@ -109,7 +109,6 @@ signals from the page (untrusted) + what the server sees (trusted)
 | `packages/python`, `packages/dotnet`, `packages/java` | Adapters for Python, .NET and Java backends (they talk to `npx onehumanai sidecar`) |
 | `examples/express-bank/` | A small Express app protected end to end |
 | `tests/` | engine, middleware, CLI and sidecar tests (`npm test`); Python adapters in `packages/python/tests` |
-| `docs/` | Integration guides and release notes |
 
 This repository is the engine and everything you install. The website, the hosted portal and the live demos at [onehuman.ai](https://onehuman.ai) are not part of it.
 
@@ -130,7 +129,7 @@ OneHuman is licensed in two parts. © 2026 Arif Babayev.
 
 | Part | Licence | What it means for you |
 | --- | --- | --- |
-| Browser SDK, Express middleware, CLI, proof verifier | [Apache 2.0](LICENSE-APACHE) | Use, change and ship it anywhere, including closed-source products. Patent grant included. |
-| Engine (`dist/engine.js` in `onehumanai`), portal, tooling | [Business Source License 1.1](LICENSE-BSL) | **Production use is granted**, including protecting your own apps and the services you give your customers. Not granted: offering OneHuman itself to others as a competing hosted or embedded product. Each version becomes Apache 2.0 four years after release. |
+| Browser SDK, Express middleware, CLI, sidecar, proof verifier, Python/.NET/Java adapters | [Apache 2.0](LICENSE-APACHE) | Use, change and ship it anywhere, including closed-source products. Patent grant included. |
+| Engine (`server/`, and `dist/engine.js` in `onehumanai`), build scripts | [Business Source License 1.1](LICENSE-BSL) | **Production use is granted**, including protecting your own apps and the services you give your customers. Not granted: offering OneHuman itself to others as a competing hosted or embedded product. Each version becomes Apache 2.0 four years after release. |
 
 Versions before 0.4.0 were published under MIT and stay available under it. Contributions need the one-line [CLA](CLA.md).

@@ -3,28 +3,25 @@
  * Storage (SQLite dialect) over a SqlClient: node:sqlite locally, libSQL/Turso
  * in serverless deployments. All methods are async.
  *
- * Retention: rooms live 7 days, at most 400 sessions and 2000 events per room.
- * Nothing here stores IPs, user agents, typed text or cookies.
+ * A deployment keeps one room for all its visitors, capped per session and by age (SERVER_LIMITS). Short-lived rooms
+ * (tests, demos) expire after ROOM_TTL_MS. Nothing here stores IPs, user agents, typed text or cookies.
  */
 import type { Assessment } from './assess.ts';
 import type { Decision, Policy } from './policy.ts';
 import type { ClientSnapshot, ServerSignal } from './signals.ts';
 import { sqliteClient, type Row, type SqlArg, type SqlClient } from './sql.ts';
 
-/** demo rooms (and their sessions, events, decisions) are kept this long: long enough to read a test campaign's results */
+/** short-lived rooms (and their sessions, events, decisions) are kept this long; a deployment's own room never expires */
 export const ROOM_TTL_MS = 60 * 86400000;
 /** a pause this long ends a visit: the next request starts a new one (see touchSession) */
 export const VISIT_IDLE_MS = 30 * 60000;
-export const MAX_SESSIONS_PER_ROOM = 400;
-export const MAX_EVENTS_PER_ROOM = 2000;
 
 /**
- * How much the store keeps. The lab and the portal's demo rooms cap a room (a public demo must not grow without
- * bound). A customer's own server has one room for all its visitors, so there the caps are per session and by age:
- * no session limit, the newest events of each session, nothing older than a week.
+ * How much the store keeps. A deployment has one room for all its visitors, so the caps are per session and by age:
+ * no session limit, the newest events of each session, nothing older than a week. A host running many small rooms
+ * can cap each room instead (sessionsPerRoom, eventsPerRoom).
  */
 export type StoreLimits = { sessionsPerRoom: number | null; eventsPerRoom: number | null; eventsPerSession: number | null; eventMaxAgeMs: number | null };
-export const LAB_LIMITS: StoreLimits = { sessionsPerRoom: MAX_SESSIONS_PER_ROOM, eventsPerRoom: MAX_EVENTS_PER_ROOM, eventsPerSession: null, eventMaxAgeMs: null };
 export const SERVER_LIMITS: StoreLimits = { sessionsPerRoom: null, eventsPerRoom: null, eventsPerSession: 300, eventMaxAgeMs: 7 * 24 * 3600e3 };
 
 export type SessionRow = {
@@ -65,7 +62,7 @@ export type DecisionRow = Decision & {
   session: string;
   latencyMs: number;
   dataDelivered: boolean;
-  /** produced by the lab's own signed-request simulation; excluded from benchmark statistics */
+  /** a request the host sent itself to demonstrate a path (DecideInput.simulated); excluded from statistics */
   simulated: boolean;
   assessment: Assessment;
   /** agent products seen in the session when this decision was made (e.g. claude-chrome), and the connection state */
@@ -104,7 +101,7 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS events_session ON events(session, id);
 CREATE INDEX IF NOT EXISTS events_room ON events(room, id);
 -- what the account owner lets their own AI agent do, per resource: 'allow' (given with a passkey, until a time) or
--- 'never'. scope = the account (lab: the room; an app: the OneHuman session of that login)
+-- 'never'. scope = the account: the OneHuman session of that login, or a room
 CREATE TABLE IF NOT EXISTS agent_access (
   scope TEXT NOT NULL,
   resource TEXT NOT NULL,
@@ -181,7 +178,7 @@ const SCHEMA_MARKERS: [string, string][] = [['decisions', 'proof'], ['sessions',
 
 /**
  * Indexes the schema check also looks for. decisions_room_seq makes (room, seq) unique so two writers can never
- * both append seq N (the chain would fork). It covers rows from 29 Sep 2026 on: older demo rooms may already hold
+ * both append seq N (the chain would fork). It covers rows from 29 Sep 2026 on: older rooms may already hold
  * duplicates from before the fix, and a full unique index would fail to build on them.
  */
 const INDEX_MARKERS = ['decisions_room_seq'];
@@ -214,7 +211,7 @@ export class Store {
   static async open(client?: SqlClient, opts: { migrate?: boolean; limits?: StoreLimits } = {}): Promise<Store> {
     const c = client ?? (await sqliteClient(':memory:'));
     await Store.prepare(c, opts);
-    return new Store(c, opts.limits ?? LAB_LIMITS);
+    return new Store(c, opts.limits ?? SERVER_LIMITS);
   }
 
   /** Create or migrate the engine's tables on `c`. */
@@ -259,13 +256,8 @@ export class Store {
     ]);
     return id;
   }
-  /** demo rooms this device opened since `since` — a cheap brake on scripted room creation */
-  async roomsByDevice(device: string, since: number): Promise<number> {
-    return Number((await this.sql.execute('SELECT COUNT(*) AS n FROM rooms WHERE device = ? AND created >= ?', [device, since])).rows[0]?.n ?? 0);
-  }
-
   async roomExists(id: string, now = Date.now()): Promise<boolean> {
-    // lab rooms expire; a tenant's room (integration package) never does
+    // short-lived rooms expire; a deployment's own room never does
     return (await this.sql.execute("SELECT 1 AS x FROM rooms WHERE id = ? AND (created > ? OR app LIKE 'tenant:%')", [id, now - ROOM_TTL_MS])).rows.length > 0;
   }
 
@@ -536,7 +528,7 @@ export class Store {
     await this.sql.execute('INSERT OR REPLACE INTO credentials (id, room, session, body, created) VALUES (?, ?, ?, ?, ?)', [cred.id, room, session, JSON.stringify(cred), now]);
   }
 
-  /** Credentials registered in this room (the lab's stand-in for "this user's passkeys"). */
+  /** Passkeys registered in this room. */
   async credentialsForRoom<T>(room: string): Promise<T[]> {
     return (await this.sql.execute('SELECT body FROM credentials WHERE room = ? ORDER BY created DESC', [room])).rows.map((r) => JSON.parse(r.body as string) as T);
   }

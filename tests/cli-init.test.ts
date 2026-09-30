@@ -7,8 +7,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { autoMask } from '../integrations/express/index.ts';
+import { fileURLToPath } from 'node:url';
 
-const CLI = new URL('../integrations/cli/index.ts', import.meta.url).pathname;
+const CLI = fileURLToPath(new URL('../integrations/cli/index.ts', import.meta.url));
 const run = (dir: string) => spawnSync(process.execPath, [CLI, 'init', dir, '--yes', '--no-install'], { encoding: 'utf8' });
 
 test('an ES-module Express app is wired end to end, and a second run changes nothing', () => {

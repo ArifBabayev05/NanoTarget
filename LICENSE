@@ -4,13 +4,15 @@ OneHuman is licensed in two parts. Copyright (c) 2026 Arif Babayev.
    What customers link into their own code:
 
      sdk/                  the browser SDK
-     integrations/         the Express/Connect middleware, the CLI, the proof verifier
+     integrations/         the Express/Connect middleware, the CLI, the sidecar, the proof verifier
+     packages/python/, packages/dotnet/, packages/java/
+                           the Python, .NET and Java adapters
      examples/             integration examples
 
 2. Business Source License 1.1 — full text and parameters in LICENSE-BSL.
-   Everything else in this repository: the engine (server/), the portal and web
-   console (web/), the build, training and evaluation tooling (scripts/), tests
-   and documentation, and the engine inside the published `onehumanai` npm package
+   Everything else in this repository: the engine (server/), the build and
+   release scripts (scripts/), tests and documentation, and the engine inside the
+   published `onehumanai` npm package
    (dist/engine.js — the package's LICENSE says which file is which).
 
    The Additional Use Grant permits production use, including protecting your own

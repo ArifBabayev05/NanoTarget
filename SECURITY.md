@@ -23,7 +23,7 @@ In scope:
 - the `onehumanai` package: browser SDK, Express/Connect middleware, CLI, proof verifier, and the engine (detection, policy, audit log, signed decision proofs)
 - the portal and its API at https://onehuman.ai (accounts, API keys, rules, telemetry ingest)
 
-Out of scope: the synthetic data in the demo apps, denial-of-service by volume, reports from automated scanners without a demonstrated impact, and third-party services we build on (Vercel, Turso, OpenRouter) — report those to them.
+Out of scope: the synthetic data in the demo apps, denial-of-service by volume, reports from automated scanners without a demonstrated impact, and third-party services the hosted portal runs on: report those to their providers.
 
 ## Detection bypasses
 

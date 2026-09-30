@@ -10,8 +10,8 @@ const policy = {
   version: 'test-policy-1',
   enforcement: 'enforce',
   rules: [
-    { resource: 'balance.read', title: 'Balans', onAgent: 'block', onArtifact: 'mask', onUnknown: 'allow', onHumanLike: 'allow', actOn: ['verified', 'strong', 'control', 'behavioral'], minScore: 65 },
-    { resource: 'transfer.make', title: 'Köçürmə', onAgent: 'block', onArtifact: 'step_up', onUnknown: 'step_up', onHumanLike: 'allow', actOn: ['verified', 'strong', 'control', 'behavioral'], minScore: 65 },
+    { resource: 'balance.read', title: 'Balance', onAgent: 'block', onArtifact: 'mask', onUnknown: 'allow', onHumanLike: 'allow', actOn: ['verified', 'strong', 'control', 'behavioral'], minScore: 65 },
+    { resource: 'transfer.make', title: 'Transfer', onAgent: 'block', onArtifact: 'step_up', onUnknown: 'step_up', onHumanLike: 'allow', actOn: ['verified', 'strong', 'control', 'behavioral'], minScore: 65 },
   ],
 };
 const early = { startedMs: 0, observedMs: 500, webdriver: false, firstInteractionMs: null, dataDomMs: null, markers: [] as { name: string; atMs: number }[], environment: { codexModelContext: false, modelContextApi: false, clipboardBridge: false, clipboardBridgeAtMs: null, agentGlobals: [], extensionsInstalled: [], focusWhileHiddenMs: null }, focusConflict: { count: 0, firstAtMs: null, peers: 0 }, webmcpInvocations: 0, reading: { ...EMPTY_READING } };

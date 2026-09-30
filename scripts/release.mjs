@@ -21,14 +21,14 @@ const PKG = 'packages/onehumanai';
 const read = () => JSON.parse(readFileSync(`${PKG}/package.json`, 'utf8'));
 
 if (!dry) {
-  try { execSync('npm whoami', { stdio: 'pipe' }); } catch { console.error('\nnpm-ə daxil olunmayıb: əvvəl `npm login` et, sonra yenidən `npm run release`.'); process.exit(1); }
+  try { execSync('npm whoami', { stdio: 'pipe' }); } catch { console.error('\nNot logged in to npm: run `npm login`, then `npm run release` again.'); process.exit(1); }
 }
 run('npm run check');
 
 // the package reports to https://onehuman.ai by default: never publish while that address does not answer as the portal
 if (!dry && !args.includes('--skip-portal-check')) {
   const ok = await fetch('https://onehuman.ai/api/v1/policy-keys', { signal: AbortSignal.timeout(10_000) }).then((r) => r.ok, () => false);
-  if (!ok) { console.error('\nhttps://onehuman.ai portal kimi cavab vermir. Əvvəl domeni yoxla, sonra yenidən `npm run release`.'); process.exit(1); }
+  if (!ok) { console.error('\nhttps://onehuman.ai does not answer as the portal. Check the domain, then run `npm run release` again.'); process.exit(1); }
 }
 
 const current = read().version;
@@ -38,10 +38,10 @@ console.log(`\nversion ${current} → ${version}`);
 
 run('node scripts/build-package.mjs');
 run(`npm publish --access public${dry ? ' --dry-run' : ''}`, { cwd: PKG });
-if (dry) { console.log(`\n(dry run) onehumanai@${version} hazırdır; heç nə nəşr olunmadı.`); process.exit(0); }
+if (dry) { console.log(`\n(dry run) onehumanai@${version} is ready; nothing was published.`); process.exit(0); }
 try {
   run(`git add ${PKG}/package.json ${PKG}/CHANGELOG.md`);
   run(`git commit -m "release: onehumanai@${version}"`);
   run(`git tag onehumanai-v${version}`);
-} catch { console.warn('git commit/tag alınmadı (repo təmiz deyil?) — nəşr uğurludur, tag-i əl ilə qoy.'); }
-console.log(`\n✓ nəşr olundu: https://www.npmjs.com/package/onehumanai`);
+} catch { console.warn('git commit/tag failed (working tree not clean?). The package is published; tag it by hand.'); }
+console.log(`\n✓ published: https://www.npmjs.com/package/onehumanai`);
