@@ -28,7 +28,7 @@ Node ≥ 22.13 (the engine uses `node:sqlite`). No build step for development; T
 | Change how a click is judged | `server/kinematics.ts` (features + rules), `server/kinematics-model.ts` (learned model) |
 | Retrain the model | Maintainers retrain on the recorded dataset (grouped CV by client, zero-FP thresholds) and commit `server/kinematics-model.json` |
 | Add a policy branch or mode | `server/policy.ts` |
-| Change the integration API | `integrations/express/index.ts` + `docs/INTEGRATION.md` + package README |
+| Change the integration API | `integrations/express/index.ts` + `QUICKSTART.md` + `packages/onehumanai/README.md` |
 
 ## Rules we hold ourselves to
 

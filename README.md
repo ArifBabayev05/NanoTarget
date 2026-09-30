@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="brand/onehuman-mark.svg" width="56" alt="">
+  <img src="https://onehuman.ai/logo-mark.svg" width="56" alt="">
 </p>
 <h1 align="center">OneHuman</h1>
 <p align="center">
-  <b>Let AI agents act for your customers, with proof a human agreed.</b><br>
+  <b>Your customers log in with AI agents. Decide what they may see and do.</b><br>
   OneHuman sees when an AI agent is working inside a signed-in session, decides per endpoint what it may see or do,<br>and signs every decision on your own server.
 </p>
 <p align="center">
@@ -18,11 +18,6 @@
   <a href="QUICKSTART.md">60-second overview</a> ·
   <a href="https://onehuman.ai/measurements">How we measured</a> ·
   <a href="https://onehuman.ai/portal">Portal</a>
-</p>
-
-<p align="center">
-  <a href="docs/media/onehumanai.mp4"><img src="docs/media/demo.gif" width="820" alt="OneHuman: an AI agent opens a bank account page, the balance is hidden and the statement download is refused; the portal shows every agent session"></a><br>
-  <sub>▶ <a href="docs/media/onehumanai.mp4">Watch the full 74-second video with sound</a></sub>
 </p>
 
 ---
